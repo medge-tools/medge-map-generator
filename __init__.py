@@ -14,6 +14,7 @@ bl_info = {
 import bpy
 from . import auto_load
 from .io_ops import MET_OT_ImportDataset
+from .props import *
 
 
 def menu_func_import_dataset(self, context):
@@ -27,9 +28,15 @@ def register():
     
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_dataset)
 
+    bpy.types.Scene.medge_dataset_settings = bpy.props.PointerProperty(type=MET_SCENE_PG_DatasetSettings)
+    bpy.types.Mesh.medge_dataset = bpy.props.PointerProperty(type=MET_MESH_PG_Dataset)
+
 
 # =============================================================================
 def unregister():
+    del bpy.types.Mesh.medge_dataset
+    del bpy.types.Scene.medge_dataset_settings
+
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_dataset)
 
     auto_load.unregister()

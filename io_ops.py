@@ -1,11 +1,11 @@
-from bpy_extras.io_utils import ImportHelper, ExportHelper
-from bpy.props import StringProperty
-from bpy.types import Operator
+from bpy_extras.io_utils    import ImportHelper, ExportHelper
+from bpy.props              import StringProperty
+from bpy.types              import Operator
 
-from .dataset import MET_Dataset
+from .dataset import DatasetIO
 
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 class MET_OT_ImportDataset(Operator, ImportHelper):
     bl_idname = "medge_tools.import_dataset"
     bl_label = "Import Dataset"
@@ -19,12 +19,12 @@ class MET_OT_ImportDataset(Operator, ImportHelper):
 
 
     def execute(self, context):
-        MET_Dataset().import_from_file(self.filepath)
+        DatasetIO().import_from_file(self.filepath)
 
         return {'FINISHED'}
     
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 class MET_OT_ExportDataset(Operator, ExportHelper):
     bl_idname = "medge_tools.export_dataset"
     bl_label = "Export Dataset"
@@ -38,6 +38,6 @@ class MET_OT_ExportDataset(Operator, ExportHelper):
 
 
     def execute(self, context):
-        dataset = MET_Dataset()
+        dataset = DatasetIO()
 
         return {'FINISHED'}
