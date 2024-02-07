@@ -9,4 +9,4 @@ class MET_MESH_PG_Dataset(PropertyGroup):
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_DatasetSettings(PropertyGroup):
-    has_draw_handle : BoolProperty(name='Has Draw Handle', default=False)
+    invoked_add_draw_handles : IntProperty(name='Invoked Add Draw Handle', default=-1)

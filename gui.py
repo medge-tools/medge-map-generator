@@ -18,6 +18,6 @@ class MET_PT_Dataset(bpy.types.Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
 
-        layout.operator(ops.MET_OT_DatavisHandler.bl_idname, text='Add Handle')
+        layout.operator(ops.MET_OT_AddDatavisDrawHandle.bl_idname, text='Add Handle')
         dataset = dsu.get_medge_dataset(obj)
         layout.prop(dataset, 'overlay_data')

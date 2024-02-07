@@ -101,7 +101,7 @@ class DatasetVis:
         region_3d = context.space_data.region_3d
 
         player_states = [0] * len(mesh.vertices)
-        x = mesh.attributes[PLAYER_STATE]
+        mesh.attributes[PLAYER_STATE].data.foreach_get('value', player_states)
 
         T = obj.matrix_world
 
