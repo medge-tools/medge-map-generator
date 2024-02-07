@@ -1,4 +1,5 @@
-import  bpy
+import bpy
+import  bmesh
 import  blf
 from    bpy_extras  import view3d_utils
 from    mathutils   import Vector
@@ -8,6 +9,7 @@ import json
 
 from . import utils
 from . import dataset_utils as dsu
+
 
 # -----------------------------------------------------------------------------
 TIMESTAMP = 'timestamp'
@@ -83,36 +85,48 @@ class DatasetIO:
 
 
 # -----------------------------------------------------------------------------
+bmeshes = {}
+draw_handle = None
+
 class DatasetVis:
+    def __init__(self, context) -> None:
+        draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
 
-    @staticmethod
-    def draw_callback_px(caller, context: Context):
-        obj = context.active_object
 
-        if not obj: return
+    def remove_handle(self):
+        bpy.types.SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
 
-        mesh : Mesh = obj.data
-        dataset = dsu.get_medge_dataset(obj)
 
-        if not dataset.overlay_data: return
+    def draw_callback(self, context: Context):
+        obj = context.object
+
+        if obj.mode != 'EDIT': return
+
+        mesh = obj.data
+        
         if PLAYER_STATE not in mesh.attributes: return
+        if context.mode == 'EDIT_MESH':
+            bmeshes.setdefault(mesh.name, bmesh.from_edit_mesh(mesh))
 
         region = context.region
         region_3d = context.space_data.region_3d
 
-        player_states = [0] * len(mesh.vertices)
-        mesh.attributes[PLAYER_STATE].data.foreach_get('value', player_states)
+        bm = bmeshes[mesh.name]
+        layer = bm.verts.layers.int.get(PLAYER_STATE)
 
-        T = obj.matrix_world
-
-        for k, vert in enumerate(mesh.vertices):
-            co = view3d_utils.location_3d_to_region_2d(region, region_3d, T@vert.co)
+        for vert in bm.verts:
+            point = obj.matrix_world @ vert.co
+            co = view3d_utils.location_3d_to_region_2d(region, region_3d, point)
+            
             if not co: continue
-            state = player_states[k]
+
+            state = vert[layer]
             
             blf.size(0, 13, 72)
             blf.position(0, co[0], co[1], 0)
             blf.draw(0, str(state))
+
 
 # -----------------------------------------------------------------------------
 class DatasetOps:

@@ -10,18 +10,20 @@ bl_info = {
 }
 
 
-# =============================================================================
-import bpy
-from . import auto_load
-from .io_ops import MET_OT_ImportDataset
-from .props import *
+# -----------------------------------------------------------------------------
+import  bpy
+from    .           import auto_load
+from    .io_ops     import MET_OT_ImportDataset
+from    .props      import *
+from    .dataset    import *
 
 
+# -----------------------------------------------------------------------------
 def menu_func_import_dataset(self, context):
     self.layout.operator(MET_OT_ImportDataset.bl_idname, text='MEdge Dataset (.json)')
 
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 def register():
     auto_load.init()
     auto_load.register()
@@ -32,7 +34,7 @@ def register():
     bpy.types.Mesh.medge_dataset = bpy.props.PointerProperty(type=MET_MESH_PG_Dataset)
 
 
-# =============================================================================
+# -----------------------------------------------------------------------------
 def unregister():
     del bpy.types.Mesh.medge_dataset
     del bpy.types.Scene.medge_dataset_settings
