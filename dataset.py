@@ -1,15 +1,16 @@
-import bpy
-import  bmesh
-import  blf
+import  bpy, blf, bmesh
 from    bpy_extras  import view3d_utils
 from    mathutils   import Vector
-from    bpy.types   import Context, Object, Mesh, Operator
+from    bpy.types   import Context, Object
+from    .props      import *
 
 import json
 
 from . import utils
-from . import dataset_utils as dsu
 
+# -----------------------------------------------------------------------------
+def get_medge_dataset(obj: Object) -> MET_MESH_PG_Dataset:
+    return obj.data.medge_dataset
 
 # -----------------------------------------------------------------------------
 TIMESTAMP = 'timestamp'
@@ -86,46 +87,63 @@ class DatasetIO:
 
 # -----------------------------------------------------------------------------
 bmeshes = {}
-draw_handle = None
 
 class DatasetVis:
     def __init__(self, context) -> None:
-        draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+        self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
             self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
 
 
     def remove_handle(self):
-        bpy.types.SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
+        bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle, 'WINDOW')
 
 
     def draw_callback(self, context: Context):
+        # Validate
         obj = context.object
 
+        if not obj: return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
-        
+
         if PLAYER_STATE not in mesh.attributes: return
         if context.mode == 'EDIT_MESH':
-            bmeshes.setdefault(mesh.name, bmesh.from_edit_mesh(mesh))
-
+            bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
+        else:
+            bmeshes.clear()
+            return
+        
+        # Draw 
         region = context.region
         region_3d = context.space_data.region_3d
 
-        bm = bmeshes[mesh.name]
-        layer = bm.verts.layers.int.get(PLAYER_STATE)
+        state_layer = bm.verts.layers.int.get(PLAYER_STATE)
+        time_layer = bm.verts.layers.float_vector.get(TIMESTAMP)
+
+        dataset = get_medge_dataset(obj)
+        font_size = dataset.font_size
 
         for vert in bm.verts:
+            if dataset.overlay_selection:
+                if not vert.select: continue
+
             point = obj.matrix_world @ vert.co
             co = view3d_utils.location_3d_to_region_2d(region, region_3d, point)
             
             if not co: continue
 
-            state = vert[layer]
+            state = vert[state_layer]
+            ts = vert[time_layer]
             
-            blf.size(0, 13, 72)
+            blf.size(0, font_size)
             blf.position(0, co[0], co[1], 0)
+            blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
+
+            blf.size(0, font_size * 1.5)
+            blf.position(0, co[0] - font_size, co[1] + font_size, 0)
             blf.draw(0, str(state))
+
 
 
 # -----------------------------------------------------------------------------
