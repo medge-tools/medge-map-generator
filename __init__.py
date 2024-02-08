@@ -31,7 +31,6 @@ def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_dataset)
 
     bpy.types.Mesh.medge_dataset = bpy.props.PointerProperty(type=MET_MESH_PG_Dataset)
-    bpy.types.Scene.invoked_datavis = bpy.props.BoolProperty(default=False)
 
 # -----------------------------------------------------------------------------
 def unregister():

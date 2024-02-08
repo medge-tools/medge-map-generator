@@ -10,11 +10,6 @@ class MET_OT_InitDatavis(Operator):
     datavis = None
 
     def invoke(self, context: Context, event: Event):
-        scene = context.scene
-        # if scene.invoked_datavis: 
-        #     return {'CANCELLED'}
-
-        scene.invoked_datavis = True
         context.window_manager.modal_handler_add(self)
         self.datavis = DatasetVis(context) 
         return {'RUNNING_MODAL'}

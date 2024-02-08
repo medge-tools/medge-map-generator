@@ -21,8 +21,7 @@ class MET_PT_Dataset(bpy.types.Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
 
-        if not scene.invoked_datavis:
-            layout.operator(MET_OT_InitDatavis.bl_idname, text='Init Datavis')
-        else:
-            dataset = ds.get_medge_dataset(obj)
-            dataset.draw(layout)
+        layout.operator(MET_OT_InitDatavis.bl_idname, text='Init Datavis')
+        
+        dataset = ds.get_medge_dataset(obj)
+        dataset.draw(layout)
