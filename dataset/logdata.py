@@ -1,17 +1,15 @@
 import  bpy, blf, bmesh
 from    bpy_extras  import view3d_utils
 from    mathutils   import Vector
-from    bpy.types   import Context, Object
-from    .props      import *
+from    bpy.types   import Context
+from    bmesh.types import BMesh
 
 import json
 
-from . import b3d_utils
-from . import movement
+from .  import props
+from .. import b3d_utils
+from .  import movement
 
-# -----------------------------------------------------------------------------
-def get_medge_dataset(obj: Object) -> MET_MESH_PG_Dataset:
-    return obj.data.medge_dataset
 
 # -----------------------------------------------------------------------------
 ATTR_TIMESTAMP = 'timestamp'
@@ -19,7 +17,7 @@ ATTR_PLAYER_STATE = 'player_state'
 ATTR_LOCATION = 'location'
 
 
-class DatasetIO:
+class LogDataIO:
     def import_from_file(self, filepath: str) -> None:
         with open(filepath, 'r') as f:
             log = json.load(f)
@@ -74,9 +72,18 @@ class DatasetIO:
         # Add to scene
         mesh = b3d_utils.create_mesh(verts, edges, [], 'PLAYER_PATH')
         obj = b3d_utils.new_object('PLAYER PATH', mesh)  
+        prop = props.get_dataset(obj)
+        prop.is_dataset = True
 
         # Add attributes
-        timestamps = b3d_utils.unpack([entry[ATTR_TIMESTAMP] for entry in entries])
+        packed: list[Vector] = [entry[ATTR_TIMESTAMP] for entry in entries]
+        timestamps = [0] * len(packed) * 3
+
+        for k in range(len(packed)): 
+            timestamps[k * 3 + 0] = packed[k].x
+            timestamps[k * 3 + 1] = packed[k].y
+            timestamps[k * 3 + 2] = packed[k].z
+
         player_states = [entry[ATTR_PLAYER_STATE] for entry in entries]
 
         a = obj.data.attributes.new(name=ATTR_TIMESTAMP, type='FLOAT_VECTOR', domain='POINT')
@@ -87,74 +94,31 @@ class DatasetIO:
 
 
 # -----------------------------------------------------------------------------
-bmeshes = {}
+class LogDataOps:
 
-class DatasetVis:
-    def __init__(self, context) -> None:
-        self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
-            self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
-
-
-    def remove_handle(self):
-        bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle, 'WINDOW')
-
-
-    def draw_callback(self, context: Context):
-        # Validate
-        obj = context.object
-
-        if not obj: return
-        if obj.mode != 'EDIT': return
-
-        mesh = obj.data
-
-        if ATTR_PLAYER_STATE not in mesh.attributes: return
-        if context.mode == 'EDIT_MESH':
-            bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
-        else:
-            bmeshes.clear()
-            return
-        
-        # Draw 
-        region = context.region
-        region_3d = context.space_data.region_3d
-
+    @staticmethod
+    def get_data(bm: BMesh):
         state_layer = bm.verts.layers.int.get(ATTR_PLAYER_STATE)
         time_layer = bm.verts.layers.float_vector.get(ATTR_TIMESTAMP)
 
-        vis_settings = get_medge_dataset(obj).vis_settings
-        font_size = vis_settings.font_size
+        timestamps = []
+        states = []
+        locations = []
 
         for vert in bm.verts:
-            if vis_settings.only_selection:
-                if not vert.select: continue
-
-            point = obj.matrix_world @ vert.co
-            co = view3d_utils.location_3d_to_region_2d(region, region_3d, point)
+            ts = vert[time_layer]
+            state = vert[state_layer]
+            loc = vert.co
             
-            if not co: continue
+            timestamps.append(ts)
+            states.append(state)
+            locations.append(loc)
 
-            if vis_settings.show_timestamps:
-                ts = vert[time_layer]
-                
-                blf.size(0, font_size)
-                blf.position(0, co[0], co[1], 0)
-                blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
-                co[1] += font_size
-
-            idx = vert[state_layer]
-            state = movement.State(idx).name
-
-            blf.size(0, font_size * 1.5)
-            blf.position(0, co[0] - font_size, co[1], 0)
-            blf.draw(0, str(state))
+        return timestamps, states, locations
 
 
-
-# -----------------------------------------------------------------------------
-class DatasetOps:
-
-    def select_transitions(self, context: Context):
+    @staticmethod
+    def select_transitions(context: Context):
          # Validate
         obj = context.object
 
@@ -188,6 +152,73 @@ class DatasetOps:
             v2.select = True
 
         bmesh.update_edit_mesh(mesh)
+
+
+# -----------------------------------------------------------------------------
+bmeshes = {}
+
+class LogDataVis:
+    def __init__(self, context) -> None:
+        self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+            self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
+
+
+    def remove_handle(self):
+        bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle, 'WINDOW')
+
+
+    def draw_callback(self, context: Context):
+        global bmeshes
+        # Validate
+        obj = context.object
+
+        if not obj: return
+        if obj.mode != 'EDIT': return
+
+        mesh = obj.data
+
+        if ATTR_PLAYER_STATE not in mesh.attributes: return
+        if context.mode == 'EDIT_MESH':
+            bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
+        else:
+            bmeshes.clear()
+            return
+        
+        # Draw 
+        region = context.region
+        region_3d = context.space_data.region_3d
+
+        state_layer = bm.verts.layers.int.get(ATTR_PLAYER_STATE)
+        time_layer = bm.verts.layers.float_vector.get(ATTR_TIMESTAMP)
+
+        vis_settings = props.get_dataset(obj).vis_settings
+        font_size = vis_settings.font_size
+
+        for vert in bm.verts:
+            if vis_settings.only_selection:
+                if not vert.select: continue
+
+            point = obj.matrix_world @ vert.co
+            co = view3d_utils.location_3d_to_region_2d(region, region_3d, point)
+            
+            if not co: continue
+
+            if vis_settings.show_timestamps:
+                ts = vert[time_layer]
+                
+                blf.size(0, font_size)
+                blf.position(0, co[0], co[1], 0)
+                blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
+                co[1] += font_size
+
+            state = vert[state_layer]
+            
+            if vis_settings.to_name:
+                state = movement.State(state).name
+
+            blf.size(0, font_size * 1.5)
+            blf.position(0, co[0] - font_size, co[1], 0)
+            blf.draw(0, str(state))
 
 
 

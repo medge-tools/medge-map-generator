@@ -1,8 +1,7 @@
-import  bpy
-from    bpy.types   import Context
+from    bpy.types   import Context, Panel
 from    .ops        import *
-from    .           import dataset as ds
 
+from . import props
 
 # -----------------------------------------------------------------------------
 class DatasetMainPanel:
@@ -10,15 +9,17 @@ class DatasetMainPanel:
     bl_region_type = 'UI'
     bl_category = 'MEdge Tools'
 
-class MET_PT_DatasetMainPanel(DatasetMainPanel, bpy.types.Panel):
+
+class MET_PT_DatasetMainPanel(DatasetMainPanel, Panel):
     bl_idname = 'MET_PT_DatasetMainPanel'
     bl_label = 'Dataset'
     
     def draw(self, context: Context):
         pass
 
+
 # -----------------------------------------------------------------------------
-class MET_PT_DatasetVis(DatasetMainPanel, bpy.types.Panel):
+class MET_PT_DatasetVis(DatasetMainPanel, Panel):
     bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
     bl_label = 'Visualization'
 
@@ -29,21 +30,31 @@ class MET_PT_DatasetVis(DatasetMainPanel, bpy.types.Panel):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
-
+        
         col = layout.column(align=True)
         row = col.row(align=True)
 
-        row.operator(MET_OT_InitDatavis.bl_idname, text='Init')
-        row.operator(MET_OT_ResetDatavis.bl_idname, text='Reset')
+        row.operator(MET_OT_EnableDatavis.bl_idname, text='Enable')
+        row.operator(MET_OT_ResetDatavis.bl_idname, text='Disable')
         
-        col.separator(factor=2)
-        
-        dataset = ds.get_medge_dataset(obj)
-        dataset.vis_settings.draw(col)
+        if props.is_datavis_enabled(context):
+            
+            layout.separator(factor=2)
+            
+            vis_settings = props.get_dataset(obj).vis_settings
+            
+            col = layout.column(align=True)
+            col.prop(vis_settings, 'overlay_data')
+
+            if vis_settings.overlay_data:
+                col.prop(vis_settings, 'to_name')
+                col.prop(vis_settings, 'only_selection')
+                col.prop(vis_settings, 'show_timestamps')
+                col.prop(vis_settings, 'font_size')
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_DatasetOps(DatasetMainPanel, bpy.types.Panel):
+class MET_PT_DatasetOps(DatasetMainPanel, Panel):
     bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
     bl_label = 'Operations'
 

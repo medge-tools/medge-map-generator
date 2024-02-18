@@ -1,6 +1,6 @@
 import  bpy
 import  bmesh
-from    bpy.types   import Object
+from    bpy.types   import Object, Mesh
 from    bmesh.types import BMesh
 from    mathutils   import Vector, Matrix, Euler
 
@@ -19,7 +19,7 @@ def set_active(obj: Object):
 
 
 # -----------------------------------------------------------------------------
-def set_object_mode(obj: Object, m = 'OBJECT'):
+def set_object_mode(obj: Object, m):
     bpy.context.view_layer.objects.active = obj
     bpy.ops.object.mode_set(mode=m)
 
@@ -116,7 +116,7 @@ def remove_object(obj: Object):
 
 
 # -----------------------------------------------------------------------------
-def copy_object(obj: Object) -> bpy.types.Object:
+def copy_object(obj: Object) -> Object:
     copy = obj.copy()
     copy.data = obj.data.copy()
     link_to_scene(copy)
@@ -128,14 +128,14 @@ def create_mesh(
         verts: list[tuple[float, float, float]], 
         edges: list[tuple[int, int]], 
         faces: list[tuple[int, ...]], 
-        name: str) -> bpy.types.Mesh:
+        name: str) -> Mesh:
     mesh = bpy.data.meshes.new(name)
     mesh.from_pydata(verts, edges, faces)
     return mesh
 
 
 # -----------------------------------------------------------------------------
-def remove_mesh(mesh: bpy.types.Mesh):
+def remove_mesh(mesh: Mesh):
     # Extra test because this can crash Blender if not done correctly.
     result = False
     if mesh and mesh.users == 0: 
@@ -154,7 +154,7 @@ def remove_mesh(mesh: bpy.types.Mesh):
 
 # -----------------------------------------------------------------------------
 # https://blenderartists.org/t/how-to-replace-a-mesh/596225/4
-def set_mesh(obj: Object, mesh: bpy.types.Mesh):
+def set_mesh(obj: Object, mesh: Mesh):
     old_mesh = obj.data
     obj.data = mesh
     remove_mesh(old_mesh)
@@ -162,7 +162,7 @@ def set_mesh(obj: Object, mesh: bpy.types.Mesh):
 
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/50160/scripting-low-level-join-meshes-elements-hopefully-with-bmesh
-def join_meshes(meshes: list[bpy.types.Mesh]):
+def join_meshes(meshes: list[Mesh]):
     bm = bmesh.new()
     bm_verts = bm.verts.new
     bm_faces = bm.faces.new
@@ -214,7 +214,7 @@ def convert_to_new_mesh(obj: Object) -> bpy.types.Object:
 
 
 # -----------------------------------------------------------------------------
-def transform(mesh: bpy.types.Mesh, transforms: list[Matrix]):
+def transform(mesh: Mesh, transforms: list[Matrix]):
     mode = bpy.context.mode
     bm = bmesh.new()
 
@@ -283,7 +283,7 @@ def unparent(obj: Object, keep_world_location = True):
 # CREATE
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def create_cube(scale: tuple[float, float, float] = (1, 1, 1)) -> bpy.types.Mesh:
+def create_cube(scale: tuple[float, float, float] = (1, 1, 1)) -> Mesh:
     verts = [
         Vector((-1 * scale[0], -1 * scale[1], -1 * scale[2])),
         Vector((-1 * scale[0],  1 * scale[1], -1 * scale[2])),
@@ -306,7 +306,7 @@ def create_cube(scale: tuple[float, float, float] = (1, 1, 1)) -> bpy.types.Mesh
 
 
 # -----------------------------------------------------------------------------
-def create_arrow(scale: tuple[float, float] = (1, 1)) -> bpy.types.Mesh:
+def create_arrow(scale: tuple[float, float] = (1, 1)) -> Mesh:
     verts = [
         Vector((-1 * scale[0],  0.4 * scale[1], 0)),
         Vector(( 0 * scale[0],  0.4 * scale[1], 0)),
@@ -350,7 +350,7 @@ def create_cylinder(radius = 2,
                     height = 2, 
                     row_height = 1, 
                     angle_step = 10, 
-                    make_faces = True) -> bpy.types.Mesh:
+                    make_faces = True) -> Mesh:
     height += 1
     verts = []
     per_circle_verts = 0
@@ -383,10 +383,10 @@ def create_curve(num_points = 3,
     curve = bpy.data.curves.new('CURVE', 'CURVE')
     path = curve.splines.new('NURBS')
     curve.dimensions = '3D'
-    path.points.add(len(num_points) - 1)
+    path.points.add(num_points - 1)
 
     for k in range(num_points):
-        p = Vector(dir) * Vector((1, 1, 1)) * step * k
+        p = Vector(dir) * step * k
         path.points[k].co = (*p, 1)
 
     path.use_endpoint_u = True

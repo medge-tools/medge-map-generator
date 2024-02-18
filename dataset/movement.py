@@ -1,5 +1,6 @@
 from enum import Enum
 
+
 class State(Enum):
     NONE                           = 0
     Walking                        = 1
@@ -95,4 +96,4 @@ class State(Enum):
     SkillRoll                      = 91
     BotGetDistance                 = 92
     Cutscene                       = 93
-#   MAX                            = 94
+    MAX                            = 94
