@@ -1,7 +1,7 @@
 from bpy.types      import PropertyGroup, Object, Mesh, Scene
 from bpy.props      import *
 
-from .logdata       import *
+from .dataset       import *
 
 
 # -----------------------------------------------------------------------------
@@ -37,13 +37,17 @@ def is_dataset(obj: Object):
 
 
 # -----------------------------------------------------------------------------
+datavis_is_enabled = False
+
 def is_datavis_enabled(context: Context):
-    return context.scene.medge_datavis_enabled
+    global datavis_is_enabled
+    return datavis_is_enabled
 
 
 # -----------------------------------------------------------------------------
 def set_datavis_enabeld(context: Context, state: bool):
-    context.scene.medge_datavis_enabled = state
+    global datavis_is_enabled
+    datavis_is_enabled = state
 
 # -----------------------------------------------------------------------------
 # REGISTRATION
@@ -51,10 +55,8 @@ def set_datavis_enabeld(context: Context, state: bool):
 # -----------------------------------------------------------------------------
 def register():
     Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
-    Scene.medge_datavis_enabled = BoolProperty(default=False)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    del Scene.medge_datavis_enabled
     del Mesh.medge_dataset

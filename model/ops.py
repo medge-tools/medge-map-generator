@@ -19,6 +19,25 @@ class MET_OT_CreateTransitionMatrix(Operator):
         
 
 # -----------------------------------------------------------------------------
+class MET_OT_GenerateChain(Operator):
+    bl_idname = 'medge_markov_model.generate_chain'
+    bl_label = 'Generate Chain'
+
+
+    @classmethod
+    def poll(cls, context):
+        chains = props.get_markov_chains(context)
+        item = chains.get_selected()
+        return item.has_transition_matrix
+
+
+    def execute(self, context: Context):
+        chains = props.get_markov_chains(context)
+        item = chains.get_selected()
+        item.generate_chain(context)
+        return {'FINISHED'}        
+
+# -----------------------------------------------------------------------------
 # COLLECTION OPERATORS
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------

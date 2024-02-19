@@ -10,29 +10,41 @@ markov_chain_models = {}
 class MET_PG_MarkovChain(PropertyGroup):
 
     def create_transition_matrix(self, context: Context):
-        global markov_chain_models
-        mc = markov_chain_models.setdefault(self.collection.name, MarkovChain())
-
         objects = []
         for obj in self.collection.all_objects:
             if not dataset_props.is_dataset(obj): continue
             objects.append(obj)
 
+        if len(objects) == 0: return
+
+        global markov_chain_models
+        mc: MarkovChain = markov_chain_models.setdefault(self.name, MarkovChain())
         mc.create_transition_matrix(objects)
 
-    def __on_collection_update(self, context):
+
+    def generate_chain(self, context: Context):
         global markov_chain_models
-        name = self.collection.name
-        markov_chain_models.setdefault(name, MarkovChain())
+
+        if not self.name in markov_chain_models:
+            return
+
+        mc: MarkovChain = markov_chain_models[self.name]
+        mc.generate_chain(self.length, self.seed)
 
 
-    def get_name(self):
+    def __get_name(self):
         if self.collection:
             return self.collection.name
         return ''
 
-    name: StringProperty(name='Name', get=get_name)
-    collection: PointerProperty(type=Collection, name='Collection', update=__on_collection_update)
+    def __get_has_transition_matrix(self):
+        return self.name in markov_chain_models
+
+    name: StringProperty(name='Name', get=__get_name)
+    collection: PointerProperty(type=Collection, name='Collection')
+    has_transition_matrix: BoolProperty(default=False, get=__get_has_transition_matrix)
+    length: IntProperty(name='Length', default=100)
+    seed: IntProperty(name='Seed', default=2024)
 
 # -----------------------------------------------------------------------------
 class MET_UL_GenericList(UIList):

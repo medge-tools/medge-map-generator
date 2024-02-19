@@ -3,7 +3,7 @@ from bpy.types              import Operator, Context, Event
 from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
-from .logdata   import *
+from .dataset   import *
 from .          import props
 
 
@@ -24,7 +24,7 @@ class MET_OT_ImportDataset(Operator, ImportHelper):
 
 
     def execute(self, context):
-        LogDataIO().import_from_file(self.filepath)
+        DatasetIO().import_from_file(self.filepath)
 
         return {'FINISHED'}
     
@@ -43,7 +43,7 @@ class MET_OT_ExportDataset(Operator, ExportHelper):
 
 
     def execute(self, context):
-        dataset = LogDataIO()
+        dataset = DatasetIO()
 
         return {'FINISHED'}
 
@@ -67,7 +67,7 @@ class MET_OT_EnableDatavis(Operator):
     def invoke(self, context: Context, event: Event):
         context.window_manager.modal_handler_add(self)
 
-        self.datavis = LogDataVis(context) 
+        self.datavis = DatasetVis(context) 
 
         context.area.tag_redraw()
 
@@ -125,5 +125,5 @@ class MET_OT_SelectTransitions(Operator):
 
 
     def execute(self, context: Context):
-        LogDataOps.select_transitions(context)
+        DatasetOps.select_transitions(context)
         return {'FINISHED'}

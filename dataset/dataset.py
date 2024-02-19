@@ -12,35 +12,43 @@ from .  import movement
 
 
 # -----------------------------------------------------------------------------
-ATTR_TIMESTAMP = 'timestamp'
-ATTR_PLAYER_STATE = 'player_state'
-ATTR_LOCATION = 'location'
+class Attributes:
+    TIMESTAMP = 'timestamp'
+    PLAYER_STATE = 'player_state'
+    LOCATION = 'location'
 
 
-class LogDataIO:
+class Dataset(list):
+    def append(self, player_state: int, location: Vector, timestamp = Vector((0, 0, 0))):
+        super().append({
+            Attributes.TIMESTAMP    : timestamp,
+            Attributes.PLAYER_STATE : player_state,
+            Attributes.LOCATION     : location,
+        })
+
+
+# -----------------------------------------------------------------------------
+class DatasetIO:
     def import_from_file(self, filepath: str) -> None:
         with open(filepath, 'r') as f:
             log = json.load(f)
 
-        entries = []
+        dataset = Dataset()
 
         for item in log:
-            entry = {}
+            player_state = int(item[Attributes.PLAYER_STATE])
 
-            ts = str(item[ATTR_TIMESTAMP]).split(':')
-            entry[ATTR_TIMESTAMP] = Vector(( float(ts[0]), float(ts[1]), float(ts[2]) ))
+            ts = str(item[Attributes.TIMESTAMP]).split(':')
+            timestamp = Vector(( float(ts[0]), float(ts[1]), float(ts[2]) ))
 
-            entry[ATTR_PLAYER_STATE] = int(item[ATTR_PLAYER_STATE])
+            x = float(item[Attributes.LOCATION]['x'])
+            y = float(item[Attributes.LOCATION]['y'])
+            z = float(item[Attributes.LOCATION]['z'])
+            location = Vector((x * -1, y, z))
 
-            x = float(item[ATTR_LOCATION]['x'])
-            y = float(item[ATTR_LOCATION]['y'])
-            z = float(item[ATTR_LOCATION]['z'])
-            entry[ATTR_LOCATION] = Vector((x * -1, y, z))
-
-            entries.append(entry)
+            dataset.append(player_state, location, timestamp)
         
-        self.create_scene(entries)
-
+        DatasetOps.create_polyline(dataset)
 
     def write_to_file(self, filepath: str) -> None:
         pass
@@ -58,13 +66,17 @@ class LogDataIO:
         #     fp.write(dump)
 
 
-    def create_scene(self, entries : list) -> None:
+# -----------------------------------------------------------------------------
+class DatasetOps:
+
+    @staticmethod
+    def create_polyline(dataset: Dataset):
         # Create polyline
         verts = []
         edges = []
         
-        for entry in entries:
-            verts.append( entry[ATTR_LOCATION] )
+        for entry in dataset:
+            verts.append( entry[Attributes.LOCATION] )
             
         for i in range(len(verts) - 1):
             edges.append( (i, i + 1) )
@@ -76,7 +88,7 @@ class LogDataIO:
         prop.is_dataset = True
 
         # Add attributes
-        packed: list[Vector] = [entry[ATTR_TIMESTAMP] for entry in entries]
+        packed: list[Vector] = [entry[Attributes.TIMESTAMP] for entry in dataset]
         timestamps = [0] * len(packed) * 3
 
         for k in range(len(packed)): 
@@ -84,22 +96,19 @@ class LogDataIO:
             timestamps[k * 3 + 1] = packed[k].y
             timestamps[k * 3 + 2] = packed[k].z
 
-        player_states = [entry[ATTR_PLAYER_STATE] for entry in entries]
+        player_states = [entry[Attributes.PLAYER_STATE] for entry in dataset]
 
-        a = obj.data.attributes.new(name=ATTR_TIMESTAMP, type='FLOAT_VECTOR', domain='POINT')
+        a = obj.data.attributes.new(name=Attributes.TIMESTAMP, type='FLOAT_VECTOR', domain='POINT')
         a.data.foreach_set('vector', timestamps)
         
-        b = obj.data.attributes.new(name=ATTR_PLAYER_STATE, type='INT', domain='POINT')
+        b = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
         b.data.foreach_set('value', player_states)  
 
 
-# -----------------------------------------------------------------------------
-class LogDataOps:
-
     @staticmethod
     def get_data(bm: BMesh):
-        state_layer = bm.verts.layers.int.get(ATTR_PLAYER_STATE)
-        time_layer = bm.verts.layers.float_vector.get(ATTR_TIMESTAMP)
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
+        time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
         timestamps = []
         states = []
@@ -127,7 +136,7 @@ class LogDataOps:
 
         mesh = obj.data
 
-        if ATTR_PLAYER_STATE not in mesh.attributes: return
+        if Attributes.PLAYER_STATE not in mesh.attributes: return
         if context.mode == 'EDIT_MESH':
             bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
         else:
@@ -135,7 +144,7 @@ class LogDataOps:
             return
 
         # Select transitions
-        state_layer = bm.verts.layers.int.get(ATTR_PLAYER_STATE)
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
 
         b3d_utils.deselect_all_vertices(bm)
 
@@ -157,7 +166,7 @@ class LogDataOps:
 # -----------------------------------------------------------------------------
 bmeshes = {}
 
-class LogDataVis:
+class DatasetVis:
     def __init__(self, context) -> None:
         self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
             self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
@@ -177,7 +186,7 @@ class LogDataVis:
 
         mesh = obj.data
 
-        if ATTR_PLAYER_STATE not in mesh.attributes: return
+        if Attributes.PLAYER_STATE not in mesh.attributes: return
         if context.mode == 'EDIT_MESH':
             bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
         else:
@@ -188,8 +197,8 @@ class LogDataVis:
         region = context.region
         region_3d = context.space_data.region_3d
 
-        state_layer = bm.verts.layers.int.get(ATTR_PLAYER_STATE)
-        time_layer = bm.verts.layers.float_vector.get(ATTR_TIMESTAMP)
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
+        time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
         vis_settings = props.get_dataset(obj).vis_settings
         font_size = vis_settings.font_size

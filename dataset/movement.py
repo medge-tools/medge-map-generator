@@ -1,7 +1,7 @@
-from enum import Enum
+from enum import IntEnum
 
 
-class State(Enum):
+class State(IntEnum):
     NONE                           = 0
     Walking                        = 1
     Falling                        = 2
