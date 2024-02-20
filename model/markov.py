@@ -3,8 +3,7 @@ from mathutils          import Vector
 import bmesh
 
 import numpy as np
-from enum   import IntEnum
-from sys    import float_info
+from collections.abc import MutableMapping
 
 from ..                 import b3d_utils
 from ..dataset.dataset  import Attributes, Dataset, DatasetOps
@@ -12,43 +11,57 @@ from ..dataset          import movement
 
 
 # -----------------------------------------------------------------------------
-class Direction(IntEnum):
-    UP          = 0
-    DOWN        = 1
-    LEFT        = 2
-    RIGHT       = 3
-    FORWARD     = 4
-    BACKWARD    = 5
+class Offset(MutableMapping):
+    def __init__(self, *args, **kwargs):
+        self.store = dict()
+        self.update(dict(*args, **kwargs))  # use the free update to set keys
 
 
-# -----------------------------------------------------------------------------
-direction_vectors = {
-    Direction.UP        : Vector(( 0,  0,  1)),
-    Direction.DOWN      : Vector(( 0,  0, -1)),
-    Direction.LEFT      : Vector((-1,  0,  0)),
-    Direction.RIGHT     : Vector(( 1,  0,  0)),
-    Direction.FORWARD   : Vector(( 0,  1,  0)),
-    Direction.BACKWARD  : Vector(( 0, -1,  0)),
-}
+    def __getitem__(self, key):
+        return self.store[self._keytransform(key)]
 
 
-# -----------------------------------------------------------------------------
-class Offset(list):
-
-    def __init__(self):
-        super().__init__(range(len(Direction)))
+    def __setitem__(self, key, value):
+        self.store[self._keytransform(key)] = value
 
 
-    def append(self, offset: Vector) -> None:
-        min_angle = float_info.max
-        index = -1
-        for k, v in direction_vectors.items():
-            angle = offset.dot(v)
-            if angle < min_angle:
-                min_angle = angle
-                index = k
+    def __delitem__(self, key):
+        del self.store[self._keytransform(key)]
 
-        self[index] += 1
+
+    def __iter__(self):
+        return iter(self.store)
+    
+
+    def __len__(self):
+        return len(self.store)
+
+
+    def _keytransform(self, key):
+        return key
+
+
+    def add(self, offset: Vector, min_dot: float = .75):
+        offset.normalize()
+        curr_dot = -1
+        key = None
+
+        for k in self.store.keys():
+            dot = offset.dot(k)
+            if dot > curr_dot and dot >= min_dot:
+                curr_dot = dot
+                key = k
+        
+        if key != None:
+            self.store[key] += 1
+        else:
+            self.store.setdefault(offset.freeze(), 1)
+
+        
+    def normalize(self):
+        factor = 1.0 / sum(self.store.values())
+        for k, v in self.store.items():
+            self.store[k] = v * factor
 
 
 # -----------------------------------------------------------------------------
@@ -64,23 +77,10 @@ class MarkovChain:
         self.timestamps = []
         self.states = []
         self.locations = []
-        self.nstates = 0
 
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
     def create_transition_matrix(self, objects: list[Object]):
-
-        def normalize(l):
-            s = sum(l)
-            if s > 0: 
-                factor = 1.0/s
-                normalized = [float(k) * factor for k in l]
-                x = len(np.argwhere(np.isnan(normalized)))
-                assert x == 0
-                return normalized
-            return l
-        
-
         self.reset()
 
         bm = bmesh.new()
@@ -101,21 +101,30 @@ class MarkovChain:
 
         TM = np.zeros((n, n), dtype=float)  # Transition matrix
         OM = [[Offset()]*n]*n               # Offset matrix
+        
 
-        # Populate matrices
-        for (i,j) in zip(self.states, self.states[1:]):
-            start = self.locations[i]
-            end = self.locations[j]
-            
+        # Populate transition matrix
+        transitions = zip(self.states, self.states[1:])
+        
+        for k, (i,j) in enumerate(transitions):
+            start = self.locations[k]
+            end = self.locations[k + 1]
+            offset = end - start
+
             TM[i][j] += 1.0
-            OM[i][j].append(end - start)
+            OM[i][j].add(offset)
 
+            
         # Normalize matrices
         for row in TM:
-            row[:] = normalize(row)
+            s = sum(row)
+            if s > 0: 
+                factor = 1.0/s
+                row[:] = [float(v) * factor for v in row]
 
-        for row in OM:
-            row[:] = [normalize(off) for off in row]
+        for i in range(n):
+            for j in range(n):
+                OM[i][j].normalize()
         
         # Store matrices
         self.transition_matrix = TM
@@ -142,9 +151,10 @@ class MarkovChain:
 
             next_state = np.random.choice(range(n), p=probabilities)
 
-            offset_probs = self.offset_matrix[prev_state][next_state]
-            offset_index = np.random.choice(range(len(Direction)), p=offset_probs)
-            offset       = direction_vectors[offset_index]
+            offset_dict = self.offset_matrix[prev_state][next_state]
+            offset_probs = list(offset_dict.values())
+            offset_idx = np.random.choice(range(len(offset_dict)), p=offset_probs)
+            offset = list(offset_dict)[offset_idx]
 
             player_state = movement.State(next_state)
             location = prev_loc + offset
