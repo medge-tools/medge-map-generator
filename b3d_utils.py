@@ -232,7 +232,27 @@ def transform(mesh: Mesh, transforms: list[Matrix]):
         bm.to_mesh(mesh)
     elif mode == 'EDIT_MESH':
         bmesh.update_edit_mesh(mesh)  
-    bm.free()
+
+
+# -----------------------------------------------------------------------------
+def snap_to_grid(mesh: Mesh,  spacing: int):
+    mode = bpy.context.mode
+    bm = bmesh.new()
+
+    if mode == 'OBJECT':
+        bm.from_mesh(mesh)
+    elif mode == 'EDIT_MESH':
+        bm = bmesh.from_edit_mesh(mesh) 
+
+    for v in bm.verts:
+        v.co.x = round(v.co.x / spacing) * spacing
+        v.co.y = round(v.co.y / spacing) * spacing
+        v.co.z = round(v.co.z / spacing) * spacing
+
+    if mode == 'OBJECT':
+        bm.to_mesh(mesh)
+    elif mode == 'EDIT_MESH':
+        bmesh.update_edit_mesh(mesh)  
 
 
 # -----------------------------------------------------------------------------

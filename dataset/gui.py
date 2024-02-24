@@ -35,7 +35,7 @@ class MET_PT_DatasetVis(DatasetMainPanel, Panel):
         row = col.row(align=True)
 
         row.operator(MET_OT_EnableDatavis.bl_idname, text='Enable')
-        row.operator(MET_OT_ResetDatavis.bl_idname, text='Disable')
+        row.operator(MET_OT_DisableDatavis.bl_idname, text='Disable')
         
         if props.is_datavis_enabled(context):
             
@@ -62,9 +62,14 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
         obj = context.active_object
         if not obj: return
         
+        dataset = props.get_dataset(obj)
+
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
 
         layout.operator(MET_OT_SelectTransitions.bl_idname)
+        layout.separator()
+        layout.prop(dataset, 'spacing')
+        layout.operator(MET_OT_SnapToGrid.bl_idname)
         

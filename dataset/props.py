@@ -19,7 +19,7 @@ class MET_DS_PG_VisSettings(PropertyGroup):
 class MET_MESH_PG_Dataset(PropertyGroup):
     is_dataset: BoolProperty(default=False)
     vis_settings : PointerProperty(type=MET_DS_PG_VisSettings)
-
+    spacing: FloatProperty(name='Spacing', default=2)
 
 
 # -----------------------------------------------------------------------------

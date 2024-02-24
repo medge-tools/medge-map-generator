@@ -1,5 +1,5 @@
 import bpy
-from bpy.types              import Operator, Context, Event
+from bpy.types              import Operator, Context
 from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
@@ -56,37 +56,84 @@ class MET_OT_EnableDatavis(Operator):
     bl_idname   = 'medge_dataset.enable_datavis'
     bl_label    = 'Enable Datavis'
 
-    datavis = None
-
 
     @classmethod
     def poll(cls, context: Context):
         return not props.is_datavis_enabled(context)
 
 
-    def invoke(self, context: Context, event: Event):
-        context.window_manager.modal_handler_add(self)
-
-        self.datavis = DatasetVis(context) 
-
+    def execute(self, context: Context):
+        DatasetVis().add_handle(context)
         context.area.tag_redraw()
-
         props.set_datavis_enabeld(context, True)
+        return{'FINISHED'}
+    
 
-        return {'RUNNING_MODAL'}
+# -----------------------------------------------------------------------------
+class MET_OT_DisableDatavis(Operator):
+    bl_idname   = 'medge_dataset.disable_datavis'
+    bl_label    = 'Disable Datavis'
 
 
-    def modal(self, context: Context, event: Event):
+    @classmethod
+    def poll(cls, context: Context):
+        return props.is_datavis_enabled(context)
+
+
+    def execute(self, context: Context):
+        DatasetVis().remove_handle()
         context.area.tag_redraw()
-
-        if not props.is_datavis_enabled(context):
-            self.datavis.remove_handle()
-            context.area.tag_redraw()
-            return {'CANCELLED'} 
-
-        return {'PASS_THROUGH'}
+        props.set_datavis_enabeld(context, False)
+        return {'FINISHED'}
 
 
+# -----------------------------------------------------------------------------
+# Dataset Operations
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+class MET_OT_SelectTransitions(Operator):
+    bl_idname   = 'medge_dataset.select_transitions'
+    bl_label    = 'Select Transitions'
+
+
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        return props.is_dataset(obj)
+
+
+    def execute(self, context: Context):
+        obj = context.object
+        DatasetOps.select_transitions(obj)
+        return {'FINISHED'}
+    
+
+# -----------------------------------------------------------------------------
+class MET_OT_SnapToGrid(Operator):
+    bl_idname   = 'medge_dataset.snap_to_grid'
+    bl_label    = 'Snap To Grid'
+    bl_options  = {'UNDO'}
+
+    
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        return props.is_dataset(obj)
+    
+
+    def execute(self, context: Context):
+        obj = context.object
+        spacing = props.get_dataset(obj).spacing
+
+        b3d_utils.snap_to_grid(obj.data, spacing)
+        DatasetOps.resolve_overlap(obj)
+        return {'FINISHED'}
+    
+
+
+# -----------------------------------------------------------------------------
+# Register
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def menu_func_import_dataset(self, context):
     self.layout.operator(MET_OT_ImportDataset.bl_idname, text='MEdge Dataset (.json)')
@@ -99,31 +146,3 @@ def register():
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_dataset)
     
-
-# -----------------------------------------------------------------------------
-class MET_OT_ResetDatavis(Operator):
-    bl_idname   = 'medge_dataset.disable_datavis'
-    bl_label    = 'Disable Datavis'
-
-
-    @classmethod
-    def poll(cls, context: Context):
-        return props.is_datavis_enabled(context)
-
-
-    def execute(self, context: Context):
-        scene = context.scene
-        props.set_datavis_enabeld(context, False)
-
-        return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_SelectTransitions(Operator):
-    bl_idname   = 'medge_dataset.select_transitions'
-    bl_label    = 'Select Transitions'
-
-
-    def execute(self, context: Context):
-        DatasetOps.select_transitions(context)
-        return {'FINISHED'}

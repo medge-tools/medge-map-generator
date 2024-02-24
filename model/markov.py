@@ -3,6 +3,7 @@ from mathutils          import Vector
 import bmesh
 
 import numpy as np
+from math import degrees
 from collections.abc import MutableMapping
 
 from ..                 import b3d_utils
@@ -18,15 +19,15 @@ class Offset(MutableMapping):
 
 
     def __getitem__(self, key):
-        return self.store[self._keytransform(key)]
+        return self.store[key]
 
 
     def __setitem__(self, key, value):
-        self.store[self._keytransform(key)] = value
+        self.store[key] = value
 
 
     def __delitem__(self, key):
-        del self.store[self._keytransform(key)]
+        del self.store[key]
 
 
     def __iter__(self):
@@ -35,10 +36,6 @@ class Offset(MutableMapping):
 
     def __len__(self):
         return len(self.store)
-
-
-    def _keytransform(self, key):
-        return key
 
 
     def add(self, offset: Vector, min_dot: float = .75):
@@ -74,9 +71,12 @@ class MarkovChain:
     def reset(self):
         self.transition_matrix = None
         self.offset_matrix = None
+
         self.timestamps = []
         self.states = []
         self.locations = []
+        self.connected = []
+        self.same_direction_2d = 0
 
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
@@ -89,11 +89,12 @@ class MarkovChain:
             b3d_utils.set_object_mode(obj, 'OBJECT')
             bm.from_mesh(obj.data)
 
-            t, s, l = DatasetOps.get_data(bm)
+            t, s, l, c = DatasetOps.get_data(bm)
 
             self.timestamps.extend(t)
             self.states.extend(s)
             self.locations.extend(l)
+            self.connected.extend(c)
 
             bm.free()
 
@@ -101,21 +102,42 @@ class MarkovChain:
 
         TM = np.zeros((n, n), dtype=float)  # Transition matrix
         OM = [[Offset()]*n]*n               # Offset matrix
-        
+        CA = 0
 
         # Populate transition matrix
         transitions = zip(self.states, self.states[1:])
         
+        prev_offset = None
         for k, (i,j) in enumerate(transitions):
+            if not self.connected[k]: continue
+
+            if k == 41:
+                k = 41
+
             start = self.locations[k]
             end = self.locations[k + 1]
-            offset = end - start
+            offset = Vector((
+                end.x - start.x,
+                end.y - start.y,
+                end.z - start.z
+            ))
 
             TM[i][j] += 1.0
             OM[i][j].add(offset)
 
+            offset = Vector((offset.x, offset.y, 0))
+            if not prev_offset:
+                prev_offset = offset
+
+            if offset.length != 0 and prev_offset.length != 0:
+                radians = prev_offset.angle(offset)
+                if degrees(radians) > 90:
+                    CA += 1
+
+            prev_offset = offset
+
             
-        # Normalize matrices
+        # Normalize 
         for row in TM:
             s = sum(row)
             if s > 0: 
@@ -125,10 +147,13 @@ class MarkovChain:
         for i in range(n):
             for j in range(n):
                 OM[i][j].normalize()
-        
+
+        CA /= k
+
         # Store matrices
         self.transition_matrix = TM
         self.offset_matrix = OM
+        self.same_direction_2d = (1 - CA)
 
 
     def generate_chain(self, length: int, seed):
@@ -140,10 +165,12 @@ class MarkovChain:
         probabilities[movement.State.Walking] = 1
 
         dataset = Dataset()
+        dataset.append(movement.State.Walking, Vector())
 
-        dataset.append(movement.State.Walking, Vector((0, 0, 0)))
+        prev_offset = None
+        same_direction_2d = True
 
-        for _ in range(length):
+        for k in range(length):
             probabilities = probabilities @ self.transition_matrix
 
             prev_state = dataset[len(dataset) - 1][Attributes.PLAYER_STATE]
@@ -151,16 +178,39 @@ class MarkovChain:
 
             next_state = np.random.choice(range(n), p=probabilities)
 
+            same_direction_2d = np.random.rand() <= self.same_direction_2d
+
             offset_dict = self.offset_matrix[prev_state][next_state]
             offset_probs = list(offset_dict.values())
-            offset_idx = np.random.choice(range(len(offset_dict)), p=offset_probs)
-            offset = list(offset_dict)[offset_idx]
+            search_offset = True
+
+            while search_offset:
+                offset_idx = np.random.choice(range(len(offset_dict)), p=offset_probs)
+                new_offset = list(offset_dict)[offset_idx]
+                search_offset = False
+                
+                if not prev_offset: continue
+
+                radians = prev_offset.angle(new_offset)
+                if degrees(radians) > 135: # Prevent going back
+                    search_offset = True
+
+                if same_direction_2d:
+
+                    po2d = Vector((prev_offset.x, prev_offset.y, 0))
+                    no2d = Vector((new_offset.x, new_offset.y, 0))
+
+                    if po2d.length != 0 and no2d.length != 0:
+                        radians = po2d.angle(no2d)
+                        if degrees(radians) > 45: 
+                            search_offset = True
+
+            prev_offset = new_offset
 
             player_state = movement.State(next_state)
-            location = prev_loc + offset
+            location = prev_loc + new_offset
 
-            dataset.append(player_state,
-                           location,
-                           )
+            dataset.append(player_state, location,)
 
         DatasetOps.create_polyline(dataset)
+

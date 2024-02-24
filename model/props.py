@@ -87,8 +87,7 @@ class MET_SCENE_PG_MarkovChains(PropertyGroup):
 
     items: CollectionProperty(type=MET_PG_MarkovChain)
     selected_item_idx: IntProperty()
-
-
+    
 
 # -----------------------------------------------------------------------------
 # SCENE UITLS

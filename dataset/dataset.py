@@ -1,7 +1,7 @@
 import  bpy, blf, bmesh
 from    bpy_extras  import view3d_utils
 from    mathutils   import Vector
-from    bpy.types   import Context
+from    bpy.types   import SpaceView3D, Context, Object
 from    bmesh.types import BMesh
 
 import json
@@ -52,18 +52,6 @@ class DatasetIO:
 
     def write_to_file(self, filepath: str) -> None:
         pass
-        # data = list[dict]
-        # for entry in self.entries:
-        #     data['timestamp'] = entry.time
-        #     data['player_state'] = entry.state
-        #     data['location']['x'] = entry.location.x
-        #     data['location']['y'] = entry.location.y
-        #     data['location']['z'] = entry.location.z
-
-        # dump = json.dumps(data, indent=4)
-
-        # with open(filepath, 'w') as fp:
-        #     fp.write(dump)
 
 
 # -----------------------------------------------------------------------------
@@ -113,35 +101,36 @@ class DatasetOps:
         timestamps = []
         states = []
         locations = []
+        connected = []
 
-        for vert in bm.verts:
-            ts = vert[time_layer]
-            state = vert[state_layer]
-            loc = vert.co
+        for v in bm.verts:
+            ts = v[time_layer]
+            state = v[state_layer]
+            loc = v.co
             
             timestamps.append(ts)
             states.append(state)
             locations.append(loc)
 
-        return timestamps, states, locations
+        for v1, v2 in zip(bm.verts, bm.verts[1:]):
+            if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
+                connected.append(True)
+            else:
+                connected.append(False)
+
+
+        return timestamps, states, locations, connected
 
 
     @staticmethod
-    def select_transitions(context: Context):
-         # Validate
-        obj = context.object
+    def select_transitions(obj: Object):
 
-        if not obj: return
+         # Validate
+        if not props.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
-
-        if Attributes.PLAYER_STATE not in mesh.attributes: return
-        if context.mode == 'EDIT_MESH':
-            bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
-        else:
-            bmeshes.clear()
-            return
+        bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions
         state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
@@ -161,37 +150,64 @@ class DatasetOps:
             v2.select = True
 
         bmesh.update_edit_mesh(mesh)
+        
+    
+    @staticmethod
+    def resolve_overlap(obj: Object):
+        if not props.is_dataset(obj): return
+        if obj.mode != 'EDIT': return
 
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        for k in range(len(bm.verts) - 1):
+            v1 = bm.verts[k]
+            v2 = bm.verts[k + 1]
+
+            if v1.co != v2.co: continue
+
+            v0 = bm.verts[k - 1]
+            offset = v1.co - v0.co
+            if k == 0:
+                v0 = bm.verts[k + 2]
+                offset = v0.co - v1.co
+
+            for v in bm.verts[k+1:]:
+                v.co += offset
+
+        bmesh.update_edit_mesh(mesh)
 
 # -----------------------------------------------------------------------------
-bmeshes = {}
+draw_handle = None
 
 class DatasetVis:
-    def __init__(self, context) -> None:
-        self.draw_handle = bpy.types.SpaceView3D.draw_handler_add(
+
+    def add_handle(self, context):
+        global draw_handle
+        if draw_handle:
+            self.remove_handle()
+        draw_handle = SpaceView3D.draw_handler_add(
             self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
 
 
     def remove_handle(self):
-        bpy.types.SpaceView3D.draw_handler_remove(self.draw_handle, 'WINDOW')
+        global draw_handle
+        if draw_handle:
+            SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
+            draw_handle = None
 
 
     def draw_callback(self, context: Context):
-        global bmeshes
         # Validate
         obj = context.object
 
         if not obj: return
+        if not props.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
 
-        if Attributes.PLAYER_STATE not in mesh.attributes: return
-        if context.mode == 'EDIT_MESH':
-            bm = bmeshes.get(mesh.name, bmesh.from_edit_mesh(mesh))
-        else:
-            bmeshes.clear()
-            return
+        bm = bmesh.from_edit_mesh(mesh)
         
         # Draw 
         region = context.region
@@ -203,24 +219,24 @@ class DatasetVis:
         vis_settings = props.get_dataset(obj).vis_settings
         font_size = vis_settings.font_size
 
-        for vert in bm.verts:
+        for v in bm.verts:
             if vis_settings.only_selection:
-                if not vert.select: continue
+                if not v.select: continue
 
-            point = obj.matrix_world @ vert.co
-            co = view3d_utils.location_3d_to_region_2d(region, region_3d, point)
+            location = obj.matrix_world @ v.co
+            co = view3d_utils.location_3d_to_region_2d(region, region_3d, location)
             
             if not co: continue
 
             if vis_settings.show_timestamps:
-                ts = vert[time_layer]
+                ts = v[time_layer]
                 
                 blf.size(0, font_size)
                 blf.position(0, co[0], co[1], 0)
                 blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
                 co[1] += font_size
 
-            state = vert[state_layer]
+            state = v[state_layer]
             
             if vis_settings.to_name:
                 state = movement.State(state).name
@@ -228,6 +244,3 @@ class DatasetVis:
             blf.size(0, font_size * 1.5)
             blf.position(0, co[0] - font_size, co[1], 0)
             blf.draw(0, str(state))
-
-
-
