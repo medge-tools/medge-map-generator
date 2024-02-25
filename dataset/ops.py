@@ -91,6 +91,24 @@ class MET_OT_DisableDatavis(Operator):
 # Dataset Operations
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
+class MET_OT_SetState(Operator):
+    bl_idname   = 'medge_dataset.set_state'
+    bl_label    = 'Set State'
+
+
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        return obj.mode == 'EDIT'
+
+
+    def execute(self, context: Context):
+        obj = context.object
+        dataset = props.get_dataset(obj)
+        DatasetOps.set_state(obj, dataset.state)
+        return {'FINISHED'} 
+
+
 class MET_OT_SelectTransitions(Operator):
     bl_idname   = 'medge_dataset.select_transitions'
     bl_label    = 'Select Transitions'
@@ -99,14 +117,40 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return props.is_dataset(obj)
+        return props.is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.select_transitions(obj)
+        dataset = props.get_dataset(obj)
+        filter = ''
+        if dataset.use_filter:
+            filter = dataset.filter
+        DatasetOps.select_transitions(obj, filter)
         return {'FINISHED'}
     
+
+# -----------------------------------------------------------------------------
+class MET_OT_SelectStates(Operator):
+    bl_idname   = 'medge_dataset.select_states'
+    bl_label    = 'Select States'
+
+
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        in_edit = obj.mode == 'EDIT'
+        if not props.is_dataset(obj): return False
+        dataset = props.get_dataset(obj)
+        return in_edit and dataset.filter
+
+
+    def execute(self, context: Context):
+        obj = context.object
+        dataset = props.get_dataset(obj)
+        DatasetOps.select_states(obj, dataset.filter)
+        return {'FINISHED'}
+
 
 # -----------------------------------------------------------------------------
 class MET_OT_SnapToGrid(Operator):

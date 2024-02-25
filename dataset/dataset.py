@@ -94,7 +94,13 @@ class DatasetOps:
 
 
     @staticmethod
-    def get_data(bm: BMesh):
+    def get_data(obj: Object):
+        """returns timestamps, states, locations, connected"""
+        b3d_utils.set_object_mode(obj, 'OBJECT')
+
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        
         state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
         time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
@@ -118,42 +124,12 @@ class DatasetOps:
             else:
                 connected.append(False)
 
-
         return timestamps, states, locations, connected
 
 
     @staticmethod
-    def select_transitions(obj: Object):
-
-         # Validate
-        if not props.is_dataset(obj): return
-        if obj.mode != 'EDIT': return
-
-        mesh = obj.data
-        bm = bmesh.from_edit_mesh(mesh)
-
-        # Select transitions
-        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
-
-        b3d_utils.deselect_all_vertices(bm)
-
-        for k in range(len(bm.verts) - 1):
-            v1 = bm.verts[k]
-            v2 = bm.verts[k + 1]
-            
-            s1 = v1[state_layer]
-            s2 = v2[state_layer]
-
-            if s1 == s2: continue
-
-            v1.select = True
-            v2.select = True
-
-        bmesh.update_edit_mesh(mesh)
-        
-    
-    @staticmethod
     def resolve_overlap(obj: Object):
+        """Necessary after snapping to grid"""
         if not props.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
@@ -176,6 +152,97 @@ class DatasetOps:
                 v.co += offset
 
         bmesh.update_edit_mesh(mesh)
+    
+
+    @staticmethod
+    def set_state(obj: Object, new_state: movement.State):
+        if not props.is_dataset(obj): return
+        if obj.mode != 'EDIT': return
+
+        mesh = obj.data
+
+        if Attributes.PLAYER_STATE not in mesh.attributes: 
+            player_states = [0] * len(mesh.vertices)
+            a = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
+            a.data.foreach_set('value', player_states)
+
+        # Transform str to int
+        bm = bmesh.from_edit_mesh(mesh)
+
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
+
+        for v in bm.verts:
+            if v.select:
+                v[state_layer] = int(new_state)
+
+        bmesh.update_edit_mesh(mesh)
+
+
+    @staticmethod
+    def select_transitions(obj: Object, filter: str = ''):
+        if not props.is_dataset(obj): return
+        if obj.mode != 'EDIT': return
+
+        # Transform str to int
+        if filter:
+            filter = filter.split(',')
+            filter = [int(s) if s.isnumeric() else movement.State[s] for s in filter]
+
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        # Select transitions
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
+
+        b3d_utils.deselect_all_vertices(bm)
+
+        for k in range(len(bm.verts) - 1):
+            v1 = bm.verts[k]
+            v2 = bm.verts[k + 1]
+            
+            s1 = v1[state_layer]
+            s2 = v2[state_layer]
+
+            if s1 == s2: continue
+
+            if filter: 
+                if s1 not in filter and s2 not in filter:
+                    continue
+
+            v1.select = True
+            v2.select = True
+
+        bmesh.update_edit_mesh(mesh)
+        
+
+    @staticmethod
+    def select_states(obj: Object, filter: str):
+        if not filter: return
+        if not props.is_dataset(obj): return
+        if obj.mode != 'EDIT': return
+
+        # Transform str to int
+        if filter:
+            filter = filter.split(',')
+            filter = [int(s) if s.isnumeric() else movement.State[s] for s in filter]
+
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        # Select transitions
+        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
+
+        b3d_utils.deselect_all_vertices(bm)
+
+        for v in bm.verts:
+            s = v[state_layer]
+
+            if s in filter:
+                v.select = True
+            
+
+        bmesh.update_edit_mesh(mesh)
+
 
 # -----------------------------------------------------------------------------
 draw_handle = None

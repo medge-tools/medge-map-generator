@@ -29,7 +29,7 @@ class MET_PG_MarkovChain(PropertyGroup):
             return
 
         mc: MarkovChain = markov_chain_models[self.name]
-        mc.generate_chain(self.length, self.seed)
+        mc.generate_chain(self.length, self.seed, self.spacing)
 
 
     def __get_name(self):
@@ -45,6 +45,7 @@ class MET_PG_MarkovChain(PropertyGroup):
     has_transition_matrix: BoolProperty(default=False, get=__get_has_transition_matrix)
     length: IntProperty(name='Length', default=100)
     seed: IntProperty(name='Seed', default=2024)
+    spacing: FloatProperty(name='Spacing', default=2, min=1)
 
 # -----------------------------------------------------------------------------
 class MET_UL_GenericList(UIList):

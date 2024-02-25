@@ -2,13 +2,14 @@ from bpy.types      import PropertyGroup, Object, Mesh, Scene
 from bpy.props      import *
 
 from .dataset       import *
+from .              import movement
 
 
 # -----------------------------------------------------------------------------
 class MET_DS_PG_VisSettings(PropertyGroup):
 
     overlay_data: BoolProperty(name='Overlay Data', default=True)
-    to_name: BoolProperty(name='To Name', default=True)
+    to_name: BoolProperty(name='To Name', default=False)
     only_selection: BoolProperty(name='Only Selection', default=False)
     show_timestamps: BoolProperty(name='Show Timestamps', default=False)
 
@@ -18,7 +19,13 @@ class MET_DS_PG_VisSettings(PropertyGroup):
 # -----------------------------------------------------------------------------
 class MET_MESH_PG_Dataset(PropertyGroup):
     is_dataset: BoolProperty(default=False)
-    vis_settings : PointerProperty(type=MET_DS_PG_VisSettings)
+    vis_settings: PointerProperty(type=MET_DS_PG_VisSettings)
+    
+    use_filter: BoolProperty(name='Use Filter')
+    filter: StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
+    
+    state: movement.StateProperty()
+    
     spacing: FloatProperty(name='Spacing', default=2)
 
 

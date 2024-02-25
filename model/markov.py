@@ -38,21 +38,17 @@ class Offset(MutableMapping):
         return len(self.store)
 
 
-    def add(self, offset: Vector, min_dot: float = .75):
-        offset.normalize()
-        curr_dot = -1
-        key = None
+    def add(self, offset: Vector):
+        if offset.length == 0: return
 
-        for k in self.store.keys():
-            dot = offset.dot(k)
-            if dot > curr_dot and dot >= min_dot:
-                curr_dot = dot
-                key = k
-        
-        if key != None:
-            self.store[key] += 1
-        else:
-            self.store.setdefault(offset.freeze(), 1)
+        offset.normalize()
+
+        for vec in self.store.keys():
+            if offset == vec:
+                self.store[vec] += 1
+                return
+
+        self.store.setdefault(offset.freeze(), 1)
 
         
     def normalize(self):
@@ -76,6 +72,7 @@ class MarkovChain:
         self.states = []
         self.locations = []
         self.connected = []
+        self.nstates = 0
         self.same_direction_2d = 0
 
 
@@ -83,56 +80,51 @@ class MarkovChain:
     def create_transition_matrix(self, objects: list[Object]):
         self.reset()
 
-        bm = bmesh.new()
-
         for obj in objects:
-            b3d_utils.set_object_mode(obj, 'OBJECT')
-            bm.from_mesh(obj.data)
 
-            t, s, l, c = DatasetOps.get_data(bm)
+            t, s, l, c = DatasetOps.get_data(obj)
 
             self.timestamps.extend(t)
             self.states.extend(s)
             self.locations.extend(l)
             self.connected.extend(c)
 
-            bm.free()
-
         n = max(self.states) + 1
-
+                                            # Probabilities:
         TM = np.zeros((n, n), dtype=float)  # Transition matrix
         OM = [[Offset()]*n]*n               # Offset matrix
-        CA = 0
+        SD = 0                              # Change axis
 
         # Populate transition matrix
         transitions = zip(self.states, self.states[1:])
-        
         prev_offset = None
+
         for k, (i,j) in enumerate(transitions):
             if not self.connected[k]: continue
 
-            if k == 41:
-                k = 41
-
             start = self.locations[k]
             end = self.locations[k + 1]
-            offset = Vector((
-                end.x - start.x,
-                end.y - start.y,
-                end.z - start.z
-            ))
+            offset = end - start
 
+            # Update matrices
             TM[i][j] += 1.0
             OM[i][j].add(offset)
+            
+            if i == 21 and j == 21:
+                print(k)
+                for x in OM[21][21]:
+                    print(str(x))
+                print()
 
+            # Calculate change of axis
             offset = Vector((offset.x, offset.y, 0))
             if not prev_offset:
                 prev_offset = offset
 
             if offset.length != 0 and prev_offset.length != 0:
                 radians = prev_offset.angle(offset)
-                if degrees(radians) > 90:
-                    CA += 1
+                if degrees(radians) < 90:
+                    SD += 1
 
             prev_offset = offset
 
@@ -148,69 +140,82 @@ class MarkovChain:
             for j in range(n):
                 OM[i][j].normalize()
 
-        CA /= k
+        SD /= k
+
+
+
+        # with open('transition_matrix.txt', 'w') as f:
+        #     for row in TM:
+        #         for k in row:
+        #             f.write(str(k) + ',')
+        #         f.write('\n')
 
         # Store matrices
         self.transition_matrix = TM
         self.offset_matrix = OM
-        self.same_direction_2d = (1 - CA)
+        self.nstates = n
+        self.same_direction_2d = SD
 
 
-    def generate_chain(self, length: int, seed):
-        
+    def generate_chain(self, length: int, seed: int, spacing: float):
+
         np.random.seed(seed)
-        n = max(self.states) + 1
         
-        probabilities = np.zeros(n)
-        probabilities[movement.State.Walking] = 1
+        probabilities = np.zeros(self.nstates)
+        probabilities[movement.State.Walking] = 1.0
 
         dataset = Dataset()
         dataset.append(movement.State.Walking, Vector())
 
         prev_offset = None
-        same_direction_2d = True
+        same_direction_2d = False
 
-        for k in range(length):
+        for _ in range(length):
             probabilities = probabilities @ self.transition_matrix
 
-            prev_state = dataset[len(dataset) - 1][Attributes.PLAYER_STATE]
-            prev_loc = dataset[len(dataset) - 1][Attributes.LOCATION]
+            last = len(dataset) - 1
+            prev_state = dataset[last][Attributes.PLAYER_STATE]
+            prev_loc   = dataset[last][Attributes.LOCATION]
 
-            next_state = np.random.choice(range(n), p=probabilities)
+            next_state = np.random.choice(self.nstates, p=probabilities)
 
-            same_direction_2d = np.random.rand() <= self.same_direction_2d
+            # same_direction_2d = np.random.rand() <= self.same_direction_2d
 
             offset_dict = self.offset_matrix[prev_state][next_state]
             offset_probs = list(offset_dict.values())
             search_offset = True
 
             while search_offset:
-                offset_idx = np.random.choice(range(len(offset_dict)), p=offset_probs)
+                offset_idx = np.random.choice(len(offset_dict), p=offset_probs)
+                if prev_state == 21 and next_state == 21:
+                    for x in list(offset_dict):
+                        print(str(x) + '\n')
+                    print()
                 new_offset = list(offset_dict)[offset_idx]
                 search_offset = False
                 
-                if not prev_offset: continue
+                if not prev_offset: break
 
                 radians = prev_offset.angle(new_offset)
                 if degrees(radians) > 135: # Prevent going back
                     search_offset = True
 
-                if same_direction_2d:
+                # if same_direction_2d:
+                #     po2d = Vector((prev_offset.x, prev_offset.y, 0))
+                #     no2d = Vector((new_offset.x, new_offset.y, 0))
 
-                    po2d = Vector((prev_offset.x, prev_offset.y, 0))
-                    no2d = Vector((new_offset.x, new_offset.y, 0))
-
-                    if po2d.length != 0 and no2d.length != 0:
-                        radians = po2d.angle(no2d)
-                        if degrees(radians) > 45: 
-                            search_offset = True
-
-            prev_offset = new_offset
+                #     if po2d.length != 0 and no2d.length != 0:
+                #         radians = po2d.angle(no2d)
+                #         if degrees(radians) > 45: 
+                #             search_offset = True
 
             player_state = movement.State(next_state)
-            location = prev_loc + new_offset
+            location = prev_loc + new_offset * spacing
 
             dataset.append(player_state, location,)
+            
+            prev_offset = new_offset
+            probabilities = np.zeros(self.nstates)
+            probabilities[player_state] = 1.0
 
         DatasetOps.create_polyline(dataset)
-

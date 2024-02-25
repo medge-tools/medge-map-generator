@@ -1,3 +1,5 @@
+from bpy.props import EnumProperty
+
 from enum import IntEnum
 
 
@@ -97,3 +99,14 @@ class State(IntEnum):
     BotGetDistance                 = 92
     Cutscene                       = 93
     MAX                            = 94
+
+
+# -----------------------------------------------------------------------------
+def StateProperty(callback = None):
+    def get_state_items(self, context):
+        return [(str(data.value), data.name, '') for data in State]
+
+    return EnumProperty(name='State', 
+                        items=get_state_items, 
+                        default=0, 
+                        update=callback)

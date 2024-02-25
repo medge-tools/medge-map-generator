@@ -49,14 +49,17 @@ def deselect_all_objects():
 
 # -----------------------------------------------------------------------------
 def select_all_vertices(bm: BMesh):
-    for vert in bm.verts:
-        vert.select = True
+    for v in bm.verts:
+        v.select = True
+    bm.select_flush_mode()   
 
 
 # -----------------------------------------------------------------------------
 def deselect_all_vertices(bm: BMesh):
-    for vert in bm.verts:
-        vert.select = False
+    for v in bm.verts:
+        v.select = False
+    bm.select_flush_mode()   
+    
 
 
 # -----------------------------------------------------------------------------

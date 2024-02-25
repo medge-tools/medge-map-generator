@@ -68,8 +68,28 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
 
-        layout.operator(MET_OT_SelectTransitions.bl_idname)
-        layout.separator()
-        layout.prop(dataset, 'spacing')
-        layout.operator(MET_OT_SnapToGrid.bl_idname)
+        col = layout.column(align=True)
+        
+        col.prop(dataset, 'state')
+        col.separator()
+        col.operator(MET_OT_SetState.bl_idname)
+
+        col.separator()
+        col.prop(dataset, 'use_filter')
+        if dataset.use_filter:
+            col.prop(dataset, 'filter')
+        
+        col.separator()
+        col.operator(MET_OT_SelectTransitions.bl_idname)
+        
+        col.separator()
+        col.prop(dataset, 'filter')
+        
+        col.separator()
+        col.operator(MET_OT_SelectStates.bl_idname)
+
+        col.separator()
+        col.prop(dataset, 'spacing')
+        col.separator()
+        col.operator(MET_OT_SnapToGrid.bl_idname)
         

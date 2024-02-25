@@ -37,15 +37,13 @@ class MET_PT_MarkovChains(Panel):
         col.prop(item, 'collection')
 
         col.separator(factor=2)
-
         col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
 
         col.separator()
-
         if item.has_transition_matrix:
             col.prop(item, 'length')
             col.prop(item, 'seed')
+            col.prop(item, 'spacing')
 
             col.separator()
-
             col.operator(MET_OT_GenerateChain.bl_idname)
