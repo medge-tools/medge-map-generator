@@ -1,32 +1,35 @@
-from bpy.types      import PropertyGroup, Object, Mesh, Scene
+from bpy.types      import PropertyGroup, Object, Mesh, Context
 from bpy.props      import *
 
-from .dataset       import *
-from .              import movement
+from .movement      import StateProperty
 
 
 # -----------------------------------------------------------------------------
 class MET_DS_PG_VisSettings(PropertyGroup):
-
-    overlay_data: BoolProperty(name='Overlay Data', default=True)
-    to_name: BoolProperty(name='To Name', default=False)
-    only_selection: BoolProperty(name='Only Selection', default=False)
-    show_timestamps: BoolProperty(name='Show Timestamps', default=False)
-
-    font_size : IntProperty(name='Font Size', default=13)
+    to_name:            BoolProperty(name='To Name', default=False)
+    only_selection:     BoolProperty(name='Only Selection', default=False)
+    show_timestamps:    BoolProperty(name='Show Timestamps', default=False)
+    min_draw_distance:  FloatProperty(name='Min Draw Distance', subtype='DISTANCE', default=50)
+    max_draw_distance:  FloatProperty(name='Max Draw Distance', subtype='DISTANCE', default=100)
+    color:              FloatVectorProperty(name='Color', subtype='COLOR_GAMMA', default=(.9, .9, .9))
+    font_size :         IntProperty(name='Font Size', default=13)
 
 
 # -----------------------------------------------------------------------------
 class MET_MESH_PG_Dataset(PropertyGroup):
-    is_dataset: BoolProperty(default=False)
-    vis_settings: PointerProperty(type=MET_DS_PG_VisSettings)
+    def get_vis_settings(self) -> MET_DS_PG_VisSettings:
+        return self.vis_settings
+
+
+    is_dataset:     BoolProperty(default=False)
+    vis_settings:   PointerProperty(type=MET_DS_PG_VisSettings)
     
-    use_filter: BoolProperty(name='Use Filter')
-    filter: StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
+    use_filter:     BoolProperty(name='Use Filter')
+    filter:         StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
     
-    state: movement.StateProperty()
+    state:          StateProperty()
     
-    spacing: FloatProperty(name='Spacing', default=2)
+    spacing:        FloatProperty(name='Spacing', default=2)
 
 
 # -----------------------------------------------------------------------------
@@ -55,6 +58,7 @@ def is_datavis_enabled(context: Context):
 def set_datavis_enabeld(context: Context, state: bool):
     global datavis_is_enabled
     datavis_is_enabled = state
+
 
 # -----------------------------------------------------------------------------
 # REGISTRATION

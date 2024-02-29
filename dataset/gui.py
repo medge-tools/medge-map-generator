@@ -1,7 +1,7 @@
 from    bpy.types   import Context, Panel
 from    .ops        import *
 
-from . import props
+from .props import get_dataset, is_datavis_enabled
 
 # -----------------------------------------------------------------------------
 class DatasetMainPanel:
@@ -37,20 +37,23 @@ class MET_PT_DatasetVis(DatasetMainPanel, Panel):
         row.operator(MET_OT_EnableDatavis.bl_idname, text='Enable')
         row.operator(MET_OT_DisableDatavis.bl_idname, text='Disable')
         
-        if props.is_datavis_enabled(context):
+        if is_datavis_enabled(context):
             
             layout.separator(factor=2)
             
-            vis_settings = props.get_dataset(obj).vis_settings
+            vis_settings = get_dataset(obj).get_vis_settings()
             
             col = layout.column(align=True)
-            col.prop(vis_settings, 'overlay_data')
-
-            if vis_settings.overlay_data:
-                col.prop(vis_settings, 'to_name')
-                col.prop(vis_settings, 'only_selection')
-                col.prop(vis_settings, 'show_timestamps')
-                col.prop(vis_settings, 'font_size')
+            col.prop(vis_settings, 'to_name')
+            col.prop(vis_settings, 'only_selection')
+            col.prop(vis_settings, 'show_timestamps')
+            col.separator()
+            col.prop(vis_settings, 'color')
+            col.separator()
+            col.prop(vis_settings, 'font_size')
+            col.separator()
+            col.prop(vis_settings, 'min_draw_distance', text='Draw Distance Min')
+            col.prop(vis_settings, 'max_draw_distance', text='Max')
 
 
 # -----------------------------------------------------------------------------

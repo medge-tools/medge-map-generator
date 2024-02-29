@@ -2,7 +2,7 @@ from bpy.types  import Operator, Context
 from bpy.props  import *
 
 from .markov    import *
-from .          import props 
+from .props     import get_markov_chains 
 
 
 # -----------------------------------------------------------------------------
@@ -12,7 +12,7 @@ class MET_OT_CreateTransitionMatrix(Operator):
 
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         item = chains.get_selected()
         item.create_transition_matrix(context)
         return {'FINISHED'}
@@ -26,13 +26,13 @@ class MET_OT_GenerateChain(Operator):
 
     @classmethod
     def poll(cls, context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         item = chains.get_selected()
         return item.has_transition_matrix
 
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         item = chains.get_selected()
         item.generate_chain(context)
         return {'FINISHED'}        
@@ -47,7 +47,7 @@ class MET_OT_Add_MarkovModel(Operator):
 
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         chains.add()
         return {'FINISHED'}
 
@@ -60,7 +60,7 @@ class MET_OT_Remove_MarkovModel(Operator):
     
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         chains.remove_selected()
         return {'FINISHED'}
 
@@ -73,7 +73,7 @@ class MET_OT_Clear_MarkovModel(Operator):
 
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         chains.clear()
         return {'FINISHED'}
 
@@ -91,7 +91,7 @@ class MET_OT_Move_MarkovModel(Operator):
 
 
     def execute(self, context: Context):
-        chains = props.get_markov_chains(context)
+        chains = get_markov_chains(context)
         dir = (-1 if self.direction == 'UP' else 1)
         chains.move(dir)
         return {'FINISHED'}

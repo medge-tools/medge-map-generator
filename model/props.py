@@ -1,8 +1,8 @@
 from bpy.types  import PropertyGroup, UIList, Collection, Context, Scene
 from bpy.props  import *
 
-from .markov    import *
-from ..dataset  import props as dataset_props
+from .markov            import *
+from ..dataset.props    import is_dataset
 
 # -----------------------------------------------------------------------------
 markov_chain_models = {}
@@ -12,7 +12,7 @@ class MET_PG_MarkovChain(PropertyGroup):
     def create_transition_matrix(self, context: Context):
         objects = []
         for obj in self.collection.all_objects:
-            if not dataset_props.is_dataset(obj): continue
+            if not is_dataset(obj): continue
             objects.append(obj)
 
         if len(objects) == 0: return

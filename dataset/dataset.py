@@ -2,7 +2,6 @@ import  bpy, blf, bmesh
 from    bpy_extras  import view3d_utils
 from    mathutils   import Vector
 from    bpy.types   import SpaceView3D, Context, Object
-from    bmesh.types import BMesh
 
 import json
 
@@ -279,11 +278,15 @@ class DatasetVis:
         # Draw 
         region = context.region
         region_3d = context.space_data.region_3d
+        view_mat = region_3d.view_matrix
 
         state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
         time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
-        vis_settings = props.get_dataset(obj).vis_settings
+        vis_settings = props.get_dataset(obj).get_vis_settings()
+        min_draw_distance = vis_settings.min_draw_distance
+        max_draw_distance = vis_settings.max_draw_distance
+        color = vis_settings.color
         font_size = vis_settings.font_size
 
         for v in bm.verts:
@@ -291,23 +294,37 @@ class DatasetVis:
                 if not v.select: continue
 
             location = obj.matrix_world @ v.co
-            co = view3d_utils.location_3d_to_region_2d(region, region_3d, location)
+            co_2d = view3d_utils.location_3d_to_region_2d(region, region_3d, location)
             
-            if not co: continue
+            if not co_2d: continue
+            
+            # Get distance to virtual camera
+            if region_3d.is_perspective:
+                distance = (view_mat @ v.co).length
+            else:
+                distance = -(view_mat @ v.co).z
 
+            alpha = b3d_utils.map_range(distance, min_draw_distance, max_draw_distance, 1, 0)
+            
+            if alpha <= 0: continue
+
+            blf.color(0, *color, alpha)
+
+            # Display timestamp
             if vis_settings.show_timestamps:
                 ts = v[time_layer]
                 
                 blf.size(0, font_size)
-                blf.position(0, co[0], co[1], 0)
+                blf.position(0, co_2d[0], co_2d[1], 0)
                 blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
-                co[1] += font_size
+                co_2d[1] += font_size
 
+            # Display state
             state = v[state_layer]
             
             if vis_settings.to_name:
                 state = movement.State(state).name
 
             blf.size(0, font_size * 1.5)
-            blf.position(0, co[0] - font_size, co[1], 0)
+            blf.position(0, co_2d[0] - font_size, co_2d[1], 0)
             blf.draw(0, str(state))

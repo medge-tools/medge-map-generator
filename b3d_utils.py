@@ -61,7 +61,6 @@ def deselect_all_vertices(bm: BMesh):
     bm.select_flush_mode()   
     
 
-
 # -----------------------------------------------------------------------------
 def link_to_scene(obj: Object, collection: str = None):
     """If the collection == None, then the object will be linked to the root collection"""
@@ -414,3 +413,11 @@ def create_curve(num_points = 3,
 
     path.use_endpoint_u = True
     return curve
+
+
+# -----------------------------------------------------------------------------
+# MATH
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def map_range(value, in_min, in_max, out_min, out_max):
+    return out_min + (value - in_min) / (in_max - in_min) * (out_max - out_min)

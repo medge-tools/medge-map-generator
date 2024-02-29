@@ -1,12 +1,12 @@
 from bpy.types import Object
 
-from ..dataset.dataset  import *
-from ..dataset          import props
+from ..dataset.dataset  import DatasetOps
+from ..dataset.props    import is_dataset
 
 
 def generate(obj: Object):
-    if not props.is_dataset(obj): return
+    if not is_dataset(obj): return
 
     t, s, l, c = DatasetOps.get_data(obj)
 
-    
+     
