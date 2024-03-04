@@ -1,8 +1,9 @@
-from bpy.types  import PropertyGroup, UIList, Collection, Context, Scene
+from bpy.types  import PropertyGroup, Collection, Context, Scene
 from bpy.props  import *
 
 from .markov            import *
 from ..dataset.props    import is_dataset
+from ..b3d_utils        import GenericList
 
 # -----------------------------------------------------------------------------
 markov_chain_models = {}
@@ -35,7 +36,7 @@ class MET_PG_MarkovChain(PropertyGroup):
     def __get_name(self):
         if self.collection:
             return self.collection.name
-        return ''
+        return '[SELECT COLLECTION]'
 
     def __get_has_transition_matrix(self):
         return self.name in markov_chain_models
@@ -47,38 +48,9 @@ class MET_PG_MarkovChain(PropertyGroup):
     seed: IntProperty(name='Seed', default=2024)
     spacing: FloatProperty(name='Spacing', default=2, min=1)
 
-# -----------------------------------------------------------------------------
-class MET_UL_GenericList(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
-        if self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-        layout.label(text=item.name)
-
 
 # -----------------------------------------------------------------------------
-class MET_SCENE_PG_MarkovChains(PropertyGroup):
-
-    def add(self):
-        self.items.add()
-        self.selected_item_idx = len(self.items) - 1
-
-
-    def remove_selected(self):
-        self.items.remove(self.selected_item_idx)
-        self.selected_item_idx = min(max(0, self.selected_item_idx - 1), len(self.items) - 1)
-
-    
-    def clear(self):
-        self.items.clear()
-        self.selected_item_idx = 0
-
-
-    def move(self, direction):
-        new_idx = self.selected_item_idx
-        new_idx += direction
-        self.items.move(new_idx, self.selected_item_idx)
-        self.selected_item_idx = max(0, min(new_idx, len(self.items) - 1))
-
+class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):
 
     def get_selected(self) -> MET_PG_MarkovChain:
         if self.items:
@@ -87,7 +59,6 @@ class MET_SCENE_PG_MarkovChains(PropertyGroup):
 
 
     items: CollectionProperty(type=MET_PG_MarkovChain)
-    selected_item_idx: IntProperty()
     
 
 # -----------------------------------------------------------------------------

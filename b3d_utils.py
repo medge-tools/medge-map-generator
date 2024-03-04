@@ -1,6 +1,7 @@
 import  bpy
 import  bmesh
-from    bpy.types   import Object, Mesh
+from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout
+from    bpy.props   import *
 from    bmesh.types import BMesh
 from    mathutils   import Vector, Matrix, Euler
 
@@ -421,3 +422,124 @@ def create_curve(num_points = 3,
 # -----------------------------------------------------------------------------
 def map_range(value, in_min, in_max, out_min, out_max):
     return out_min + (value - in_min) / (in_max - in_min) * (out_max - out_min)
+
+
+# -----------------------------------------------------------------------------
+# LIST COLLECTIONS
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+class B3D_UL_GenericList(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
+        if self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+        layout.label(text=item.name)
+
+
+# -----------------------------------------------------------------------------
+class GenericList:
+
+    def add(self):
+        self.items.add()
+        self.selected_item_idx = len(self.items) - 1
+
+
+    def remove_selected(self):
+        self.items.remove(self.selected_item_idx)
+        self.selected_item_idx = min(max(0, self.selected_item_idx - 1), len(self.items) - 1)
+
+    
+    def clear(self):
+        self.items.clear()
+        self.selected_item_idx = 0
+
+
+    def move(self, direction):
+        new_idx = self.selected_item_idx
+        new_idx += direction
+        self.items.move(new_idx, self.selected_item_idx)
+        self.selected_item_idx = max(0, min(new_idx, len(self.items) - 1))
+
+
+    def get_selected(self):
+        if self.items:
+            return self.items[self.selected_item_idx]
+        return None
+
+
+    selected_item_idx: IntProperty()
+
+
+# -----------------------------------------------------------------------------
+active_generic_list: GenericList
+
+def begin_generic_list_ops(list: GenericList):
+    global active_generic_list
+    active_generic_list = list
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Add(Operator):
+    bl_idname = 'b3d_utils.generic_list_add'
+    bl_label = 'Add'
+    
+    list: GenericList
+
+    def execute(self, context: Context):
+        global active_generic_list
+        active_generic_list.add()
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Remove(Operator):
+    bl_idname = 'b3d_utils.generic_list_remove'
+    bl_label = 'Remove'
+    bl_options = {'UNDO'}
+    
+
+    def execute(self, context: Context):
+        global active_generic_list
+        active_generic_list.remove_selected()
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Clear(Operator):
+    bl_idname = 'b3d_utils.generic_list_clear'
+    bl_label = 'Clear'
+    bl_options = {'UNDO'}
+
+
+    def execute(self, context: Context):
+        global active_generic_list
+        active_generic_list.clear()
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Move(Operator):
+    bl_idname = 'b3d_utils.generic_list_move'
+    bl_label = 'Move Shape'
+    
+    direction : EnumProperty(items=(
+        ('UP', 'Up', ''),
+        ('DOWN', 'Down', ''),
+    ))
+
+
+    def execute(self, context: Context):
+        dir = (-1 if self.direction == 'UP' else 1)
+        global active_generic_list
+        active_generic_list.move(dir)
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+def draw_generic_list_ops(layout: UILayout, list: GenericList):
+    begin_generic_list_ops(list)
+
+    layout.operator(B3D_OT_GenericList_Add.bl_idname   , icon='ADD'        , text='')
+    layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE'     , text='')
+    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_UP'    , text='').direction = 'UP'
+    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_DOWN'  , text='').direction = 'DOWN'
+    layout.operator(B3D_OT_GenericList_Clear.bl_idname , icon='TRASH'      , text='')
