@@ -1,12 +1,20 @@
-from bpy.types import PropertyGroup, Object, Scene, Context
+from bpy.types import PropertyGroup, Object, Scene, Context, UIList
 from bpy.props import *
 
-from ..b3d_utils    import GenericList
+from ..b3d_utils        import GenericList
+from ..dataset.movement import State
 
 
 # -----------------------------------------------------------------------------
 class MET_PG_Module(PropertyGroup):
-    item: PointerProperty(type=Object, name='Module')
+
+    def __get_name(self):
+        return State(self.state).name
+
+    name: StringProperty(name='Name', get=__get_name)
+    active: BoolProperty(name='Active', default=False)
+    state: IntProperty()
+    object: PointerProperty(type=Object, name='Object')
     ignore_z_axis: BoolProperty(name='Ignore Z-Axis')
 
 
@@ -17,8 +25,26 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
         if self.items:
             return self.items[self.selected_item_idx]
         return None
+    
+    def init(self):
+        self.items.clear()
+        for state in State:
+            module = self.add()
+            module.state = state
+
+    def to_list(self):
+        return [item.object for item in self.items]
 
     items: CollectionProperty(type=MET_PG_Module)
+
+
+# -----------------------------------------------------------------------------
+class MET_UL_Module(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
+        if self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+        layout.label(text=item.name)
+
 
 # -----------------------------------------------------------------------------
 # SCENE UITLS

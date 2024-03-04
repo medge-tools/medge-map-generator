@@ -27,7 +27,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
     use_filter:     BoolProperty(name='Use Filter')
     filter:         StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
     
-    state:          StateProperty()
+    new_state:      StateProperty()
     
     spacing:        FloatProperty(name='Spacing', default=2)
 

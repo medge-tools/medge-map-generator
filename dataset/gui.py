@@ -65,7 +65,7 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
         obj = context.active_object
         if not obj: return
         
-        dataset = props.get_dataset(obj)
+        dataset = get_dataset(obj)
 
         layout = self.layout
         layout.use_property_decorate = False
@@ -73,7 +73,7 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
 
         col = layout.column(align=True)
         
-        col.prop(dataset, 'state')
+        col.prop(dataset, 'new_state')
         col.separator()
         col.operator(MET_OT_SetState.bl_idname)
 

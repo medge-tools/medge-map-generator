@@ -4,7 +4,7 @@ from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
 from .dataset   import *
-from .          import props
+from .props     import is_dataset, is_datavis_enabled, set_datavis_enabeld, get_dataset
 
 
 # -----------------------------------------------------------------------------
@@ -59,13 +59,13 @@ class MET_OT_EnableDatavis(Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        return not props.is_datavis_enabled(context)
+        return not is_datavis_enabled(context)
 
 
     def execute(self, context: Context):
         DatasetVis().add_handle(context)
         context.area.tag_redraw()
-        props.set_datavis_enabeld(context, True)
+        set_datavis_enabeld(context, True)
         return{'FINISHED'}
     
 
@@ -77,13 +77,13 @@ class MET_OT_DisableDatavis(Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        return props.is_datavis_enabled(context)
+        return is_datavis_enabled(context)
 
 
     def execute(self, context: Context):
         DatasetVis().remove_handle()
         context.area.tag_redraw()
-        props.set_datavis_enabeld(context, False)
+        set_datavis_enabeld(context, False)
         return {'FINISHED'}
 
 
@@ -104,11 +104,12 @@ class MET_OT_SetState(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = props.get_dataset(obj)
-        DatasetOps.set_state(obj, dataset.state)
+        dataset = get_dataset(obj)
+        DatasetOps.set_state(obj, int(dataset.new_state))
         return {'FINISHED'} 
 
 
+# -----------------------------------------------------------------------------
 class MET_OT_SelectTransitions(Operator):
     bl_idname   = 'medge_dataset.select_transitions'
     bl_label    = 'Select Transitions'
@@ -117,12 +118,12 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return props.is_dataset(obj) and obj.mode == 'EDIT'
+        return is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = props.get_dataset(obj)
+        dataset = get_dataset(obj)
         filter = ''
         if dataset.use_filter:
             filter = dataset.filter
@@ -140,14 +141,14 @@ class MET_OT_SelectStates(Operator):
     def poll(cls, context: Context):
         obj = context.object
         in_edit = obj.mode == 'EDIT'
-        if not props.is_dataset(obj): return False
-        dataset = props.get_dataset(obj)
+        if not is_dataset(obj): return False
+        dataset = get_dataset(obj)
         return in_edit and dataset.filter
 
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = props.get_dataset(obj)
+        dataset = get_dataset(obj)
         DatasetOps.select_states(obj, dataset.filter)
         return {'FINISHED'}
 
@@ -162,12 +163,12 @@ class MET_OT_SnapToGrid(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return props.is_dataset(obj)
+        return is_dataset(obj)
     
 
     def execute(self, context: Context):
         obj = context.object
-        spacing = props.get_dataset(obj).spacing
+        spacing = get_dataset(obj).spacing
 
         b3d_utils.snap_to_grid(obj.data, spacing)
         DatasetOps.resolve_overlap(obj)

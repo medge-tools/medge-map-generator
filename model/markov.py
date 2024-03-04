@@ -78,7 +78,7 @@ class MarkovChain:
 
         for obj in objects:
 
-            t, s, l, c = DatasetOps.get_data(obj)
+            s, l, t, c = DatasetOps.get_data(obj)
 
             self.timestamps.extend(t)
             self.states.extend(s)

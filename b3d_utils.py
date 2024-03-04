@@ -119,11 +119,16 @@ def remove_object(obj: Object):
 
 
 # -----------------------------------------------------------------------------
-def copy_object(obj: Object) -> Object:
-    copy = obj.copy()
-    copy.data = obj.data.copy()
-    link_to_scene(copy)
-    return copy
+def duplicate_object(obj: Object, instance = False) -> Object:
+    if instance:
+        mesh = obj.data
+        inst = new_object(obj.name + '_INSTANCE', mesh, obj.name + '_GENERATED')
+        return inst
+    else:
+        copy = obj.copy()
+        copy.data = obj.data.copy()
+        link_to_scene(copy)
+        return copy
 
 
 # -----------------------------------------------------------------------------
@@ -439,8 +444,9 @@ class B3D_UL_GenericList(UIList):
 class GenericList:
 
     def add(self):
-        self.items.add()
+        item = self.items.add()
         self.selected_item_idx = len(self.items) - 1
+        return item
 
 
     def remove_selected(self):

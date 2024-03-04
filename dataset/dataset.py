@@ -94,7 +94,7 @@ class DatasetOps:
 
     @staticmethod
     def get_data(obj: Object):
-        """returns timestamps, states, locations, connected"""
+        """returns states, locations, timestamps, connected"""
         b3d_utils.set_object_mode(obj, 'OBJECT')
 
         bm = bmesh.new()
@@ -103,19 +103,19 @@ class DatasetOps:
         state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
         time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
-        timestamps = []
         states = []
         locations = []
+        timestamps = []
         connected = []
 
         for v in bm.verts:
-            ts = v[time_layer]
             state = v[state_layer]
+            ts = v[time_layer]
             loc = v.co
             
-            timestamps.append(ts)
             states.append(state)
             locations.append(loc)
+            timestamps.append(ts)
 
         for v1, v2 in zip(bm.verts, bm.verts[1:]):
             if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
@@ -123,7 +123,7 @@ class DatasetOps:
             else:
                 connected.append(False)
 
-        return timestamps, states, locations, connected
+        return states, locations, timestamps, connected
 
 
     @staticmethod
@@ -154,7 +154,7 @@ class DatasetOps:
     
 
     @staticmethod
-    def set_state(obj: Object, new_state: movement.State):
+    def set_state(obj: Object, new_state: int):
         if not props.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
@@ -172,7 +172,7 @@ class DatasetOps:
 
         for v in bm.verts:
             if v.select:
-                v[state_layer] = int(new_state)
+                v[state_layer] = new_state
 
         bmesh.update_edit_mesh(mesh)
 
