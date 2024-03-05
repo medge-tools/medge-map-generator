@@ -1,6 +1,7 @@
 from    bpy.types   import Context, Panel
 from    .ops        import *
 
+from ..gui  import *
 from .props import get_dataset, is_datavis_enabled
 
 # -----------------------------------------------------------------------------
@@ -11,6 +12,7 @@ class DatasetMainPanel:
 
 
 class MET_PT_DatasetMainPanel(DatasetMainPanel, Panel):
+    bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
     bl_idname = 'MET_PT_DatasetMainPanel'
     bl_label = 'Dataset'
     
@@ -65,7 +67,7 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
         obj = context.active_object
         if not obj: return
         
-        dataset = get_dataset(obj)
+        settings = get_dataset(obj).get_ops_settings()
 
         layout = self.layout
         layout.use_property_decorate = False
@@ -73,26 +75,27 @@ class MET_PT_DatasetOps(DatasetMainPanel, Panel):
 
         col = layout.column(align=True)
         
-        col.prop(dataset, 'new_state')
+        col.prop(settings, 'new_state')
         col.separator()
         col.operator(MET_OT_SetState.bl_idname)
 
         col.separator()
-        col.prop(dataset, 'use_filter')
-        if dataset.use_filter:
-            col.prop(dataset, 'filter')
+        col.prop(settings, 'use_filter')
+        if settings.use_filter:
+            col.prop(settings, 'restrict')
+            col.prop(settings, 'filter')
         
         col.separator()
         col.operator(MET_OT_SelectTransitions.bl_idname)
         
         col.separator()
-        col.prop(dataset, 'filter')
+        col.prop(settings, 'filter')
         
         col.separator()
         col.operator(MET_OT_SelectStates.bl_idname)
 
         col.separator()
-        col.prop(dataset, 'spacing')
+        col.prop(settings, 'spacing')
         col.separator()
         col.operator(MET_OT_SnapToGrid.bl_idname)
         

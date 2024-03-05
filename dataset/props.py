@@ -16,22 +16,29 @@ class MET_DS_PG_VisSettings(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
+class MET_DS_PG_OpsSettings(PropertyGroup):
+    use_filter:     BoolProperty(name='Use Filter')
+    restrict:       BoolProperty(name='Restrict')
+    filter:         StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
+
+    new_state:      StateProperty()
+    spacing:        FloatProperty(name='Spacing', default=2)
+
+
+# -----------------------------------------------------------------------------
 class MET_MESH_PG_Dataset(PropertyGroup):
     def get_vis_settings(self) -> MET_DS_PG_VisSettings:
         return self.vis_settings
 
+    def get_ops_settings(self) -> MET_DS_PG_OpsSettings:
+        return self.ops_settings
+
 
     is_dataset:     BoolProperty(default=False)
     vis_settings:   PointerProperty(type=MET_DS_PG_VisSettings)
-    
-    use_filter:     BoolProperty(name='Use Filter')
-    filter:         StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
-    
-    new_state:      StateProperty()
-    
-    spacing:        FloatProperty(name='Spacing', default=2)
+    ops_settings:   PointerProperty(type=MET_DS_PG_OpsSettings)
 
-
+    
 # -----------------------------------------------------------------------------
 # SCENE UITLS
 # -----------------------------------------------------------------------------

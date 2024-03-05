@@ -1,14 +1,13 @@
 from bpy.types  import Context, Panel
 
+from ..gui      import *
 from .ops       import MET_OT_InitModules, MET_OT_Generate
 from .props     import get_modules
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_PCG(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'MEdge Tools'
+class MET_PT_PCG(MapGenMainPanel, Panel):
+    bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
     bl_label = 'PCG'
 
 

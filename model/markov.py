@@ -6,7 +6,7 @@ from collections.abc import MutableMapping
 
 from ..dataset.dataset  import Attributes, Dataset, DatasetOps
 from ..dataset.movement import State
-
+from ..dataset.props    import is_dataset
 
 # -----------------------------------------------------------------------------
 class Offset(MutableMapping):
@@ -77,6 +77,8 @@ class MarkovChain:
         self.reset()
 
         for obj in objects:
+            if not obj.visible_get(): continue
+            if not is_dataset(obj): continue
 
             s, l, t, c = DatasetOps.get_data(obj)
 
@@ -104,6 +106,8 @@ class MarkovChain:
             TM[i][j] += 1.0
             OM[i][j].add(offset)
                 
+
+
         
         # Normalize 
         for row in TM:
@@ -115,6 +119,12 @@ class MarkovChain:
         for i in range(n):
             for j in range(n):
                 OM[i][j].normalize()
+
+        with open('transition_matrix.txt', 'w') as f:
+            for row in TM:
+                for v in row:
+                    f.write(str(v) + ',')
+                f.write('\n')
 
         # Store matrices
         self.transition_matrix = TM
@@ -132,27 +142,29 @@ class MarkovChain:
         dataset = Dataset()
         dataset.append(State.Walking, Vector())
 
-        for _ in range(length):
-            probabilities = probabilities @ self.transition_matrix
+        prev_state = 1
+        prev_location = Vector()
 
-            last = len(dataset) - 1
-            prev_state = dataset[last][Attributes.PLAYER_STATE]
-            prev_loc   = dataset[last][Attributes.LOCATION]
+        for _ in range(length):
+            probabilities = self.transition_matrix[prev_state]
 
             next_state = np.random.choice(self.nstates, p=probabilities)
 
             offset_dict = self.offset_matrix[prev_state][next_state]
             offset_probs = list(offset_dict.values())
 
+            if len(offset_dict) == 0:
+                for k, p in enumerate(probabilities):
+                    print('('+ str(k) + ' - ' + str(p) + '), ')
+
             offset_idx = np.random.choice(len(offset_dict), p=offset_probs)
             new_offset = list(offset_dict)[offset_idx]
 
-            player_state = State(next_state)
-            location = prev_loc + new_offset * spacing
+            next_location = prev_location + new_offset * spacing
 
-            dataset.append(player_state, location,)
+            dataset.append(State(next_state), next_location,)
             
-            probabilities = np.zeros(self.nstates)
-            probabilities[player_state] = 1.0
+            prev_state = next_state
+            prev_location = next_location
 
         DatasetOps.create_polyline(dataset)

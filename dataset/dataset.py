@@ -5,9 +5,9 @@ from    bpy.types   import SpaceView3D, Context, Object
 
 import json
 
-from .  import props
-from .. import b3d_utils
-from .  import movement
+from .props     import is_dataset, get_dataset
+from ..         import b3d_utils
+from .          import movement
 
 
 # -----------------------------------------------------------------------------
@@ -71,8 +71,8 @@ class DatasetOps:
         # Add to scene
         mesh = b3d_utils.create_mesh(verts, edges, [], 'PLAYER_PATH')
         obj = b3d_utils.new_object('PLAYER PATH', mesh)  
-        prop = props.get_dataset(obj)
-        prop.is_dataset = True
+        ds = get_dataset(obj)
+        ds.is_dataset = True
 
         # Add attributes
         packed: list[Vector] = [entry[Attributes.TIMESTAMP] for entry in dataset]
@@ -129,7 +129,7 @@ class DatasetOps:
     @staticmethod
     def resolve_overlap(obj: Object):
         """Necessary after snapping to grid"""
-        if not props.is_dataset(obj): return
+        if not is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
@@ -154,16 +154,19 @@ class DatasetOps:
     
 
     @staticmethod
-    def set_state(obj: Object, new_state: int):
-        if not props.is_dataset(obj): return
+    def set_state(obj: Object):
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
 
-        if Attributes.PLAYER_STATE not in mesh.attributes: 
+        if not is_dataset(obj): 
             player_states = [0] * len(mesh.vertices)
             a = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
             a.data.foreach_set('value', player_states)
+        
+        # Get settings
+        settings = get_dataset(obj).get_ops_settings()
+        new_state = int(settings.new_state)
 
         # Transform str to int
         bm = bmesh.from_edit_mesh(mesh)
@@ -178,9 +181,14 @@ class DatasetOps:
 
 
     @staticmethod
-    def select_transitions(obj: Object, filter: str = ''):
-        if not props.is_dataset(obj): return
+    def select_transitions(obj: Object):
+        if not is_dataset(obj): return
         if obj.mode != 'EDIT': return
+
+        # Get settings
+        settings = get_dataset(obj).get_ops_settings()
+        filter = settings.filter
+        restrict = settings.restrict
 
         # Transform str to int
         if filter:
@@ -207,6 +215,9 @@ class DatasetOps:
             if filter: 
                 if s1 not in filter and s2 not in filter:
                     continue
+                if restrict:
+                    if s1 not in filter or s2 not in filter:
+                        continue                    
 
             v1.select = True
             v2.select = True
@@ -215,10 +226,15 @@ class DatasetOps:
         
 
     @staticmethod
-    def select_states(obj: Object, filter: str):
+    def select_states(obj: Object):
         if not filter: return
-        if not props.is_dataset(obj): return
+        if not is_dataset(obj): return
         if obj.mode != 'EDIT': return
+
+        
+        # Get settings
+        settings = get_dataset(obj).get_ops_settings()
+        filter = settings.filter
 
         # Transform str to int
         if filter:
@@ -268,7 +284,7 @@ class DatasetVis:
         obj = context.object
 
         if not obj: return
-        if not props.is_dataset(obj): return
+        if not is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
@@ -283,7 +299,7 @@ class DatasetVis:
         state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
         time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
 
-        vis_settings = props.get_dataset(obj).get_vis_settings()
+        vis_settings = get_dataset(obj).get_vis_settings()
         min_draw_distance = vis_settings.min_draw_distance
         max_draw_distance = vis_settings.max_draw_distance
         color = vis_settings.color

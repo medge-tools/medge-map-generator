@@ -1,14 +1,13 @@
 from bpy.types  import Context, Panel
 
+from ..gui          import *
 from .ops           import *
 from .props         import get_markov_chains
 from ..b3d_utils    import draw_generic_list_ops
 
 # -----------------------------------------------------------------------------
-class MET_PT_MarkovChains(Panel):
-    bl_space_type = 'VIEW_3D'
-    bl_region_type = 'UI'
-    bl_category = 'MEdge Tools'
+class MET_PT_MarkovChains(MapGenMainPanel, Panel):
+    bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
     bl_label = 'Markov Chains'
 
     def draw(self, context: Context):

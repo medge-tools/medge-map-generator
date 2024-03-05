@@ -104,8 +104,7 @@ class MET_OT_SetState(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = get_dataset(obj)
-        DatasetOps.set_state(obj, int(dataset.new_state))
+        DatasetOps.set_state(obj)
         return {'FINISHED'} 
 
 
@@ -123,11 +122,7 @@ class MET_OT_SelectTransitions(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = get_dataset(obj)
-        filter = ''
-        if dataset.use_filter:
-            filter = dataset.filter
-        DatasetOps.select_transitions(obj, filter)
+        DatasetOps.select_transitions(obj)
         return {'FINISHED'}
     
 
@@ -142,14 +137,13 @@ class MET_OT_SelectStates(Operator):
         obj = context.object
         in_edit = obj.mode == 'EDIT'
         if not is_dataset(obj): return False
-        dataset = get_dataset(obj)
-        return in_edit and dataset.filter
+        settings = get_dataset(obj).get_ops_settings()
+        return in_edit and settings.filter
 
 
     def execute(self, context: Context):
         obj = context.object
-        dataset = get_dataset(obj)
-        DatasetOps.select_states(obj, dataset.filter)
+        DatasetOps.select_states(obj)
         return {'FINISHED'}
 
 
@@ -168,7 +162,7 @@ class MET_OT_SnapToGrid(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        spacing = get_dataset(obj).spacing
+        spacing = get_dataset(obj).get_ops_settings().spacing
 
         b3d_utils.snap_to_grid(obj.data, spacing)
         DatasetOps.resolve_overlap(obj)
