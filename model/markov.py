@@ -2,57 +2,93 @@ from bpy.types          import Object
 from mathutils          import Vector
 
 import numpy as np
+from sys import float_info
 from collections.abc import MutableMapping
 
-from ..dataset.dataset  import Attributes, Dataset, DatasetOps
+from ..                 import b3d_utils
+from ..dataset.dataset  import Dataset, DatasetOps
 from ..dataset.movement import State
 from ..dataset.props    import is_dataset
 
+
 # -----------------------------------------------------------------------------
-class Offset(MutableMapping):
-    def __init__(self) -> None:
-        self.store = dict()
+class OffsetNode(MutableMapping):
+    def __init__(self, parent = None) -> None:
+        self.offsets = dict()
+        self.children : list[OffsetNode] = []
+        if parent:
+            parent.children.append(self)
 
-
+    #region 
     def __getitem__(self, key):
-        return self.store[key]
+        return self.offsets[key]
 
 
     def __setitem__(self, key, value):
-        self.store[key] = value
+        self.offsets[key] = value
 
 
     def __delitem__(self, key):
-        del self.store[key]
+        del self.offsets[key]
 
 
     def __iter__(self):
-        return iter(self.store)
+        return iter(self.offsets)
     
 
     def __len__(self):
-        return len(self.store)
+        return len(self.offsets)
+    #endregion
 
-
-    def add(self, offset: Vector):
+    def add_branch(self, offset: Vector):
         if offset.length == 0: return
 
-        offset.normalize()
+        self.children.append(OffsetNode())
+        self.offsets.setdefault(offset.freeze(), 0.0)
 
-        for vec in self.store.keys():
-            if offset == vec:
-                self.store[vec] += 1
-                return
 
-        self.store.setdefault(offset.freeze(), 1)
+    def insert(self, offset: Vector):
+        if self.children:
+            min_angle = float_info.max
+            idx = -1
+            key = None
+
+            for k, off in enumerate(self.offsets.keys()):
+                if (a := offset.angle(off)) < min_angle:
+                    min_angle = a
+                    idx = k
+                    key = off
+
+            self.offsets[key] += 1.0
+            self.children[idx].insert(offset)
+
+        else:
+            key = offset.freeze()
+            if key in self.offsets:
+                self.offsets[key] += 1.0
+            else:
+                self.offsets.setdefault(key, 1.0)
 
         
     def normalize(self):
-        if (s := sum(self.store.values())) > 0:
+        if (s := sum(self.offsets.values())) > 0:
             factor = 1.0 / s
-            for k, v in self.store.items():
-                self.store[k] = v * factor
+            for k, v in self.offsets.items():
+                self.offsets[k] = v * factor
 
+        for child in self.children:
+            child.normalize()
+
+
+    def random_offset(self):
+        n = len(self.offsets)
+        k = np.random.choice(n, p=list(self.offsets.values()))
+
+        if self.children:
+            child = self.children[k]
+            return child.random_offset()
+        else:
+            return list(self.offsets)[k]    
 
 # -----------------------------------------------------------------------------
 class MarkovChain:
@@ -72,6 +108,17 @@ class MarkovChain:
         self.nstates = 0
 
 
+    def init_offset_hierarchy(self):
+        root = OffsetNode()
+
+        root.add_branch(Vector(( 1,  0, 0)))
+        root.add_branch(Vector((-1,  0, 0)))
+        root.add_branch(Vector(( 0,  1, 0)))
+        root.add_branch(Vector(( 0, -1, 0)))
+
+        return root
+        
+
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
     def create_transition_matrix(self, objects: list[Object]):
         self.reset()
@@ -88,9 +135,8 @@ class MarkovChain:
             self.connected.extend(c)
 
         n = max(self.states) + 1
-                                                                # Probabilities:
-        TM = np.zeros((n, n), dtype=float)                      # Transition matrix
-        OM = [[Offset() for _ in range(n)] for _ in range(n)]   # Offset matrix
+        TM = np.zeros((n, n), dtype=float)                                          # Transition matrix
+        OM = [[self.init_offset_hierarchy() for _ in range(n)] for _ in range(n)]   # Offset matrix
 
         # Populate matrices
         transitions = zip(self.states, self.states[1:])
@@ -101,14 +147,11 @@ class MarkovChain:
             start = self.locations[k]
             end = self.locations[k + 1]
             offset = end - start
-
+            
             # Update matrices
             TM[i][j] += 1.0
-            OM[i][j].add(offset)
+            OM[i][j].insert(offset.normalized())
                 
-
-
-        
         # Normalize 
         for row in TM:
             s = sum(row)
@@ -119,12 +162,6 @@ class MarkovChain:
         for i in range(n):
             for j in range(n):
                 OM[i][j].normalize()
-
-        with open('transition_matrix.txt', 'w') as f:
-            for row in TM:
-                for v in row:
-                    f.write(str(v) + ',')
-                f.write('\n')
 
         # Store matrices
         self.transition_matrix = TM
@@ -150,15 +187,8 @@ class MarkovChain:
 
             next_state = np.random.choice(self.nstates, p=probabilities)
 
-            offset_dict = self.offset_matrix[prev_state][next_state]
-            offset_probs = list(offset_dict.values())
-
-            if len(offset_dict) == 0:
-                for k, p in enumerate(probabilities):
-                    print('('+ str(k) + ' - ' + str(p) + '), ')
-
-            offset_idx = np.random.choice(len(offset_dict), p=offset_probs)
-            new_offset = list(offset_dict)[offset_idx]
+            offset_hierarchy = self.offset_matrix[prev_state][next_state]
+            new_offset = offset_hierarchy.random_offset()
 
             next_location = prev_location + new_offset * spacing
 
