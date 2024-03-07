@@ -1,5 +1,5 @@
 bl_info = {
-    "name" : "MEdge Tools: Dataset Editor",
+    "name" : "Map Generator",
     "author" : "Tariq Bakhtali (didibib)",
     "description" : "",
     "blender" : (3, 4, 0),
@@ -11,6 +11,8 @@ bl_info = {
 
 
 # -----------------------------------------------------------------------------
+import bpy
+
 from . import auto_load
 
 

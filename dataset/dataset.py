@@ -1,13 +1,11 @@
-import  bpy, blf, bmesh
-from    bpy_extras  import view3d_utils
+import  bmesh
 from    mathutils   import Vector
-from    bpy.types   import SpaceView3D, Context, Object
+from    bpy.types   import Object, Mesh
 
 import json
 
-from .props     import is_dataset, get_dataset
 from ..         import b3d_utils
-from .          import movement
+from .movement  import State
 
 
 # -----------------------------------------------------------------------------
@@ -57,7 +55,23 @@ class DatasetIO:
 class DatasetOps:
 
     @staticmethod
-    def create_polyline(dataset: Dataset):
+    def make_dataset(obj: Object):
+        t = obj.data.attributes.new(name=Attributes.TIMESTAMP, type='FLOAT_VECTOR', domain='POINT')
+        p = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
+        return t, p
+
+
+    @staticmethod
+    def is_dataset(data: Mesh):
+        if Attributes.TIMESTAMP not in data.attributes:
+            return False
+        if Attributes.PLAYER_STATE not in data.attributes:
+            return False
+        return True
+    
+
+    @staticmethod
+    def create_polyline(dataset: Dataset, name = 'DATASET'):
         # Create polyline
         verts = []
         edges = []
@@ -69,10 +83,8 @@ class DatasetOps:
             edges.append( (i, i + 1) )
         
         # Add to scene
-        mesh = b3d_utils.create_mesh(verts, edges, [], 'PLAYER_PATH')
-        obj = b3d_utils.new_object('PLAYER PATH', mesh)  
-        ds = get_dataset(obj)
-        ds.is_dataset = True
+        mesh = b3d_utils.create_mesh(verts, edges, [], name)
+        obj = b3d_utils.new_object(name, mesh)  
 
         # Add attributes
         packed: list[Vector] = [entry[Attributes.TIMESTAMP] for entry in dataset]
@@ -84,12 +96,9 @@ class DatasetOps:
             timestamps[k * 3 + 2] = packed[k].z
 
         player_states = [entry[Attributes.PLAYER_STATE] for entry in dataset]
-
-        a = obj.data.attributes.new(name=Attributes.TIMESTAMP, type='FLOAT_VECTOR', domain='POINT')
-        a.data.foreach_set('vector', timestamps)
-        
-        b = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
-        b.data.foreach_set('value', player_states)  
+        t, p = DatasetOps.make_dataset(obj)
+        t.data.foreach_set('vector', timestamps)
+        p.data.foreach_set('value', player_states)
 
 
     @staticmethod
@@ -122,6 +131,7 @@ class DatasetOps:
                 connected.append(True)
             else:
                 connected.append(False)
+        connected.append(False)
 
         return states, locations, timestamps, connected
 
@@ -129,7 +139,7 @@ class DatasetOps:
     @staticmethod
     def resolve_overlap(obj: Object):
         """Necessary after snapping to grid"""
-        if not is_dataset(obj): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
@@ -154,20 +164,14 @@ class DatasetOps:
     
 
     @staticmethod
-    def set_state(obj: Object):
+    def set_state(obj: Object, new_state):
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
 
-        if not is_dataset(obj): 
-            player_states = [0] * len(mesh.vertices)
-            a = obj.data.attributes.new(name=Attributes.PLAYER_STATE, type='INT', domain='POINT')
-            a.data.foreach_set('value', player_states)
+        if not DatasetOps.is_dataset(obj): 
+            DatasetOps.make_dataset(obj)
         
-        # Get settings
-        settings = get_dataset(obj).get_ops_settings()
-        new_state = int(settings.new_state)
-
         # Transform str to int
         bm = bmesh.from_edit_mesh(mesh)
 
@@ -181,19 +185,14 @@ class DatasetOps:
 
 
     @staticmethod
-    def select_transitions(obj: Object):
-        if not is_dataset(obj): return
+    def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
-
-        # Get settings
-        settings = get_dataset(obj).get_ops_settings()
-        filter = settings.filter
-        restrict = settings.restrict
 
         # Transform str to int
         if filter:
             filter = filter.split(',')
-            filter = [int(s) if s.isnumeric() else movement.State[s] for s in filter]
+            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
 
         mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
@@ -226,20 +225,15 @@ class DatasetOps:
         
 
     @staticmethod
-    def select_states(obj: Object):
+    def select_states(obj: Object, filter: str = ''):
         if not filter: return
-        if not is_dataset(obj): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
-
-        
-        # Get settings
-        settings = get_dataset(obj).get_ops_settings()
-        filter = settings.filter
 
         # Transform str to int
         if filter:
             filter = filter.split(',')
-            filter = [int(s) if s.isnumeric() else movement.State[s] for s in filter]
+            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
 
         mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
@@ -259,88 +253,4 @@ class DatasetOps:
         bmesh.update_edit_mesh(mesh)
 
 
-# -----------------------------------------------------------------------------
-draw_handle = None
 
-class DatasetVis:
-
-    def add_handle(self, context):
-        global draw_handle
-        if draw_handle:
-            self.remove_handle()
-        draw_handle = SpaceView3D.draw_handler_add(
-            self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
-
-
-    def remove_handle(self):
-        global draw_handle
-        if draw_handle:
-            SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
-            draw_handle = None
-
-
-    def draw_callback(self, context: Context):
-        # Validate
-        obj = context.object
-
-        if not obj: return
-        if not is_dataset(obj): return
-        if obj.mode != 'EDIT': return
-
-        mesh = obj.data
-
-        bm = bmesh.from_edit_mesh(mesh)
-        
-        # Draw 
-        region = context.region
-        region_3d = context.space_data.region_3d
-        view_mat = region_3d.view_matrix
-
-        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
-        time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
-
-        vis_settings = get_dataset(obj).get_vis_settings()
-        min_draw_distance = vis_settings.min_draw_distance
-        max_draw_distance = vis_settings.max_draw_distance
-        color = vis_settings.color
-        font_size = vis_settings.font_size
-
-        for v in bm.verts:
-            if vis_settings.only_selection:
-                if not v.select: continue
-
-            location = obj.matrix_world @ v.co
-            co_2d = view3d_utils.location_3d_to_region_2d(region, region_3d, location)
-            
-            if not co_2d: continue
-            
-            # Get distance to virtual camera
-            if region_3d.is_perspective:
-                distance = (view_mat @ v.co).length
-            else:
-                distance = -(view_mat @ v.co).z
-
-            alpha = b3d_utils.map_range(distance, min_draw_distance, max_draw_distance, 1, 0)
-            
-            if alpha <= 0: continue
-
-            blf.color(0, *color, alpha)
-
-            # Display timestamp
-            if vis_settings.show_timestamps:
-                ts = v[time_layer]
-                
-                blf.size(0, font_size)
-                blf.position(0, co_2d[0], co_2d[1], 0)
-                blf.draw(0, '{:.0f}:{:.0f}:{:.3f}'.format(*ts))
-                co_2d[1] += font_size
-
-            # Display state
-            state = v[state_layer]
-            
-            if vis_settings.to_name:
-                state = movement.State(state).name
-
-            blf.size(0, font_size * 1.5)
-            blf.position(0, co_2d[0] - font_size, co_2d[1], 0)
-            blf.draw(0, str(state))

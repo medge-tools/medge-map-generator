@@ -28,14 +28,18 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
     
     def init(self):
         self.items.clear()
+        
         for state in State:
             module = self.add()
             module.state = state
+
+        self.initialized = True
 
     def to_list(self):
         return [item.object for item in self.items]
 
     items: CollectionProperty(type=MET_PG_Module)
+    initialized: BoolProperty(default=False)
 
 
 # -----------------------------------------------------------------------------

@@ -1,12 +1,12 @@
 from bpy.types  import Operator
 
-from ..dataset.props    import is_dataset
+from ..dataset.props    import get_dataset
 from .props             import get_modules
-from .pcg               import generate
+from .content               import populate
 
 # -----------------------------------------------------------------------------
 class MET_OT_InitModules(Operator):
-    bl_idname = "medge_pcg.init_modules"
+    bl_idname = "medge_content.init_modules"
     bl_label = "Init Modules"
 
 
@@ -17,17 +17,18 @@ class MET_OT_InitModules(Operator):
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_Generate(Operator):
-    bl_idname = "medge_pcg.generate"
-    bl_label = "Generate"
+class MET_OT_Populate(Operator):
+    bl_idname = "medge_content.populate"
+    bl_label = "Populate"
+
 
     @classmethod
     def poll(cls, context):
-        obj = context.object
-        return is_dataset(obj)
+        dataset = get_dataset(context.object)
+        return dataset.is_dataset
 
     def execute(self, context):
         obj = context.object
         modules = get_modules(context)
-        generate(obj, modules.to_list())
+        populate(obj, modules.to_list())
         return {'FINISHED'}

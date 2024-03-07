@@ -429,8 +429,9 @@ def map_range(value, in_min, in_max, out_min, out_max):
     return out_min + (value - in_min) / (in_max - in_min) * (out_max - out_min)
 
 
+
 # -----------------------------------------------------------------------------
-# LIST COLLECTIONS
+# CLASSES
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class B3D_UL_GenericList(UIList):

@@ -102,11 +102,12 @@ class State(IntEnum):
 
 
 # -----------------------------------------------------------------------------
-def StateProperty(callback = None):
+def StateProperty(_name = 'State', _update = None):
     def __get_state_items(self, context):
-        return [(str(data.value), data.name, '') for data in State]
+        return [(data.name, data.name, '') for data in State]
     
-    return EnumProperty(name='State', 
+
+    return EnumProperty(name=_name, 
                         items=__get_state_items, 
                         default=0, 
-                        update=callback)
+                        update=_update)

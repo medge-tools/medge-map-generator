@@ -4,8 +4,8 @@ from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
 from .dataset   import *
-from .props     import is_dataset, is_datavis_enabled, set_datavis_enabeld, get_dataset
-
+from .props     import get_dataset
+from .vis       import DatasetVis
 
 # -----------------------------------------------------------------------------
 # IO
@@ -52,44 +52,74 @@ class MET_OT_ExportDataset(Operator, ExportHelper):
 # DATASET
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OT_EnableDatavis(Operator):
-    bl_idname   = 'medge_dataset.enable_datavis'
-    bl_label    = 'Enable Datavis'
+vis_is_enabled = False
+
+def is_vis_enabled():
+    global vis_is_enabled
+    return vis_is_enabled
+
+
+def set_vis_enabeld(state: bool):
+    global vis_is_enabled
+    vis_is_enabled = state
+
+# -----------------------------------------------------------------------------
+class MET_OT_EnableDatasetVis(Operator):
+    bl_idname   = 'medge_dataset.enable_dataset_vis'
+    bl_label    = 'Enable Dataset Vis'
 
 
     @classmethod
     def poll(cls, context: Context):
-        return not is_datavis_enabled(context)
+        return not is_vis_enabled()
 
 
     def execute(self, context: Context):
         DatasetVis().add_handle(context)
         context.area.tag_redraw()
-        set_datavis_enabeld(context, True)
+        set_vis_enabeld(True)
         return{'FINISHED'}
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_DisableDatavis(Operator):
-    bl_idname   = 'medge_dataset.disable_datavis'
-    bl_label    = 'Disable Datavis'
+class MET_OT_DisableDatasetVis(Operator):
+    bl_idname   = 'medge_dataset.disable_dataset_vis'
+    bl_label    = 'Disable Dataset Vis'
 
 
     @classmethod
     def poll(cls, context: Context):
-        return is_datavis_enabled(context)
+        return is_vis_enabled()
 
 
     def execute(self, context: Context):
         DatasetVis().remove_handle()
         context.area.tag_redraw()
-        set_datavis_enabeld(context, False)
+        set_vis_enabeld(False)
         return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------
 # Dataset Operations
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+class MET_OT_MakeDataset(Operator):
+    bl_idname   = 'medge_dataset.make_dataset'
+    bl_label    = 'Make Dataset'
+
+
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        return obj.type == 'MESH'
+
+
+    def execute(self, context: Context):
+        obj = context.object
+        DatasetOps.make_dataset(obj)
+        return {'FINISHED'}  
+
+
 # -----------------------------------------------------------------------------
 class MET_OT_SetState(Operator):
     bl_idname   = 'medge_dataset.set_state'
@@ -117,12 +147,13 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return is_dataset(obj) and obj.mode == 'EDIT'
+        return get_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.select_transitions(obj)
+        settings = get_dataset(obj).get_ops_settings()
+        DatasetOps.select_transitions(obj, settings.filter, settings.restrict)
         return {'FINISHED'}
     
 
@@ -136,14 +167,15 @@ class MET_OT_SelectStates(Operator):
     def poll(cls, context: Context):
         obj = context.object
         in_edit = obj.mode == 'EDIT'
-        if not is_dataset(obj): return False
-        settings = get_dataset(obj).get_ops_settings()
+        if not (dataset := get_dataset(obj)): return False
+        settings = dataset.get_ops_settings()
         return in_edit and settings.filter
 
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.select_states(obj)
+        settings = get_dataset(obj).get_ops_settings()
+        DatasetOps.select_states(obj, settings.filter)
         return {'FINISHED'}
 
 
@@ -157,7 +189,7 @@ class MET_OT_SnapToGrid(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return is_dataset(obj)
+        return get_dataset(obj)
     
 
     def execute(self, context: Context):

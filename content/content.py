@@ -1,12 +1,13 @@
 from bpy.types import Object
 
 from ..dataset.dataset  import DatasetOps
-from ..dataset.props    import is_dataset
+from ..dataset.props    import get_dataset
 from ..b3d_utils        import duplicate_object
 
 
-def generate(obj: Object, modules: list[Object]):
-    if not is_dataset(obj): return
+# -----------------------------------------------------------------------------
+def populate(obj: Object, modules: list[Object]):
+    if not get_dataset(obj).is_dataset: return
 
     states, locations, _, _ = DatasetOps.get_data(obj)
 

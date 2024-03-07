@@ -1,12 +1,12 @@
 from bpy.types  import Context, Panel
 
 from ..gui      import *
-from .ops       import MET_OT_InitModules, MET_OT_Generate
+from .ops       import MET_OT_InitModules, MET_OT_Populate
 from .props     import get_modules
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_PCG(MapGenMainPanel, Panel):
+class MET_PT_PCG(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
     bl_label = 'PCG'
 
@@ -19,7 +19,10 @@ class MET_PT_PCG(MapGenMainPanel, Panel):
         modules = get_modules(context)
 
         col = layout.column(align=True)
-        col.operator(MET_OT_InitModules.bl_idname)
+
+        if not modules.initialized:
+            col.operator(MET_OT_InitModules.bl_idname)
+        
         col.separator()
         
         row = col.row(align=True)
@@ -35,4 +38,10 @@ class MET_PT_PCG(MapGenMainPanel, Panel):
         col.prop(module, 'object')
 
         col.separator()
-        col.operator(MET_OT_Generate.bl_idname)
+        box = col.box()
+        row = box.row()
+        row.alignment = 'CENTER'
+        row.label(text='Selected Dataset will be populated')
+
+        col.separator()
+        col.operator(MET_OT_Populate.bl_idname)
