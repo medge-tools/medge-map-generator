@@ -139,10 +139,11 @@ class DatasetOps:
     @staticmethod
     def resolve_overlap(obj: Object):
         """Necessary after snapping to grid"""
-        if not DatasetOps.is_dataset(obj): return
+        mesh = obj.data
+
+        if not DatasetOps.is_dataset(mesh): return
         if obj.mode != 'EDIT': return
 
-        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         for k in range(len(bm.verts) - 1):
@@ -164,13 +165,13 @@ class DatasetOps:
     
 
     @staticmethod
-    def set_state(obj: Object, new_state):
+    def set_state(obj: Object, new_state: int):
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
 
-        if not DatasetOps.is_dataset(obj): 
-            DatasetOps.make_dataset(obj)
+        if not DatasetOps.is_dataset(mesh): 
+            DatasetOps.make_dataset(mesh)
         
         # Transform str to int
         bm = bmesh.from_edit_mesh(mesh)
@@ -186,7 +187,9 @@ class DatasetOps:
 
     @staticmethod
     def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
-        if not DatasetOps.is_dataset(obj): return
+        mesh = obj.data
+
+        if not DatasetOps.is_dataset(mesh): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
@@ -194,7 +197,6 @@ class DatasetOps:
             filter = filter.split(',')
             filter = [int(s) if s.isnumeric() else State[s] for s in filter]
 
-        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions
@@ -226,8 +228,10 @@ class DatasetOps:
 
     @staticmethod
     def select_states(obj: Object, filter: str = ''):
+        mesh = obj.data
+
         if not filter: return
-        if not DatasetOps.is_dataset(obj): return
+        if not DatasetOps.is_dataset(mesh): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
@@ -235,7 +239,6 @@ class DatasetOps:
             filter = filter.split(',')
             filter = [int(s) if s.isnumeric() else State[s] for s in filter]
 
-        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions

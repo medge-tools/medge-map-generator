@@ -14,3 +14,4 @@ class MET_PT_MapGenMainPanel(MapGenPanel_DefaultProps, Panel):
     
     def draw(self, context: Context):
         pass
+

@@ -1,4 +1,4 @@
-from bpy.types  import PropertyGroup, Collection, Context, Scene
+from bpy.types  import PropertyGroup, Collection, Context
 from bpy.props  import *
 
 from ..b3d_utils        import GenericList
@@ -6,6 +6,7 @@ from ..dataset.props    import get_dataset
 from ..dataset.movement import State, StateProperty
 
 from .markov            import MarkovChain
+
 # -----------------------------------------------------------------------------
 markov_chain_models = {}
 
@@ -89,15 +90,17 @@ class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):
 def get_markov_chains(context: Context) -> MET_SCENE_PG_MarkovChains:
     return context.scene.medge_markov_chains
 
-# -----------------------------------------------------------------------------
-# REGISTRATION
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def register():
-    Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
 
+# -----------------------------------------------------------------------------
+# Registration
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+import bpy
+
+def register():
+    bpy.types.Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
+    
 
 # -----------------------------------------------------------------------------
 def unregister():
-    if hasattr(Scene, 'medge_markov_chains'):
-        del Scene.medge_markov_chains
+    del bpy.types.Scene.medge_markov_chainss

@@ -4,6 +4,8 @@ from ..dataset.props    import get_dataset
 from .props             import get_modules
 from .content               import populate
 
+
+
 # -----------------------------------------------------------------------------
 class MET_OT_InitModules(Operator):
     bl_idname = "medge_content.init_modules"
@@ -32,3 +34,4 @@ class MET_OT_Populate(Operator):
         modules = get_modules(context)
         populate(obj, modules.to_list())
         return {'FINISHED'}
+    

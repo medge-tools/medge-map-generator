@@ -1,8 +1,11 @@
 from bpy.types      import PropertyGroup, Object, Mesh, Context
 from bpy.props      import *
 
-from .movement      import StateProperty
+from .movement      import State, StateProperty
 from .dataset       import DatasetOps
+
+classes = []
+
 
 # -----------------------------------------------------------------------------
 class MET_DS_PG_VisSettings(PropertyGroup):
@@ -36,6 +39,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
     def __get_is_dataset(self):
         return DatasetOps.is_dataset(self.id_data)
 
+
     is_dataset:     BoolProperty(default=False, get=__get_is_dataset)
     vis_settings:   PointerProperty(type=MET_DS_PG_VisSettings)
     ops_settings:   PointerProperty(type=MET_DS_PG_OpsSettings)
@@ -53,7 +57,7 @@ def get_dataset(obj: Object) -> MET_MESH_PG_Dataset:
 
 
 # -----------------------------------------------------------------------------
-# REGISTRATION
+# Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def register():

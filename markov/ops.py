@@ -1,7 +1,7 @@
 from bpy.types  import Operator, Context
 from bpy.props  import *
 
-from .vis       import MarkovChainVis
+from .stats       import MarkovChainStats
 from .props     import *
 
 
@@ -19,9 +19,9 @@ def set_vis_enabeld(state: bool):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_EnableMarkovVis(Operator):
-    bl_idname   = 'medge_markov_model.enable_markov_vis'
-    bl_label    = 'Enable Statistics Vis'
+class MET_OT_EnableMarkovStats(Operator):
+    bl_idname   = 'medge_markov_model.enable_markov_statistics'
+    bl_label    = 'Enable Statistics'
 
 
     @classmethod
@@ -30,16 +30,16 @@ class MET_OT_EnableMarkovVis(Operator):
 
 
     def execute(self, context: Context):
-        MarkovChainVis().add_handle(context)
+        MarkovChainStats().add_handle(context)
         context.area.tag_redraw()
         set_vis_enabeld(True)
         return{'FINISHED'}
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_DisableMarkovVis(Operator):
-    bl_idname   = 'medge_markov_model.disable_markov_vis'
-    bl_label    = 'Disable Statistics Vis'
+class MET_OT_DisableMarkovStats(Operator):
+    bl_idname   = 'medge_markov_model.disable_markov_statistics'
+    bl_label    = 'Disable Statistics'
 
 
     @classmethod
@@ -48,7 +48,7 @@ class MET_OT_DisableMarkovVis(Operator):
 
 
     def execute(self, context: Context):
-        MarkovChainVis().remove_handle()
+        MarkovChainStats().remove_handle()
         context.area.tag_redraw()
         set_vis_enabeld(False)
         return {'FINISHED'}
@@ -85,5 +85,3 @@ class MET_OT_GenerateChain(Operator):
         item = chains.get_selected()
         item.generate_chain(context)
         return {'FINISHED'}        
-
-

@@ -7,6 +7,7 @@ from .dataset   import *
 from .props     import get_dataset
 from .vis       import DatasetVis
 
+
 # -----------------------------------------------------------------------------
 # IO
 # -----------------------------------------------------------------------------
@@ -134,7 +135,9 @@ class MET_OT_SetState(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.set_state(obj)
+        settings = get_dataset(obj).get_ops_settings()
+        s = settings.new_state
+        DatasetOps.set_state(obj, int(s))
         return {'FINISHED'} 
 
 
@@ -203,17 +206,18 @@ class MET_OT_SnapToGrid(Operator):
 
 
 # -----------------------------------------------------------------------------
-# Register
+# Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def menu_func_import_dataset(self, context):
     self.layout.operator(MET_OT_ImportDataset.bl_idname, text='MEdge Dataset (.json)')
 
 
+# -----------------------------------------------------------------------------
 def register():
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_dataset)
 
 
+# -----------------------------------------------------------------------------
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_dataset)
-    

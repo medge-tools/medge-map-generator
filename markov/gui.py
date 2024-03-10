@@ -1,9 +1,12 @@
 from bpy.types  import Context, Panel
 
-from ..gui          import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from ..b3d_utils    import draw_generic_list_ops
+from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+
 from .ops           import *
 from .props         import get_markov_chains
-from ..b3d_utils    import draw_generic_list_ops
+
+classes = []
 
 
 # -----------------------------------------------------------------------------
@@ -47,9 +50,11 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
 
+classes.append(MET_PT_MarkovChains)
+
 
 # -----------------------------------------------------------------------------
-class MET_PT_MarkovChainsVis(MapGenPanel_DefaultProps, Panel):
+class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_MarkovChains.bl_idname
     bl_label = 'Statistics'
 
@@ -61,8 +66,8 @@ class MET_PT_MarkovChainsVis(MapGenPanel_DefaultProps, Panel):
         col = layout.column(align=True)
         row = col.row(align=True)
         
-        row.operator(MET_OT_EnableMarkovVis.bl_idname, text='Enable')
-        row.operator(MET_OT_DisableMarkovVis.bl_idname, text='Disable')
+        row.operator(MET_OT_EnableMarkovStats.bl_idname, text='Enable')
+        row.operator(MET_OT_DisableMarkovStats.bl_idname, text='Disable')
 
         if not is_vis_enabled(): return
 
@@ -80,3 +85,6 @@ class MET_PT_MarkovChainsVis(MapGenPanel_DefaultProps, Panel):
         col.separator()
         col.prop(item, 'from_state')
         col.prop(item, 'to_state')
+
+
+classes.append(MET_PT_MarkovChainsStats)

@@ -1,14 +1,14 @@
 from bpy.types  import Context, Panel
 
-from ..gui      import *
+from ..main_gui import *
 from .ops       import MET_OT_InitModules, MET_OT_Populate
 from .props     import get_modules
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_PCG(MapGenPanel_DefaultProps, Panel):
+class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
-    bl_label = 'PCG'
+    bl_label = 'Populate'
 
 
     def draw(self, context: Context):
@@ -45,3 +45,4 @@ class MET_PT_PCG(MapGenPanel_DefaultProps, Panel):
 
         col.separator()
         col.operator(MET_OT_Populate.bl_idname)
+

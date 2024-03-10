@@ -1,3 +1,7 @@
+"""
+Place this file in the root folder
+"""
+
 import  bpy
 import  bmesh
 from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout
@@ -8,8 +12,9 @@ from    mathutils   import Vector, Matrix, Euler
 import math
 import numpy as np
 
+
 # -----------------------------------------------------------------------------
-# HELPERS
+# Helpers
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def set_active(obj: Object):
@@ -64,6 +69,7 @@ def deselect_all_vertices(bm: BMesh):
 
 # -----------------------------------------------------------------------------
 def link_to_scene(obj: Object, collection: str = None):
+    if obj == None: return
     """If the collection == None, then the object will be linked to the root collection"""
     for uc in obj.users_collection:
         uc.objects.unlink(obj)
@@ -85,7 +91,7 @@ def auto_gui_properties(data, layout: bpy.types.UILayout):
 
 
 # -----------------------------------------------------------------------------
-# HANDLER CALLBACK
+# Handler Callback
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def add_callback(handler, function):
@@ -102,7 +108,7 @@ def remove_callback(handler, function):
 
 
 # -----------------------------------------------------------------------------
-# SCENE
+# Scene
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def new_object(name: str, data: bpy.types.ID, collection: str = None, parent: bpy.types.Object = None):
@@ -308,7 +314,7 @@ def unparent(obj: Object, keep_world_location = True):
 
 
 # -----------------------------------------------------------------------------
-# CREATE
+# Create
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def create_cube(scale: tuple[float, float, float] = (1, 1, 1)) -> Mesh:
@@ -422,7 +428,7 @@ def create_curve(num_points = 3,
 
 
 # -----------------------------------------------------------------------------
-# MATH
+# Math
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def map_range(value, in_min, in_max, out_min, out_max):
@@ -431,7 +437,7 @@ def map_range(value, in_min, in_max, out_min, out_max):
 
 
 # -----------------------------------------------------------------------------
-# CLASSES
+# Classes
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class B3D_UL_GenericList(UIList):
@@ -550,3 +556,77 @@ def draw_generic_list_ops(layout: UILayout, list: GenericList):
     layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_UP'    , text='').direction = 'UP'
     layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_DOWN'  , text='').direction = 'DOWN'
     layout.operator(B3D_OT_GenericList_Clear.bl_idname , icon='TRASH'      , text='')
+
+
+# -----------------------------------------------------------------------------
+# Registration
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+""" 
+Registration depends on auto_load.py:
+https://gist.github.com/JacquesLucke/11fecc6ea86ef36ea72f76ca547e795b 
+
+Use these functions when the order of registration is important
+"""
+import importlib
+from . import auto_load
+
+
+# -----------------------------------------------------------------------------
+registered_modules = []
+registered_classes = []
+
+# -----------------------------------------------------------------------------
+def register_subpackage(subpackage = ''):
+    """
+    Use empty string ('') to register root 
+    """
+    def get_all_submodules(directory, package_name):
+        return list(iter_submodules(directory, package_name))
+
+    def iter_submodules(path, package_name):
+        for name in sorted(iter_submodule_names(path)):
+            name = '.' + name
+            if subpackage:
+                name = '.' + subpackage + name
+            yield importlib.import_module(name, package_name)
+
+    def iter_submodule_names(path):
+        import pkgutil
+        for _, module_name, is_package in pkgutil.iter_modules([str(path)]):
+            if not is_package:
+                yield module_name
+
+
+    from pathlib import Path
+    
+    package = Path(__file__).parent
+    path = package 
+    if subpackage:
+        path /= subpackage
+
+    modules = get_all_submodules(path, package.name)
+    classes = auto_load.get_ordered_classes_to_register(modules)
+
+    auto_load.modules = modules
+    auto_load.ordered_classes = classes
+
+    auto_load.register()
+
+
+    global registered_modules
+    global registered_classes
+
+    registered_modules.extend(modules)
+    registered_classes.extend(classes)
+
+
+# -----------------------------------------------------------------------------
+def unregister_subpackages():
+    global registered_modules
+    global registered_classes
+
+    auto_load.modules = registered_modules
+    auto_load.ordered_classes = registered_classes
+
+    auto_load.unregister()

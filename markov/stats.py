@@ -6,11 +6,11 @@ from .props         import get_markov_chains
 # -----------------------------------------------------------------------------
 draw_handle = None
 
-class MarkovChainVis():
+class MarkovChainStats():
     def add_handle(self, context):
         dir = os.path.dirname(os.path.abspath(__file__))
         bpy.data.fonts.load(
-            filepath = dir + '//..//MartianMono-StdRg.otf', 
+            filepath = dir + '\\..\\fonts\\MartianMono-StdRg.otf', 
             check_existing = True)
         
         global draw_handle

@@ -1,9 +1,11 @@
 from    bpy.types   import Context, Panel
 from    .ops        import *
 
-from ..gui  import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
-from .props import get_dataset
-from .ops   import is_vis_enabled
+from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from .props     import get_dataset
+from .ops       import is_vis_enabled
+
+classes = []
 
 
 # -----------------------------------------------------------------------------
@@ -14,6 +16,8 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
     
     def draw(self, context: Context):
         pass
+
+classes.append(MET_PT_DatasetMainPanel)
 
 
 # -----------------------------------------------------------------------------
@@ -61,6 +65,9 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
         col.prop(vis_settings, 'max_draw_distance', text='Max')
 
 
+classes.append(MET_PT_DatasetVis)
+
+
 # -----------------------------------------------------------------------------
 class MET_PT_DatasetOps(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
@@ -105,4 +112,6 @@ class MET_PT_DatasetOps(MapGenPanel_DefaultProps, Panel):
         col.prop(settings, 'spacing')
         col.separator()
         col.operator(MET_OT_SnapToGrid.bl_idname)
-        
+
+
+classes.append(MET_PT_DatasetOps)

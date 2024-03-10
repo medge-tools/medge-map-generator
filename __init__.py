@@ -11,17 +11,21 @@ bl_info = {
 
 
 # -----------------------------------------------------------------------------
-import bpy
-
-from . import auto_load
-
-
-# -----------------------------------------------------------------------------
 def register():
-    auto_load.init()
-    auto_load.register()
+    from .b3d_utils import register_subpackage
+
+    register_subpackage('')
+    register_subpackage('dataset')
+    register_subpackage('markov')
+    register_subpackage('content')
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    auto_load.unregister()
+    from .b3d_utils import unregister_subpackages
+    
+    # Temp solution during development
+    import bpy
+    del bpy.types.Scene.medge_markov_chains
+
+    unregister_subpackages()

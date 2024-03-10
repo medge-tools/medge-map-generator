@@ -29,12 +29,12 @@ class DatasetVis():
     def draw_callback(self, context: Context):
         # Validate
         obj = context.object
+        mesh = obj.data
 
         if not obj: return
-        if not DatasetOps.is_dataset(obj.data): return
+        if not DatasetOps.is_dataset(mesh): return
         if obj.mode != 'EDIT': return
 
-        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
         
         # Draw 
