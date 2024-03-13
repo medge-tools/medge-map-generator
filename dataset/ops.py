@@ -117,7 +117,7 @@ class MET_OT_MakeDataset(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.make_dataset(obj)
+        DatasetOps.convert_to_dataset(obj)
         return {'FINISHED'}  
 
 
@@ -137,7 +137,7 @@ class MET_OT_SetState(Operator):
         obj = context.object
         settings = get_dataset(obj).get_ops_settings()
         s = settings.new_state
-        DatasetOps.set_state(obj, int(s))
+        DatasetOps.set_state(obj, State[s])
         return {'FINISHED'} 
 
 

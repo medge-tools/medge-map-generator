@@ -1,3 +1,4 @@
+import bpy
 from bpy.types  import PropertyGroup, Collection, Context
 from bpy.props  import *
 
@@ -95,12 +96,13 @@ def get_markov_chains(context: Context) -> MET_SCENE_PG_MarkovChains:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-import bpy
 
-def register():
-    bpy.types.Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
+
+# BUG: We call these manually in init because the auto_load throws a AttributeError every other reload
+# def register():
+#     bpy.types.Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
     
 
-# -----------------------------------------------------------------------------
-def unregister():
-    del bpy.types.Scene.medge_markov_chainss
+# # -----------------------------------------------------------------------------
+# def unregister():
+#     del bpy.types.Scene.medge_markov_chains

@@ -4,12 +4,15 @@ from mathutils import Vector
 
 import numpy as np
 
-from ..dataset.dataset  import Dataset, DatasetOps
+from ..dataset.dataset  import Attribute, Dataset, DatasetOps
 from ..dataset.movement import State
 from ..dataset.props    import get_dataset
-from .offset        import OffsetDoubleLevelTree
+from .offset            import OffsetNode, extract_seqs_per_state
+
 
 # -----------------------------------------------------------------------------
+compass = [Vector(( 1,  0, 0)), Vector((-1,  0, 0)), Vector(( 0,  1, 0)), Vector(( 0, -1, 0))]
+
 class MarkovChain:
 
     def __init__(self) -> None:
@@ -21,10 +24,7 @@ class MarkovChain:
         self.transition_matrix = None
         self.offset_matrix = None
 
-        self.timestamps = []
-        self.states = []
-        self.locations = []
-        self.connected = []
+        self.dataset = None
         self.nstates = 0
 
         self.statistics = []
@@ -33,38 +33,49 @@ class MarkovChain:
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
     def create_transition_matrix(self, objects: list[Object], name = ''):
         self.reset()
-
         self.name = name
+
+        D = Dataset()
+        N = 0
 
         for obj in objects:
             if not obj.visible_get(): continue
             if not get_dataset(obj): continue
 
-            s, l, t, c = DatasetOps.get_data(obj)
+            d = DatasetOps.get_dataset(obj)
+            D = Dataset.extend(D, d)
 
-            self.timestamps.extend(t)
-            self.states.extend(s)
-            self.locations.extend(l)
-            self.connected.extend(c)
 
-        n = max(self.states) + 1
-        TM = np.zeros((n, n), dtype=float)                                      # Transition matrix
-        OM = [[OffsetDoubleLevelTree() for _ in range(n)] for _ in range(n)]    # Offset matrix
+        if len(D) == 0: return
+
+        N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
+        TM = np.zeros((N, N), dtype=float)                                  # Transition matrix
+        OM = [[OffsetNode(branches=compass) for _ in range(N)] for _ in range(N)]    # Offset matrix
 
         # Populate matrices
-        transitions = zip(self.states, self.states[1:])
+        transitions = zip(D, D[1:])
 
-        for k, (i,j) in enumerate(transitions):
-            if not self.connected[k]: continue
+        for (entry1, entry2) in transitions:
+            if not entry1[Attribute.CONNECTED]: continue
 
-            start = self.locations[k]
-            end = self.locations[k + 1]
+            start = entry1[Attribute.LOCATION]
+            end = entry2[Attribute.LOCATION]
             offset = end - start
             
             # Update matrices
+            i = entry1[Attribute.PLAYER_STATE]
+            j = entry2[Attribute.PLAYER_STATE]
+
             TM[i][j] += 1.0
             OM[i][j].insert(offset.normalized())
-                
+
+
+        # Extract sequences and calculate 'same branch' probability
+        sequences = extract_seqs_per_state(D)
+        for k, v in sequences.items():
+            OM[k][k].insert_seqs(v)
+
+
         # Normalize 
         for row in TM:
             s = sum(row)
@@ -72,21 +83,22 @@ class MarkovChain:
                 factor = 1.0/s
                 row[:] = [float(v) * factor for v in row]
 
-        for i in range(n):
-            for j in range(n):
-                OM[i][j].normalize()
+        for entry1 in range(N):
+            for entry2 in range(N):
+                OM[entry1][entry2].normalize()
 
         # Store matrices
-        self.nstates = n
+        self.nstates = N
         self.transition_matrix = TM
         self.offset_matrix = OM
+        self.dataset = D
 
 
     def generate_chain(self, length: int, seed: int, spacing: float):
         np.random.seed(seed)
         
         dataset = Dataset()
-        dataset.append(State.Walking, Vector())
+        dataset = Dataset.append(dataset, State.Walking.value, Vector())
 
         prev_state = 1
         prev_location = Vector()
@@ -96,12 +108,12 @@ class MarkovChain:
 
             next_state = np.random.choice(self.nstates, p=probabilities)
 
-            offset_hierarchy = self.offset_matrix[prev_state][next_state]
-            new_offset = offset_hierarchy.random_offset()
+            offset_tree = self.offset_matrix[prev_state][next_state]
+            new_offset = offset_tree.random_offset()
 
             next_location = prev_location + new_offset * spacing
 
-            dataset.append(State(next_state), next_location,)
+            dataset = Dataset.append(dataset, State(next_state).value, next_location,)
             
             prev_state = next_state
             prev_location = next_location

@@ -1,6 +1,6 @@
 from bpy.types import Object
 
-from ..dataset.dataset  import DatasetOps
+from ..dataset.dataset  import Attribute, DatasetOps
 from ..dataset.props    import get_dataset
 from ..b3d_utils        import duplicate_object
 
@@ -9,11 +9,11 @@ from ..b3d_utils        import duplicate_object
 def populate(obj: Object, modules: list[Object]):
     if not get_dataset(obj).is_dataset: return
 
-    states, locations, _, _ = DatasetOps.get_data(obj)
+    dataset = DatasetOps.get_dataset(obj)
 
-    for k in range(len(states)):
-        s = states[k]
-        l = locations[k]
+    for entry in dataset:
+        s = entry[Attribute.PLAYER_STATE.label]
+        l = entry[Attribute.LOCATION.label]
 
         m = modules[s]
         

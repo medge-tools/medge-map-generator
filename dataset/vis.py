@@ -4,7 +4,7 @@ from    bpy_extras  import view3d_utils
 from    bpy.types   import Context, SpaceView3D
 
 from ..         import b3d_utils
-from .dataset   import Attributes, DatasetOps
+from .dataset   import Attribute, DatasetOps
 from .movement  import State
 from .props     import get_dataset
 
@@ -26,12 +26,15 @@ class DatasetVis():
             SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
             draw_handle = None
 
+
     def draw_callback(self, context: Context):
         # Validate
         obj = context.object
-        mesh = obj.data
 
         if not obj: return
+
+        mesh = obj.data
+
         if not DatasetOps.is_dataset(mesh): return
         if obj.mode != 'EDIT': return
 
@@ -42,8 +45,8 @@ class DatasetVis():
         region_3d = context.space_data.region_3d
         view_mat = region_3d.view_matrix
 
-        state_layer = bm.verts.layers.int.get(Attributes.PLAYER_STATE)
-        time_layer = bm.verts.layers.float_vector.get(Attributes.TIMESTAMP)
+        state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+        time_layer = bm.verts.layers.float_vector.get(Attribute.TIMESTAMP.label)
 
         vis_settings = get_dataset(obj).get_vis_settings()
         min_draw_distance = vis_settings.min_draw_distance
