@@ -1,9 +1,84 @@
 from mathutils import Vector
 
+import copy
 import numpy as np
-from sys import float_info
+from sys            import float_info
+from typing         import overload
+from collections    import UserList
 
-from ..dataset.dataset import Attribute, Dataset
+from ..b3d_utils import rotation_matrix
+
+
+# -----------------------------------------------------------------------------
+class Chain(UserList):
+    def __init__(self, points : list[Vector]):
+        self.to_center(points)
+        super().__init__(points)
+
+        oin, oout = self.calc_orientation(points)
+
+        self.orientation_in = oin
+        self.orientation_out = oout
+
+
+    def to_center(self, points : list[Vector]):
+        offset = copy.deepcopy(points[0])
+        
+        for p in points:
+            p -= offset
+
+
+    def calc_orientation(self, points):
+        oin = Vector((0, 1, 0))
+        oout = Vector((0, 1, 0))
+
+        if len(points) >= 2:
+            oin = points[1] - points[0]
+            oout = points[-1] - points[-2]
+            oin.normalize()
+            oout.normalize()
+        
+        return oin, oout
+    
+
+    def align(self, other):
+        oin = self.orientation_in
+        oout = other.orientation_out
+        
+        points = self.data
+
+        # Rotate         
+        R = rotation_matrix(oin, oout)
+
+        for p in points:
+            p.rotate(R)
+
+        # Translate
+        offset = points[1] - points[0]
+        offset += copy.deepcopy(other[-1])
+
+        for p in points:
+            p += offset
+
+
+
+# -----------------------------------------------------------------------------
+class ChainList(UserList):
+    def __init__(self):
+        super().__init__()
+
+
+    def append(self, sequence : list[list[Vector]]):
+        for seq in sequence:
+            self.data.append(Chain(seq))
+                    
+
+    def random_chain(self) -> Chain:
+        n = len(self.data)
+        k = np.random.choice(n)
+
+        return copy.deepcopy(self.data[k])
+
 
 # -----------------------------------------------------------------------------
 class OffsetNode():
@@ -181,29 +256,7 @@ class OffsetNode():
             self.use_prev_branch = same * factor
 
 
-# -----------------------------------------------------------------------------
-def extract_seqs_per_state(dataset : Dataset):
-    # Init dictionary
-    sequences: dict[int, list[list[Vector]]] = {}
-    for entry in dataset:
-        sequences.setdefault(entry[Attribute.PLAYER_STATE.value], [])    
-    
-    entry0  = dataset[0]
-    curr_state = entry0[Attribute.PLAYER_STATE.value]
-    lchain = [entry0[Attribute.LOCATION.value]]
 
-    for entry in dataset[1:]:
-        s = entry[Attribute.PLAYER_STATE.value]
-        l = entry[Attribute.LOCATION.value]
-
-        if s == curr_state:
-            lchain.append(l)
-        else:
-            sequences[curr_state].append(lchain)
-            curr_state = s
-            lchain = [l]
-
-    return sequences
 
 
 # -----------------------------------------------------------------------------

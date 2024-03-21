@@ -44,11 +44,11 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
             row.label(text='Visualization renders in Edit Mode')
             return
 
-        obj = context.active_object
-        if not obj: return
+        if not (obj := context.active_object): return
 
-        
-        vis_settings = get_dataset(obj).get_vis_settings()
+        if not (dataset := get_dataset(obj)): return
+
+        vis_settings = dataset.get_vis_settings()
         
         col = layout.column(align=True)
         col.separator()

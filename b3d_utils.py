@@ -435,6 +435,34 @@ def map_range(value, in_min, in_max, out_min, out_max):
     return out_min + (value - in_min) / (in_max - in_min) * (out_max - out_min)
 
 
+# -----------------------------------------------------------------------------
+# https://stackoverflow.com/questions/45142959/calculate-rotation-matrix-to-align-two-vectors-in-3d-space 
+def rotation_matrix(v1, v2):
+    """ Find the rotation matrix that aligns vec1 to vec2
+    :param vec1: A 3d "source" vector
+    :param vec2: A 3d "destination" vector
+    :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
+    """
+    v1 = [v1.x, v1.y, v1.z]
+    v2 = [v2.x, v2.y, v2.z]
+
+    a, b = (v1 / np.linalg.norm(v1)).reshape(3), (v2 / np.linalg.norm(v2)).reshape(3)
+    v = np.cross(a, b)
+    
+    if not any(v):
+        return Matrix.Identity(3)
+
+    d = np.dot(a, b)
+    s = np.linalg.norm(v)
+    kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+    r = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - d) / (s ** 2))
+    R = Matrix(((r[0][0], r[0][1], r[0][2], 0),
+                (r[1][0], r[1][1], r[1][2], 0), 
+                (r[2][0], r[2][1], r[2][2], 0), 
+                (0,       0,       0,       1)))
+
+    return R
+
 
 # -----------------------------------------------------------------------------
 # Classes

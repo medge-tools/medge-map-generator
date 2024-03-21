@@ -7,12 +7,10 @@ import numpy as np
 from ..dataset.dataset  import Attribute, Dataset, DatasetOps
 from ..dataset.movement import State
 from ..dataset.props    import get_dataset
-from .offset            import OffsetNode, extract_seqs_per_state
+from .chains            import ChainList
 
 
 # -----------------------------------------------------------------------------
-compass = [Vector(( 1,  0, 0)), Vector((-1,  0, 0)), Vector(( 0,  1, 0)), Vector(( 0, -1, 0))]
-
 class MarkovChain:
 
     def __init__(self) -> None:
@@ -22,7 +20,7 @@ class MarkovChain:
     def reset(self):
         self.name = ''
         self.transition_matrix = None
-        self.offset_matrix = None
+        self.chain_lists = None
 
         self.dataset = None
         self.nstates = 0
@@ -43,37 +41,31 @@ class MarkovChain:
             if not get_dataset(obj): continue
 
             d = DatasetOps.get_dataset(obj)
-            D = Dataset.extend(D, d)
+            D.extend(d)
 
 
         if len(D) == 0: return
 
         N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
-        TM = np.zeros((N, N), dtype=float)                                  # Transition matrix
-        OM = [[OffsetNode(branches=compass) for _ in range(N)] for _ in range(N)]    # Offset matrix
+        TM = np.zeros((N, N), dtype=float)
+        CM = [ChainList() for _ in range(N)]
 
-        # Populate matrices
+        # Populate transition matrix
         transitions = zip(D, D[1:])
 
         for (entry1, entry2) in transitions:
             if not entry1[Attribute.CONNECTED]: continue
 
-            start = entry1[Attribute.LOCATION]
-            end = entry2[Attribute.LOCATION]
-            offset = end - start
-            
-            # Update matrices
             i = entry1[Attribute.PLAYER_STATE]
             j = entry2[Attribute.PLAYER_STATE]
 
             TM[i][j] += 1.0
-            OM[i][j].insert(offset.normalized())
 
 
-        # Extract sequences and calculate 'same branch' probability
-        sequences = extract_seqs_per_state(D)
+        # Populate ChainLists
+        sequences = D.seqs_per_state()
         for k, v in sequences.items():
-            OM[k][k].insert_seqs(v)
+            CM[k].append(v)
 
 
         # Normalize 
@@ -83,40 +75,39 @@ class MarkovChain:
                 factor = 1.0/s
                 row[:] = [float(v) * factor for v in row]
 
-        for entry1 in range(N):
-            for entry2 in range(N):
-                OM[entry1][entry2].normalize()
 
         # Store matrices
         self.nstates = N
         self.transition_matrix = TM
-        self.offset_matrix = OM
+        self.chain_lists = CM
         self.dataset = D
 
 
     def generate_chain(self, length: int, seed: int, spacing: float):
         np.random.seed(seed)
+        start_state = State.Walking.value
+        
+        prev_state = start_state
+        prev_chain = self.chain_lists[start_state].random_chain()
         
         dataset = Dataset()
-        dataset = Dataset.append(dataset, State.Walking.value, Vector())
 
-        prev_state = 1
-        prev_location = Vector()
+        for p in prev_chain:
+            dataset.append(start_state, p)
 
         for _ in range(length):
             probabilities = self.transition_matrix[prev_state]
-
             next_state = np.random.choice(self.nstates, p=probabilities)
 
-            offset_tree = self.offset_matrix[prev_state][next_state]
-            new_offset = offset_tree.random_offset()
+            cl = self.chain_lists[next_state]
+            next_chain = cl.random_chain()
+            next_chain.align(prev_chain)
 
-            next_location = prev_location + new_offset * spacing
-
-            dataset = Dataset.append(dataset, State(next_state).value, next_location,)
+            for p in next_chain:
+                dataset.append(State(next_state).value, p)
             
             prev_state = next_state
-            prev_location = next_location
+            prev_chain = next_chain
 
         name = self.name + '_' + str(length) + '_' + str(seed)
         DatasetOps.create_polyline(dataset, name)
@@ -126,7 +117,7 @@ class MarkovChain:
         data = np.zeros((0, 2), dtype=str)
 
         t = self.transition_matrix[from_state][to_state]
-        off = self.offset_matrix[from_state][to_state]
+        off = self.chain_lists[from_state][to_state]
 
         header = [[State(from_state).name + ' -> ' + State(to_state).name, str(round(t, 3))]]
 

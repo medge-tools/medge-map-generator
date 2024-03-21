@@ -31,28 +31,66 @@ class Attribute(int, Enum):
 
 
 # -----------------------------------------------------------------------------
-class Dataset(np.ndarray):
-    def __new__(cls):
-        return super().__new__(cls, (0, len(Attribute)), dtype=object, buffer=None, offset=0, strides=None, order=None)
+class Dataset():
+    def __init__(self):
+        self.data = np.empty((0, len(Attribute)), dtype=object)
 
-    @staticmethod
-    def append(data,
-               player_state: int,
-               location: Vector,
-               timestamp = Vector((0, 0, 0)),
-               connected: bool = True):
-        values = [0 for _ in range(len(Attribute))]
+    def __getitem__(self, key):
+        return self.data[key]
+    
+    def __setitem__(self, key, value):
+        self.data[key] = value
+    
+    def __len__(self):
+        return len(self.data)
+    
+
+    def append(self,
+               player_state : int,
+               location     : Vector,
+               timestamp    : Vector = Vector(),
+               connected    : bool = True):
         
-        values[Attribute.TIMESTAMP.value] = timestamp
-        values[Attribute.PLAYER_STATE.value] = player_state
-        values[Attribute.LOCATION.value] = location
-        values[Attribute.CONNECTED.value] = connected
+        v = [0 for _ in range(len(Attribute))]
 
-        return np.append(data, [values], axis=0)
+        v[Attribute.PLAYER_STATE.value] = player_state
+        v[Attribute.LOCATION.value] = location
+        v[Attribute.TIMESTAMP.value] = timestamp
+        v[Attribute.CONNECTED.value] = connected
 
-    @staticmethod
-    def extend(data, other):
-        return np.concatenate((data, other), axis=0)
+        V = np.array([v], dtype=object)
+        self.data = np.append(self.data, V, axis=0)
+
+   
+    def extend(self, other):
+        self.data = np.concatenate((self.data, other.data), axis=0)
+
+
+    def seqs_per_state(self):
+        # Init dictionary
+        sequences: dict[int, list[list[Vector]]] = {}
+
+        for entry in self.data:
+            sequences.setdefault(entry[Attribute.PLAYER_STATE.value], [])    
+        
+        entry0 = self.data[0]
+        curr_state = entry0[Attribute.PLAYER_STATE.value]
+        curr_chain = [entry0[Attribute.LOCATION.value]]
+        
+        sequences[curr_state].append(curr_chain)
+
+        for entry in self.data[1:]:
+            s = entry[Attribute.PLAYER_STATE.value]
+            l = entry[Attribute.LOCATION.value]
+
+            if s == curr_state:
+                curr_chain.append(l)
+            else:
+                curr_chain = [l]
+                curr_state = s
+                sequences[curr_state].append(curr_chain)
+
+        return sequences
 
 
 # -----------------------------------------------------------------------------
@@ -74,7 +112,7 @@ class DatasetIO:
             z = float(item[Attribute.LOCATION.label]['z'])
             location = Vector((x * -1, y, z))
 
-            dataset = Dataset.append(dataset, player_state, location, timestamp)
+            dataset.append(player_state, location, timestamp)
         
         name = ntpath.basename(filepath)
         DatasetOps.create_polyline(dataset, name)
@@ -88,22 +126,30 @@ class DatasetIO:
 class DatasetOps:
 
     @staticmethod
-    def convert_to_dataset(obj: Object, dataset: Dataset):
-        packed = list(dataset[:, Attribute.TIMESTAMP.value])
-        timestamps = [0] * len(packed) * 3
+    def convert_to_dataset(mesh: Mesh, dataset: Dataset = None):
+        if dataset:
+            packed = list(dataset[:, Attribute.TIMESTAMP.value])
+            timestamps = [0] * len(packed) * 3
 
-        for k in range(len(packed)): 
-            timestamps[k * 3 + 0] = packed[k].x
-            timestamps[k * 3 + 1] = packed[k].y
-            timestamps[k * 3 + 2] = packed[k].z
+            for k in range(len(packed)): 
+                timestamps[k * 3 + 0] = packed[k].x
+                timestamps[k * 3 + 1] = packed[k].y
+                timestamps[k * 3 + 2] = packed[k].z
 
-        player_states = list(dataset[:, Attribute.PLAYER_STATE.value] )
+            player_states = list(dataset[:, Attribute.PLAYER_STATE.value] )
 
-        t = obj.data.attributes.new(name=Attribute.TIMESTAMP.label, type='FLOAT_VECTOR', domain='POINT')
-        t.data.foreach_set('vector', timestamps)
+        else:
+            n = len(mesh.vertices)
+            timestamps = [0] * n * 3
+            player_states = [State.Walking.value] * n
+        
+        if Attribute.TIMESTAMP.label not in mesh.attributes:
+            t = mesh.attributes.new(name=Attribute.TIMESTAMP.label, type='FLOAT_VECTOR', domain='POINT')
+            t.data.foreach_set('vector', timestamps)
 
-        p = obj.data.attributes.new(name=Attribute.PLAYER_STATE.label, type='INT', domain='POINT')
-        p.data.foreach_set('value', player_states)
+        if Attribute.PLAYER_STATE.label not in mesh.attributes:
+            p = mesh.attributes.new(name=Attribute.PLAYER_STATE.label, type='INT', domain='POINT')
+            p.data.foreach_set('value', player_states)
 
 
     @staticmethod
@@ -129,8 +175,7 @@ class DatasetOps:
         mesh = b3d_utils.create_mesh(verts, edges, [], name)
         obj = b3d_utils.new_object(name, mesh)  
 
-        DatasetOps.convert_to_dataset(obj, dataset)
-
+        DatasetOps.convert_to_dataset(mesh, dataset)
 
 
     @staticmethod
@@ -161,10 +206,10 @@ class DatasetOps:
             if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
                 c = True
 
-            dataset = Dataset.append(dataset, s, l, t, c)
+            dataset.append(s, l, t, c)
         
         s, l, t = retrieve(bm.verts[-1])
-        dataset = Dataset.append(dataset, s, l, t, False)
+        dataset.append(s, l, t, False)
         
         return dataset
 
