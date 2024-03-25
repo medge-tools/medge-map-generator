@@ -104,9 +104,9 @@ class MET_OT_DisableDatasetVis(Operator):
 # Dataset Operations
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OT_MakeDataset(Operator):
-    bl_idname   = 'medge_dataset.make_dataset'
-    bl_label    = 'Make Dataset'
+class MET_OT_ConvertToDataset(Operator):
+    bl_idname   = 'medge_dataset.convert_to_dataset'
+    bl_label    = 'Convert To Dataset'
 
 
     @classmethod
@@ -117,7 +117,7 @@ class MET_OT_MakeDataset(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.convert_to_dataset(obj.data)
+        DatasetOps.convert_to_dataset(obj)
         return {'FINISHED'}  
 
 
@@ -137,7 +137,7 @@ class MET_OT_SetState(Operator):
         obj = context.object
         settings = get_dataset(obj).get_ops_settings()
         s = settings.new_state
-        DatasetOps.set_state(obj, State[s])
+        DatasetOps.set_state(obj, PlayerState[s])
         return {'FINISHED'} 
 
 
@@ -203,6 +203,24 @@ class MET_OT_SnapToGrid(Operator):
         DatasetOps.resolve_overlap(obj)
         return {'FINISHED'}
     
+
+# -----------------------------------------------------------------------------
+class MET_OT_ResolveOverlap(Operator):
+    bl_idname   = 'medge_dataset.resolve_overlap'
+    bl_label    = 'Resolve Overlap'
+    bl_options  = {'UNDO'}
+
+    
+    @classmethod
+    def poll(cls, context: Context):
+        obj = context.object
+        return get_dataset(obj)
+    
+
+    def execute(self, context: Context):
+        obj = context.object
+        DatasetOps.resolve_overlap(obj)
+        return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------

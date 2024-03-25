@@ -24,6 +24,7 @@ classes.append(MET_PT_DatasetMainPanel)
 class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
     bl_label = 'Visualization'
+    bl_options = {'DEFAULT_CLOSED'}
 
 
     def draw(self, context: Context):        
@@ -45,7 +46,6 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
             return
 
         if not (obj := context.active_object): return
-
         if not (dataset := get_dataset(obj)): return
 
         vis_settings = dataset.get_vis_settings()
@@ -56,14 +56,15 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
         col.prop(vis_settings, 'to_name')
         col.prop(vis_settings, 'only_selection')
         col.prop(vis_settings, 'show_timestamps')
+        col.prop(vis_settings, 'draw_aabb')
         col.separator()
-        col.prop(vis_settings, 'color')
+        col.prop(vis_settings, 'default_color')
+        col.prop(vis_settings, 'start_chain_color')
         col.separator()
         col.prop(vis_settings, 'font_size')
         col.separator()
         col.prop(vis_settings, 'min_draw_distance', text='Draw Distance Min')
         col.prop(vis_settings, 'max_draw_distance', text='Max')
-
 
 classes.append(MET_PT_DatasetVis)
 
@@ -72,6 +73,7 @@ classes.append(MET_PT_DatasetVis)
 class MET_PT_DatasetOps(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
     bl_label = 'Operations'
+    bl_options = {'DEFAULT_CLOSED'}
 
     def draw(self, context: Context):
         obj = context.active_object
@@ -84,8 +86,9 @@ class MET_PT_DatasetOps(MapGenPanel_DefaultProps, Panel):
         col = layout.column(align=True)
 
         if not (dataset := get_dataset(obj)): 
-            col.operator(MET_OT_MakeDataset.bl_idname)
-            return
+            col.operator(MET_OT_ConvertToDataset.bl_idname)
+        else:
+            col.operator(MET_OT_ConvertToDataset.bl_idname, text='Update Attributes')
 
         settings = dataset.get_ops_settings()
         
@@ -112,6 +115,7 @@ class MET_PT_DatasetOps(MapGenPanel_DefaultProps, Panel):
         col.prop(settings, 'spacing')
         col.separator()
         col.operator(MET_OT_SnapToGrid.bl_idname)
+        col.operator(MET_OT_ResolveOverlap.bl_idname)
 
 
 classes.append(MET_PT_DatasetOps)

@@ -4,6 +4,8 @@ Place this file in the root folder
 
 import  bpy
 import  bmesh
+import  gpu
+from    gpu_extras.batch import batch_for_shader
 from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout
 from    bpy.props   import *
 from    bmesh.types import BMesh
@@ -462,6 +464,58 @@ def rotation_matrix(v1, v2):
                 (0,       0,       0,       1)))
 
     return R
+
+
+# -----------------------------------------------------------------------------
+# GPU
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# https://blender.stackexchange.com/questions/61699/how-to-draw-geometry-in-3d-view-window-with-bgl
+
+vertex_coords = []
+
+def begin_batch():
+    global vertex_coords
+    vertex_coords = []
+
+
+# -----------------------------------------------------------------------------
+def batch_add(coord: Vector):
+    global vertex_coords
+    vertex_coords.append(coord)
+
+
+# -----------------------------------------------------------------------------
+def draw_batch_3d(color: tuple, width=1.0, type='LINES'):
+    global vertex_coords
+    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+    gpu.state.line_width_set(width)
+    batch = batch_for_shader(shader, type, {'pos': vertex_coords})
+    shader.bind()
+    shader.uniform_float('color', color)
+    batch.draw(shader)
+
+
+# -----------------------------------------------------------------------------
+def draw_cube_3d(bmin: Vector, bmax: Vector, color: tuple, width=1.0, type='LINES_ADJ'):
+    end1 = (bmax.x, bmin.y, bmin.z)
+    end2 = (bmin.x, bmax.y, bmin.z)
+    end3 = (bmin.x, bmin.y, bmax.z)
+
+    end4 = (bmin.x, bmax.y, bmax.z)
+    end5 = (bmax.x, bmin.y, bmax.z)
+    end6 = (bmax.x, bmax.y, bmin.z)
+
+    begin_batch()
+
+    batch_add(end1)
+    batch_add(end2)
+    batch_add(end3)
+    batch_add(end4)
+    batch_add(end5)
+    batch_add(end6)
+
+    draw_batch_3d(color, width, type)
 
 
 # -----------------------------------------------------------------------------

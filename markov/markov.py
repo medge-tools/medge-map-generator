@@ -5,7 +5,7 @@ from mathutils import Vector
 import numpy as np
 
 from ..dataset.dataset  import Attribute, Dataset, DatasetOps
-from ..dataset.movement import State
+from ..dataset.movement import PlayerState
 from ..dataset.props    import get_dataset
 from .chains            import ChainList
 
@@ -48,11 +48,10 @@ class MarkovChain:
 
         N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
         TM = np.zeros((N, N), dtype=float)
-        CM = [ChainList() for _ in range(N)]
+        CL = [ChainList() for _ in range(N)]
 
         # Populate transition matrix
         transitions = zip(D, D[1:])
-
         for (entry1, entry2) in transitions:
             if not entry1[Attribute.CONNECTED]: continue
 
@@ -65,7 +64,7 @@ class MarkovChain:
         # Populate ChainLists
         sequences = D.seqs_per_state()
         for k, v in sequences.items():
-            CM[k].append(v)
+            CL[k].append(v)
 
 
         # Normalize 
@@ -79,13 +78,13 @@ class MarkovChain:
         # Store matrices
         self.nstates = N
         self.transition_matrix = TM
-        self.chain_lists = CM
+        self.chain_lists = CL
         self.dataset = D
 
 
-    def generate_chain(self, length: int, seed: int, spacing: float):
+    def generate_chain(self, length: int, seed: int):
         np.random.seed(seed)
-        start_state = State.Walking.value
+        start_state = PlayerState.Walking.value
         
         prev_state = start_state
         prev_chain = self.chain_lists[start_state].random_chain()
@@ -95,7 +94,7 @@ class MarkovChain:
         for p in prev_chain:
             dataset.append(start_state, p)
 
-        for _ in range(length):
+        for k in range(length):
             probabilities = self.transition_matrix[prev_state]
             next_state = np.random.choice(self.nstates, p=probabilities)
 
@@ -103,9 +102,17 @@ class MarkovChain:
             next_chain = cl.random_chain()
             next_chain.align(prev_chain)
 
-            for p in next_chain:
-                dataset.append(State(next_state).value, p)
-            
+            n = len(next_chain)
+            bmin = next_chain.aabb.bmin
+            bmax = next_chain.aabb.bmax
+
+            for k, p in enumerate(next_chain):
+                l = n - k
+                if k == 0:
+                    dataset.append(next_state, p, aabb_min=bmin, aabb_max=bmax, chain_length=l, chain_start=True)
+                else:
+                    dataset.append(next_state, p, aabb_min=bmin, aabb_max=bmax, chain_length=l)
+
             prev_state = next_state
             prev_chain = next_chain
 
@@ -119,7 +126,7 @@ class MarkovChain:
         t = self.transition_matrix[from_state][to_state]
         off = self.chain_lists[from_state][to_state]
 
-        header = [[State(from_state).name + ' -> ' + State(to_state).name, str(round(t, 3))]]
+        header = [[PlayerState(from_state).name + ' -> ' + PlayerState(to_state).name, str(round(t, 3))]]
 
         data = np.append(data, header, axis=0)
         data = np.append(data, off.statistics(), axis=0)

@@ -3,32 +3,61 @@ from mathutils import Vector
 import copy
 import numpy as np
 from sys            import float_info
-from typing         import overload
 from collections    import UserList
 
 from ..b3d_utils import rotation_matrix
 
 
 # -----------------------------------------------------------------------------
+class AABB:
+    def __init__(self, bmin: Vector, bmax: Vector):
+        self.bmin = bmin
+        self.bmax = bmax
+
+
+    def contains(self, other: 'Vector | AABB'):
+        if isinstance(other, Vector):
+            a = other - self.bmin
+            b = self.bmax - other
+            return a >= 0 and b >= 0
+        
+        if isinstance(other, AABB):
+            if other.bmax < self.bmin: return False
+            if other.bmin > self.bmax: return True
+
+# -----------------------------------------------------------------------------
 class Chain(UserList):
     def __init__(self, points : list[Vector]):
-        self.to_center(points)
-        super().__init__(points)
+        super().__init__(copy.deepcopy(points))
 
-        oin, oout = self.calc_orientation(points)
-
-        self.orientation_in = oin
-        self.orientation_out = oout
+        self.to_center()
+        self.update_aabb()
+        self.calc_orientation()
 
 
-    def to_center(self, points : list[Vector]):
+    def to_center(self):
+        points = self.data
         offset = copy.deepcopy(points[0])
         
         for p in points:
             p -= offset
 
 
-    def calc_orientation(self, points):
+    def update_aabb(self):
+        fmax = float_info.max
+        fmin = float_info.min
+        bmin = Vector((fmax, fmax, fmax))
+        bmax = Vector((fmin, fmin, fmin))
+        
+        for p in self.data:
+            if p < bmin: bmin = copy.deepcopy(p)
+            if p > bmax: bmax = copy.deepcopy(p)
+        
+        self.aabb = AABB(bmin, bmax)
+
+
+    def calc_orientation(self):
+        points = self.data
         oin = Vector((0, 1, 0))
         oout = Vector((0, 1, 0))
 
@@ -38,7 +67,8 @@ class Chain(UserList):
             oin.normalize()
             oout.normalize()
         
-        return oin, oout
+        self.orientation_in = oin
+        self.orientation_out = oout
     
 
     def align(self, other):
@@ -47,19 +77,29 @@ class Chain(UserList):
         
         points = self.data
 
-        # Rotate         
-        R = rotation_matrix(oin, oout)
+        # Rotate
+        # R = rotation_matrix(oin, oout)
 
-        for p in points:
-            p.rotate(R)
+        # for p in points:
+        #     p.rotate(R)
+
+        # self.orientation_in.rotate(R)
+        # self.orientation_out.rotate(R)
 
         # Translate
-        offset = points[1] - points[0]
+        offset = oin
+        if len(points) >= 2:
+            offset = points[1] - points[0]
         offset += copy.deepcopy(other[-1])
 
         for p in points:
             p += offset
 
+        self.update_aabb()
+
+    
+    def collides(self, other: 'Chain'):
+        return other.aabb.contains(self.aabb)
 
 
 # -----------------------------------------------------------------------------

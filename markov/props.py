@@ -4,7 +4,7 @@ from bpy.props  import *
 
 from ..b3d_utils        import GenericList
 from ..dataset.props    import get_dataset
-from ..dataset.movement import State, StateProperty
+from ..dataset.movement import PlayerState, StateProperty
 
 from .markov            import MarkovChain
 
@@ -40,7 +40,7 @@ class MET_PG_MarkovChain(PropertyGroup):
             return
 
         mc: MarkovChain = markov_chain_models[self.name]
-        mc.generate_chain(self.length, self.seed, self.spacing)
+        mc.generate_chain(self.length, self.seed)
 
 
     def __get_name(self):
@@ -56,7 +56,7 @@ class MET_PG_MarkovChain(PropertyGroup):
 
     def __update_statistics(self, context):
         mc: MarkovChain = markov_chain_models[self.name]
-        mc.update_statistics(State[self.from_state], State[self.to_state])
+        mc.update_statistics(PlayerState[self.from_state], PlayerState[self.to_state])
 
 
     name: StringProperty('Name', get=__get_name)
@@ -70,7 +70,6 @@ class MET_PG_MarkovChain(PropertyGroup):
 
     length: IntProperty('Length', default=100)
     seed: IntProperty('Seed', default=2024)
-    spacing: FloatProperty('Spacing', default=2, min=1)
 
 
 # -----------------------------------------------------------------------------

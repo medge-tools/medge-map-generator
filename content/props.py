@@ -2,7 +2,7 @@ from bpy.types import PropertyGroup, Object, Scene, Context, UIList
 from bpy.props import *
 
 from ..b3d_utils        import GenericList
-from ..dataset.movement import State
+from ..dataset.movement import PlayerState
 
 
 classes = []
@@ -11,7 +11,7 @@ classes = []
 class MET_PG_Module(PropertyGroup):
 
     def __get_name(self):
-        return State(self.state).name
+        return PlayerState(self.state).name
 
     name: StringProperty(name='Name', get=__get_name)
     active: BoolProperty(name='Active', default=False)
@@ -33,7 +33,7 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
     def init(self):
         self.items.clear()
         
-        for state in State:
+        for state in PlayerState:
             module = self.add()
             module.state = state
 

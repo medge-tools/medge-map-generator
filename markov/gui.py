@@ -45,7 +45,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         if item.has_transition_matrix:
             col.prop(item, 'length')
             col.prop(item, 'seed')
-            col.prop(item, 'spacing')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)

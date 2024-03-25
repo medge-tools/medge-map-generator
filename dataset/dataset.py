@@ -8,7 +8,7 @@ import numpy as np
 from enum import Enum
 
 from ..         import b3d_utils
-from .movement  import State
+from .movement  import PlayerState
 
 
 # -----------------------------------------------------------------------------
@@ -23,11 +23,14 @@ class Attribute(int, Enum):
     def __int__(self):
         return self.value
     
-
-    TIMESTAMP       = 0, 'timestamp'
-    PLAYER_STATE    = 1, 'player_state'
-    LOCATION        = 2, 'location'
+    PLAYER_STATE    = 0, 'player_state'
+    LOCATION        = 1, 'location'
+    TIMESTAMP       = 2, 'timestamp'
     CONNECTED       = 3, 'connected'
+    CHAIN_START     = 4, 'chain_start'
+    CHAIN_LENGTH    = 5, 'chain_length'
+    AABB_MIN        = 6, 'aabb_min'
+    AABB_MAX        = 7, 'aabb_max'
 
 
 # -----------------------------------------------------------------------------
@@ -49,14 +52,22 @@ class Dataset():
                player_state : int,
                location     : Vector,
                timestamp    : Vector = Vector(),
-               connected    : bool = True):
+               connected    : bool = True,
+               chain_start  : bool = False,
+               chain_length : int = 0,
+               aabb_min     : Vector = Vector(),
+               aabb_max     : Vector = Vector()):
         
-        v = [0 for _ in range(len(Attribute))]
+        v = [0] * len(Attribute)
 
         v[Attribute.PLAYER_STATE.value] = player_state
-        v[Attribute.LOCATION.value] = location
-        v[Attribute.TIMESTAMP.value] = timestamp
-        v[Attribute.CONNECTED.value] = connected
+        v[Attribute.LOCATION.value]     = location
+        v[Attribute.TIMESTAMP.value]    = timestamp
+        v[Attribute.CONNECTED.value]    = connected
+        v[Attribute.CHAIN_START.value]  = chain_start
+        v[Attribute.CHAIN_LENGTH.value] = chain_length
+        v[Attribute.AABB_MIN.value]     = aabb_min
+        v[Attribute.AABB_MAX.value]     = aabb_max
 
         V = np.array([v], dtype=object)
         self.data = np.append(self.data, V, axis=0)
@@ -88,7 +99,7 @@ class Dataset():
             else:
                 curr_chain = [l]
                 curr_state = s
-                sequences[curr_state].append(curr_chain)
+                sequences[s].append(curr_chain)
 
         return sequences
 
@@ -126,22 +137,46 @@ class DatasetIO:
 class DatasetOps:
 
     @staticmethod
-    def convert_to_dataset(mesh: Mesh, dataset: Dataset = None):
-        if dataset:
-            packed = list(dataset[:, Attribute.TIMESTAMP.value])
-            timestamps = [0] * len(packed) * 3
+    def convert_to_dataset(obj: Object, dataset: Dataset = None):
+        prev_mode = obj.mode
+        b3d_utils.set_object_mode(obj, 'OBJECT')
+        mesh = obj.data
 
-            for k in range(len(packed)): 
-                timestamps[k * 3 + 0] = packed[k].x
-                timestamps[k * 3 + 1] = packed[k].y
-                timestamps[k * 3 + 2] = packed[k].z
+        if dataset:
+            packed_ts = list(dataset[:, Attribute.TIMESTAMP.value])
+            timestamps = [0] * len(packed_ts) * 3
+
+            for k in range(len(packed_ts)): 
+                timestamps[k * 3 + 0] = packed_ts[k].x
+                timestamps[k * 3 + 1] = packed_ts[k].y
+                timestamps[k * 3 + 2] = packed_ts[k].z
 
             player_states = list(dataset[:, Attribute.PLAYER_STATE.value] )
+            chain_starts  = list(dataset[:, Attribute.CHAIN_START.value])
+            chain_lengths = list(dataset[:, Attribute.CHAIN_LENGTH.value])
+
+            packed_mins = list(dataset[:, Attribute.AABB_MIN.value])
+            packed_maxs = list(dataset[:, Attribute.AABB_MAX.value])
+            aabb_mins   = [0] * len(packed_mins) * 3
+            aabb_maxs   = [0] * len(packed_maxs) * 3
+
+            for k in range(len(packed_mins)):
+                aabb_mins[k * 3 + 0] = packed_mins[k].x
+                aabb_mins[k * 3 + 1] = packed_mins[k].y
+                aabb_mins[k * 3 + 2] = packed_mins[k].z
+
+                aabb_maxs[k * 3 + 0] = packed_maxs[k].x
+                aabb_maxs[k * 3 + 1] = packed_maxs[k].y
+                aabb_maxs[k * 3 + 2] = packed_maxs[k].z
 
         else:
             n = len(mesh.vertices)
-            timestamps = [0] * n * 3
-            player_states = [State.Walking.value] * n
+            timestamps    = [0] * n * 3
+            player_states = [PlayerState.Walking.value] * n
+            chain_starts  = [False] * n
+            chain_lengths = [0] * n
+            aabb_mins     = [0] * n * 3
+            aabb_maxs     = [0] * n * 3
         
         if Attribute.TIMESTAMP.label not in mesh.attributes:
             t = mesh.attributes.new(name=Attribute.TIMESTAMP.label, type='FLOAT_VECTOR', domain='POINT')
@@ -151,20 +186,43 @@ class DatasetOps:
             p = mesh.attributes.new(name=Attribute.PLAYER_STATE.label, type='INT', domain='POINT')
             p.data.foreach_set('value', player_states)
 
+        if Attribute.CHAIN_START.label not in mesh.attributes:
+            # We have to store this as a INT (even tough it is a BOOLEAN),
+            # otherwise we can't retrieve the value during a draw_callback
+            cs = mesh.attributes.new(name=Attribute.CHAIN_START.label, type='INT', domain='POINT')
+            cs.data.foreach_set('value', chain_starts)
+
+        if Attribute.CHAIN_LENGTH.label not in mesh.attributes:
+            cl = mesh.attributes.new(name=Attribute.CHAIN_LENGTH.label, type='INT', domain='POINT')
+            cl.data.foreach_set('value', chain_lengths)   
+
+        if Attribute.AABB_MIN.label not in mesh.attributes:
+            bmin = mesh.attributes.new(name=Attribute.AABB_MIN.label, type='FLOAT_VECTOR', domain='POINT')
+            bmin.data.foreach_set('vector', aabb_mins)
+
+        if Attribute.AABB_MAX.label not in mesh.attributes:
+            bmax = mesh.attributes.new(name=Attribute.AABB_MAX.label, type='FLOAT_VECTOR', domain='POINT')
+            bmax.data.foreach_set('vector', aabb_maxs)
+
+        
+        b3d_utils.set_object_mode(obj, prev_mode)
+
 
     @staticmethod
-    def is_dataset(data: Mesh):
-        if Attribute.TIMESTAMP.label not in data.attributes:
-            return False
-        if Attribute.PLAYER_STATE.label not in data.attributes:
-            return False
+    def is_dataset(mesh: Mesh):
+        if not isinstance(mesh, Mesh): return False
+        for att in Attribute:
+            if att.name == Attribute.LOCATION.name: continue
+            if att.name == Attribute.CONNECTED.name: continue
+            if att.label not in mesh.attributes:
+                print('Missing dataset attribute: ' + att.label)
+                return False
         return True
     
 
     @staticmethod
     def create_polyline(dataset: Dataset, name = 'DATASET'):
         # Create polyline
-        
         verts = dataset[:, Attribute.LOCATION.value]
         edges = []
 
@@ -175,7 +233,7 @@ class DatasetOps:
         mesh = b3d_utils.create_mesh(verts, edges, [], name)
         obj = b3d_utils.new_object(name, mesh)  
 
-        DatasetOps.convert_to_dataset(mesh, dataset)
+        DatasetOps.convert_to_dataset(obj, dataset)
 
 
     @staticmethod
@@ -216,12 +274,10 @@ class DatasetOps:
 
     @staticmethod
     def resolve_overlap(obj: Object):
-        """Necessary after snapping to grid"""
-        mesh = obj.data
-
-        if not DatasetOps.is_dataset(mesh): return
+        if not DatasetOps.is_dataset(obj.data): return
         if obj.mode != 'EDIT': return
 
+        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         for k in range(len(bm.verts) - 1):
@@ -245,13 +301,11 @@ class DatasetOps:
     @staticmethod
     def set_state(obj: Object, new_state: int):
         if obj.mode != 'EDIT': return
-
-        mesh = obj.data
-
-        if not DatasetOps.is_dataset(mesh): 
-            DatasetOps.convert_to_dataset(mesh)
+        if not DatasetOps.is_dataset(obj.data): 
+            DatasetOps.convert_to_dataset(obj)
         
         # Transform str to int
+        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
@@ -265,16 +319,15 @@ class DatasetOps:
 
     @staticmethod
     def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
-        mesh = obj.data
-
-        if not DatasetOps.is_dataset(mesh): return
+        if not DatasetOps.is_dataset(obj.data): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
         if filter:
             filter = filter.split(',')
-            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
+            filter = [int(s) if s.isnumeric() else PlayerState[s] for s in filter]
 
+        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions
@@ -306,17 +359,17 @@ class DatasetOps:
 
     @staticmethod
     def select_states(obj: Object, filter: str = ''):
-        mesh = obj.data
 
         if not filter: return
-        if not DatasetOps.is_dataset(mesh): return
+        if not DatasetOps.is_dataset(obj.data): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
         if filter:
             filter = filter.split(',')
-            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
+            filter = [int(s) if s.isnumeric() else PlayerState[s] for s in filter]
 
+        mesh = obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions
