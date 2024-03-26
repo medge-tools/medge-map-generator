@@ -141,4 +141,4 @@ class DatasetVis():
                     bmin = obj.matrix_world @ v[aabb_min_layer] 
                     bmax = obj.matrix_world @ v[aabb_max_layer]
 
-                    b3d_utils.draw_cube_3d(bmin, bmax, default_color)
+                    b3d_utils.draw_cube_lines_3d(bmin, bmax, default_color)

@@ -472,50 +472,63 @@ def rotation_matrix(v1, v2):
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/61699/how-to-draw-geometry-in-3d-view-window-with-bgl
 
-vertex_coords = []
+shader_coords = []
+shader_indices = []
 
 def begin_batch():
-    global vertex_coords
-    vertex_coords = []
+    global shader_coords
+    global shader_indices
+    shader_coords = []
+    shader_indices = []
 
 
 # -----------------------------------------------------------------------------
-def batch_add(coord: Vector):
-    global vertex_coords
-    vertex_coords.append(coord)
+def batch_add_coords(coords: list[Vector]):
+    global shader_coords
+    shader_coords.extend(coords)
+
+
+# -----------------------------------------------------------------------------
+def batch_add_indices(inds: list[int]):
+    global shader_indices
+    shader_indices.extend(inds)
 
 
 # -----------------------------------------------------------------------------
 def draw_batch_3d(color: tuple, width=1.0, type='LINES'):
-    global vertex_coords
+    global shader_coords
+    global shader_indices
     shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
     gpu.state.line_width_set(width)
-    batch = batch_for_shader(shader, type, {'pos': vertex_coords})
+    batch = batch_for_shader(shader, type, {'pos': shader_coords}, indices=shader_indices)
     shader.bind()
     shader.uniform_float('color', color)
     batch.draw(shader)
 
 
 # -----------------------------------------------------------------------------
-def draw_cube_3d(bmin: Vector, bmax: Vector, color: tuple, width=1.0, type='LINES_ADJ'):
-    end1 = (bmax.x, bmin.y, bmin.z)
-    end2 = (bmin.x, bmax.y, bmin.z)
-    end3 = (bmin.x, bmin.y, bmax.z)
+def draw_cube_lines_3d(bmin: Vector, bmax: Vector, color: tuple, width=1.):
+    v0 = bmin
+    v1 = (bmax.x, bmin.y, bmin.z)
+    v2 = (bmin.x, bmax.y, bmin.z)
+    v3 = (bmin.x, bmin.y, bmax.z)
 
-    end4 = (bmin.x, bmax.y, bmax.z)
-    end5 = (bmax.x, bmin.y, bmax.z)
-    end6 = (bmax.x, bmax.y, bmin.z)
+    v4 = bmax
+    v5 = (bmin.x, bmax.y, bmax.z)
+    v6 = (bmax.x, bmin.y, bmax.z)
+    v7 = (bmax.x, bmax.y, bmin.z)
 
     begin_batch()
+    batch_add_coords([v0, v1, v2, v3, v4, v5, v6, v7])
+    batch_add_indices([
+        (0, 1), (0, 2), (0, 3),
+        (4, 5), (4, 6), (4, 7),
+        (1, 7), (1, 6), 
+        (2, 7), (2, 5),
+        (3, 5), (3, 6)
+    ])
 
-    batch_add(end1)
-    batch_add(end2)
-    batch_add(end3)
-    batch_add(end4)
-    batch_add(end5)
-    batch_add(end6)
-
-    draw_batch_3d(color, width, type)
+    draw_batch_3d(color, width, 'LINES')
 
 
 # -----------------------------------------------------------------------------
