@@ -38,11 +38,6 @@ class MET_MESH_PG_Dataset(PropertyGroup):
     def get_ops_settings(self) -> MET_DS_PG_OpsSettings:
         return self.ops_settings
 
-    def __get_is_dataset(self):
-        return DatasetOps.is_dataset(self.id_data)
-
-
-    is_dataset:     BoolProperty(default=False, get=__get_is_dataset)
     vis_settings:   PointerProperty(type=MET_DS_PG_VisSettings)
     ops_settings:   PointerProperty(type=MET_DS_PG_OpsSettings)
 
@@ -52,8 +47,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def get_dataset(obj: Object) -> MET_MESH_PG_Dataset:
-    dataset = obj.data.medge_dataset
-    if dataset.is_dataset:
+    if DatasetOps.is_dataset(obj.data):
         return obj.data.medge_dataset
     return None
 

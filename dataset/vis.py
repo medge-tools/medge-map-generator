@@ -12,7 +12,8 @@ from .props     import get_dataset
 draw_handle_post_pixel = None
 draw_handle_post_view = None
 
-class DatasetVis():
+
+class DatasetVis:
     def add_handle(self, context):
         global draw_handle_post_pixel
         global draw_handle_post_view
@@ -55,17 +56,17 @@ class DatasetVis():
         view_mat  = region_3d.view_matrix
 
         # Layers
-        state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
-        time_layer  = bm.verts.layers.float_vector.get(Attribute.TIMESTAMP.label)
+        state_layer       = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+        time_layer        = bm.verts.layers.float_vector.get(Attribute.TIMESTAMP.label)
         chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
 
         # Settings
-        vis_settings = get_dataset(obj).get_vis_settings()
+        vis_settings      = get_dataset(obj).get_vis_settings()
         min_draw_distance = vis_settings.min_draw_distance
         max_draw_distance = vis_settings.max_draw_distance
-        default_color = vis_settings.default_color
+        default_color     = vis_settings.default_color
         start_chain_color = vis_settings.start_chain_color
-        font_size = vis_settings.font_size
+        font_size         = vis_settings.font_size
         
         # Draw
         for v in bm.verts:
@@ -125,14 +126,15 @@ class DatasetVis():
         if obj.mode != 'EDIT': return
         bm = bmesh.from_edit_mesh(mesh)
         
+        # Layers
         chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
-        aabb_min_layer = bm.verts.layers.float_vector.get(Attribute.AABB_MIN.label)
-        aabb_max_layer = bm.verts.layers.float_vector.get(Attribute.AABB_MAX.label)
+        aabb_min_layer    = bm.verts.layers.float_vector.get(Attribute.AABB_MIN.label)
+        aabb_max_layer    = bm.verts.layers.float_vector.get(Attribute.AABB_MAX.label)
         
         # Settings
-        vis_settings = get_dataset(obj).get_vis_settings()
+        vis_settings  = get_dataset(obj).get_vis_settings()
         default_color = vis_settings.default_color
-        draw_abbb = vis_settings.draw_aabb
+        draw_abbb     = vis_settings.draw_aabb
 
         # Draw AABB 
         for v in bm.verts:

@@ -28,7 +28,9 @@ class Attribute(int, Enum):
     TIMESTAMP       = 2, 'timestamp'
     CONNECTED       = 3, 'connected'
     CHAIN_START     = 4, 'chain_start'
-    CHAIN_LENGTH    = 5, 'chain_length'
+    # If CHAIN_START is True then LENGTH is the length of the chain
+    # Else LENGTH is the distance to CHAIN_START
+    LENGTH          = 5, 'length'
     AABB_MIN        = 6, 'aabb_min'
     AABB_MAX        = 7, 'aabb_max'
 
@@ -54,22 +56,22 @@ class Dataset():
                timestamp    : Vector = Vector(),
                connected    : bool = True,
                chain_start  : bool = False,
-               chain_length : int = 0,
+               length : int = 0,
                aabb_min     : Vector = Vector(),
                aabb_max     : Vector = Vector()):
         
-        v = [0] * len(Attribute)
+        entry = [0] * len(Attribute)
 
-        v[Attribute.PLAYER_STATE.value] = player_state
-        v[Attribute.LOCATION.value]     = location
-        v[Attribute.TIMESTAMP.value]    = timestamp
-        v[Attribute.CONNECTED.value]    = connected
-        v[Attribute.CHAIN_START.value]  = chain_start
-        v[Attribute.CHAIN_LENGTH.value] = chain_length
-        v[Attribute.AABB_MIN.value]     = aabb_min
-        v[Attribute.AABB_MAX.value]     = aabb_max
+        entry[Attribute.PLAYER_STATE.value] = player_state
+        entry[Attribute.LOCATION.value]     = location
+        entry[Attribute.TIMESTAMP.value]    = timestamp
+        entry[Attribute.CONNECTED.value]    = connected
+        entry[Attribute.CHAIN_START.value]  = chain_start
+        entry[Attribute.LENGTH.value] = length
+        entry[Attribute.AABB_MIN.value]     = aabb_min
+        entry[Attribute.AABB_MAX.value]     = aabb_max
 
-        V = np.array([v], dtype=object)
+        V = np.array([entry], dtype=object)
         self.data = np.append(self.data, V, axis=0)
 
    
@@ -153,7 +155,7 @@ class DatasetOps:
 
             player_states = list(dataset[:, Attribute.PLAYER_STATE.value] )
             chain_starts  = list(dataset[:, Attribute.CHAIN_START.value])
-            chain_lengths = list(dataset[:, Attribute.CHAIN_LENGTH.value])
+            lengths = list(dataset[:, Attribute.LENGTH.value])
 
             packed_mins = list(dataset[:, Attribute.AABB_MIN.value])
             packed_maxs = list(dataset[:, Attribute.AABB_MAX.value])
@@ -174,7 +176,7 @@ class DatasetOps:
             timestamps    = [0] * n * 3
             player_states = [PlayerState.Walking.value] * n
             chain_starts  = [False] * n
-            chain_lengths = [0] * n
+            lengths       = [0] * n
             aabb_mins     = [0] * n * 3
             aabb_maxs     = [0] * n * 3
         
@@ -192,9 +194,9 @@ class DatasetOps:
             cs = mesh.attributes.new(name=Attribute.CHAIN_START.label, type='INT', domain='POINT')
             cs.data.foreach_set('value', chain_starts)
 
-        if Attribute.CHAIN_LENGTH.label not in mesh.attributes:
-            cl = mesh.attributes.new(name=Attribute.CHAIN_LENGTH.label, type='INT', domain='POINT')
-            cl.data.foreach_set('value', chain_lengths)   
+        if Attribute.LENGTH.label not in mesh.attributes:
+            cl = mesh.attributes.new(name=Attribute.LENGTH.label, type='INT', domain='POINT')
+            cl.data.foreach_set('value', lengths)   
 
         if Attribute.AABB_MIN.label not in mesh.attributes:
             bmin = mesh.attributes.new(name=Attribute.AABB_MIN.label, type='FLOAT_VECTOR', domain='POINT')

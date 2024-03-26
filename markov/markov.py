@@ -7,7 +7,7 @@ import numpy as np
 from ..dataset.dataset  import Attribute, Dataset, DatasetOps
 from ..dataset.movement import PlayerState
 from ..dataset.props    import get_dataset
-from .chains            import ChainList
+from .chains            import ChainPool, LiveChain
 
 
 # -----------------------------------------------------------------------------
@@ -48,7 +48,7 @@ class MarkovChain:
 
         N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
         TM = np.zeros((N, N), dtype=float)
-        CL = [ChainList() for _ in range(N)]
+        CL = [ChainPool() for _ in range(N)]
 
         # Populate transition matrix
         transitions = zip(D, D[1:])
@@ -62,9 +62,10 @@ class MarkovChain:
 
 
         # Populate ChainLists
-        sequences = D.seqs_per_state()
-        for k, v in sequences.items():
-            CL[k].append(v)
+        sps = D.seqs_per_state()
+        for state, seqs in sps.items():
+            for s in seqs:
+                CL[state].append(state, s)
 
 
         # Normalize 
@@ -84,37 +85,56 @@ class MarkovChain:
 
     def generate_chain(self, length: int, seed: int):
         np.random.seed(seed)
+
         start_state = PlayerState.Walking.value
         
         prev_state = start_state
         prev_chain = self.chain_lists[start_state].random_chain()
         
-        dataset = Dataset()
+        livechain = LiveChain()
 
-        for p in prev_chain:
-            dataset.append(start_state, p)
+        def check_collisions(chain):
+            for lc in reversed(livechain):
+                if lc.collides(chain):
+                    return True
+            return False
 
-        for k in range(length):
+
+        livechain.append(prev_chain)
+
+        n = len(prev_chain)
+        for _ in range(length):
+            # Choose the next state
             probabilities = self.transition_matrix[prev_state]
             next_state = np.random.choice(self.nstates, p=probabilities)
 
+            # Choose random chain
             cl = self.chain_lists[next_state]
             next_chain = cl.random_chain()
-            next_chain.align(prev_chain)
 
-            n = len(next_chain)
-            bmin = next_chain.aabb.bmin
-            bmax = next_chain.aabb.bmax
-
-            for k, p in enumerate(next_chain):
-                l = n - k
-                if k == 0:
-                    dataset.append(next_state, p, aabb_min=bmin, aabb_max=bmax, chain_length=l, chain_start=True)
-                else:
-                    dataset.append(next_state, p, aabb_min=bmin, aabb_max=bmax, chain_length=l)
+            # Check for collisiions
+            # if check_collisions(next_chain):
+            #     break
+            next_chain.align(livechain)
+        
+            livechain.append(next_chain)
 
             prev_state = next_state
             prev_chain = next_chain
+            n += len(next_chain)
+
+        
+        dataset = Dataset()
+
+        for chain in livechain.sections:
+            bmin = chain.aabb.bmin
+            bmax = chain.aabb.bmax
+
+            for k, p in enumerate(chain):
+                if k == 0:
+                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=len(chain), chain_start=True)
+                else:
+                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=k)
 
         name = self.name + '_' + str(length) + '_' + str(seed)
         DatasetOps.create_polyline(dataset, name)
