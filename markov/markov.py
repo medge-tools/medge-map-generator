@@ -1,6 +1,4 @@
-import blf
 from bpy.types import Object
-from mathutils import Vector
 
 import numpy as np
 
@@ -12,7 +10,6 @@ from .chains            import ChainPool, LiveChain
 
 # -----------------------------------------------------------------------------
 class MarkovChain:
-
     def __init__(self) -> None:
         self.reset()
 
@@ -83,7 +80,7 @@ class MarkovChain:
         self.dataset = D
 
 
-    def generate_chain(self, length: int, seed: int):
+    def generate_chain(self, length: int, seed: int, capsule_radius: float):
         np.random.seed(seed)
 
         start_state = PlayerState.Walking.value
@@ -92,14 +89,6 @@ class MarkovChain:
         prev_chain = self.chain_lists[start_state].random_chain()
         
         livechain = LiveChain()
-
-        def check_collisions(chain):
-            for lc in reversed(livechain):
-                if lc.collides(chain):
-                    return True
-            return False
-
-
         livechain.append(prev_chain)
 
         n = len(prev_chain)
@@ -111,33 +100,25 @@ class MarkovChain:
             # Choose random chain
             cl = self.chain_lists[next_state]
             next_chain = cl.random_chain()
-
-            # Check for collisiions
-            # if check_collisions(next_chain):
-            #     break
+            
+            # Align the new chain to the current chain
             next_chain.align(livechain)
         
+            # If there are collisions, resolve them
+            for chain in livechain.sections:
+                if next_chain.collides(chain):
+                    print(n)
+
             livechain.append(next_chain)
 
             prev_state = next_state
             prev_chain = next_chain
             n += len(next_chain)
 
-        
-        dataset = Dataset()
-
-        for chain in livechain.sections:
-            bmin = chain.aabb.bmin
-            bmax = chain.aabb.bmax
-
-            for k, p in enumerate(chain):
-                if k == 0:
-                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=len(chain), chain_start=True)
-                else:
-                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=k)
-
+        # Create Polyline from LiveChain
         name = self.name + '_' + str(length) + '_' + str(seed)
-        DatasetOps.create_polyline(dataset, name)
+        DatasetOps.create_polyline(livechain.to_dataset(), name)
+
 
 
     def update_statistics(self, from_state: int, to_state: int):

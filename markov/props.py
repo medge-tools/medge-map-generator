@@ -40,7 +40,7 @@ class MET_PG_MarkovChain(PropertyGroup):
             return
 
         mc: MarkovChain = markov_chain_models[self.name]
-        mc.generate_chain(self.length, self.seed)
+        mc.generate_chain(self.length, self.seed, self.capsule_radius)
 
 
     def __get_name(self):
@@ -64,12 +64,13 @@ class MET_PG_MarkovChain(PropertyGroup):
     collection: PointerProperty(type=Collection, name='Collection')
     has_transition_matrix: BoolProperty(default=False, get=__get_has_transition_matrix)
 
-    display_statistics: BoolProperty('Display Statistics')
+    display_statistics: BoolProperty(name='Display Statistics')
     from_state: StateProperty('From', __update_statistics)
     to_state: StateProperty('To', __update_statistics)
 
-    length: IntProperty('Length', default=100)
-    seed: IntProperty('Seed', default=2024)
+    length: IntProperty(name='Length', default=100)
+    seed: IntProperty(name='Seed', default=2024)
+    capsule_radius: FloatProperty(name='Capsule Radius', default=.5)
 
 
 # -----------------------------------------------------------------------------

@@ -6,8 +6,12 @@ from sys            import float_info
 from collections    import UserList
 
 from ..b3d_utils import rotation_matrix
+from ..dataset.dataset  import Dataset
 
 
+# -----------------------------------------------------------------------------
+# Collision Volumes
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class AABB:
     def __init__(self, bmin: Vector, bmax: Vector):
@@ -25,20 +29,35 @@ class AABB:
             if other.bmax < self.bmin: return False
             if other.bmin > self.bmax: return False
             return True
+        
+        raise(Exception('object is neither Vector or AABB'))
 
 
 # -----------------------------------------------------------------------------
 # https://wickedengine.net/2020/04/26/capsule-collision-detection/
 class Capsule:
-    def __init__(self, base: Vector, tip: Vector, radius: float):
+    def __init__(self, base: Vector, tip: Vector, radius: float = .5):
         self.base = base
         self.tip = tip
         self.radius = radius
 
-        self.normal = (tip - base).normalized()
-        line_offset = self.normal * radius; 
-        self.hem_base = base + line_offset; 
-        self.hem_tip = tip - line_offset;
+
+    @property
+    def radius(self):
+        return self._radius
+    
+
+    @radius.setter
+    def radius(self, value: float):
+        self._radius = value
+        self.update_hemispheres()
+
+
+    def update_hemispheres(self):
+        normal = (self.tip - self.base).normalized()
+        line_offset = normal * self.radius; 
+        self.hem_base = self.base + line_offset; 
+        self.hem_tip = self.tip - line_offset;
 
 
     def collides(self, other: 'Capsule'):
@@ -53,11 +72,9 @@ class Capsule:
 
     def sphere_collision(self, other: Vector, radius: float):
         closest_point = self.closest_point_on_segment(other)
-
-        pen_normal = closest_point - other;
-        pen_depth = self.radius + radius - pen_normal.length;
-
-        return pen_depth > 0;
+        pen_normal = closest_point - other
+        pen_depth = self.radius + radius - pen_normal.length
+        return pen_depth > 0
 
 
     def capsule_collision(self, other: 'Capsule'):
@@ -78,6 +95,10 @@ class Capsule:
         best_other = other.closest_point_on_segment(best_self)
         return self.sphere_collision(best_other, other.radius)
 
+
+# -----------------------------------------------------------------------------
+# Chain
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class Chain(UserList):
     def __init__(self, state, points: list[Vector]):
@@ -85,8 +106,9 @@ class Chain(UserList):
 
         self.state = state
         self.to_center()
+        self.update_orientation()
         self.update_aabb()
-        self.calc_orientation()
+        self.update_capsules()
 
 
     def to_center(self):
@@ -95,6 +117,21 @@ class Chain(UserList):
         
         for p in points:
             p -= offset
+
+
+    def update_orientation(self):
+        points = self.data
+        oin = Vector((0, 1, 0))
+        oout = Vector((0, 1, 0))
+
+        if len(points) >= 2:
+            oin  = points[ 1] - points[ 0]
+            oout = points[-1] - points[-2]
+            oin.normalize()
+            oout.normalize()
+        
+        self.orientation_in  = oin
+        self.orientation_out = oout
 
 
     def update_aabb(self):
@@ -115,49 +152,35 @@ class Chain(UserList):
         self.aabb = AABB(bmin, bmax)
 
 
-    def calc_orientation(self):
-        points = self.data
-        oin = Vector((0, 1, 0))
-        oout = Vector((0, 1, 0))
+    def update_capsules(self):
+        self.capsules = []
 
-        if len(points) >= 2:
-            oin  = points[ 1] - points[ 0]
-            oout = points[-1] - points[-2]
-            oin.normalize()
-            oout.normalize()
-        
-        self.orientation_in  = oin
-        self.orientation_out = oout
+        for p1, p2 in zip(self.data, self.data[1:]):
+            cap = Capsule(p1, p2, 1)
+            self.capsules.append(cap)
     
 
+    def update_radius(self, radius: float):
+        for cap in self.capsules:
+            cap.radius = radius
+
+
     def align(self, livechain: 'LiveChain'):
-        # oin = self.orientation_in
-        # oout = other.orientation_out
-        
-        points = self.data
+        offset  = livechain[-1]
+        offset += livechain[-1] - livechain[-2]
 
-        # Rotate
-        # R = rotation_matrix(oin, oout)
-
-        # for p in points:
-        #     p.rotate(R)
-
-        # self.orientation_in.rotate(R)
-        # self.orientation_out.rotate(R)
-
-        # Translate
-        offset = livechain[-1]
-        if len(livechain) >= 2:
-            offset += livechain[-1] - livechain[-2]
-
-        for p in points:
+        for p in self.data:
             p += offset
 
         self.update_aabb()
 
-    
-    def collides(self, other: 'Chain'):
-        return other.aabb.contains(self.aabb)
+
+    def collides(self, other: 'Chain', radius: float):
+        if not other.aabb.contains(self.aabb): return False
+        for my_cap in self.capsules:
+            for other_cap in other.capsules:
+                if my_cap.collides(other_cap): return True
+            
 
 
 # -----------------------------------------------------------------------------
@@ -183,3 +206,19 @@ class LiveChain(UserList):
     def append(self, chain: Chain):
         self.data.extend(chain)
         self.sections.append(chain)
+
+
+    def to_dataset(self) -> Dataset:
+        dataset = Dataset()
+
+        for chain in self.sections:
+            bmin = chain.aabb.bmin
+            bmax = chain.aabb.bmax
+
+            for k, p in enumerate(chain):
+                if k == 0:
+                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=len(chain), chain_start=True)
+                else:
+                    dataset.append(chain.state, p, aabb_min=bmin, aabb_max=bmax, length=k)
+
+        return dataset

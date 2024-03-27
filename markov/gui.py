@@ -25,9 +25,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
 
         col = layout.column(align=True)
 
-
-        col.operator(MET_OT_Test.bl_idname)
-
         row = col.row(align=True)
         row.template_list('B3D_UL_GenericList', '#markov_chain_list', chains, 'items', chains, 'selected_item_idx', rows=4)
         
@@ -48,6 +45,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         if item.has_transition_matrix:
             col.prop(item, 'length')
             col.prop(item, 'seed')
+            col.prop(item, 'capsule_radius')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)

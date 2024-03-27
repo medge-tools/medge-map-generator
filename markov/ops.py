@@ -86,31 +86,3 @@ class MET_OT_GenerateChain(Operator):
         item = chains.get_selected()
         item.generate_chain(context)
         return {'FINISHED'}        
-
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_Test(Operator):
-    bl_idname   = 'medge_dataset.test'
-    bl_label    = 'Test'
-    bl_options  = {'UNDO'}
-
-    
-    def execute(self, context: Context):
-        objs = context.selected_objects
-        o1 = objs[0]
-        verts = o1.data.vertices
-        v1 = o1.matrix_world @ verts[0].co
-        v2 = o1.matrix_world @ verts[1].co
-        a = Capsule(v1, v2, 1)
-        
-        o2 = objs[1]
-        verts = o2.data.vertices
-        v1 = o2.matrix_world @ verts[0].co
-        v2 = o2.matrix_world @ verts[1].co
-        b = Capsule(v1, v2, 1)
-
-        c = a.collides(b)
-        self.report({'INFO'}, 'Collision: ' + str(c))
-
-        return {'FINISHED'}
