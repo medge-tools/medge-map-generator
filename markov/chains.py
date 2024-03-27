@@ -26,6 +26,58 @@ class AABB:
             if other.bmin > self.bmax: return False
             return True
 
+
+# -----------------------------------------------------------------------------
+# https://wickedengine.net/2020/04/26/capsule-collision-detection/
+class Capsule:
+    def __init__(self, base: Vector, tip: Vector, radius: float):
+        self.base = base
+        self.tip = tip
+        self.radius = radius
+
+        self.normal = (tip - base).normalized()
+        line_offset = self.normal * radius; 
+        self.hem_base = base + line_offset; 
+        self.hem_tip = tip - line_offset;
+
+
+    def collides(self, other: 'Capsule'):
+        return self.capsule_collision(other)
+
+
+    def closest_point_on_segment(self, other: Vector):
+        ab = self.base - self.tip
+        t = ab.dot(other - self.tip) / ab.dot(ab)
+        return self.tip + min(max(t, 0), 1) * ab
+
+
+    def sphere_collision(self, other: Vector, radius: float):
+        closest_point = self.closest_point_on_segment(other)
+
+        pen_normal = closest_point - other;
+        pen_depth = self.radius + radius - pen_normal.length;
+
+        return pen_depth > 0;
+
+
+    def capsule_collision(self, other: 'Capsule'):
+        v0 = other.hem_base - self.hem_base
+        v1 = other.hem_tip  - self.hem_base
+        v2 = other.hem_base - self.hem_tip
+        v3 = other.hem_tip  - self.hem_tip
+
+        d0 = v0.dot(v0)
+        d1 = v1.dot(v1)
+        d2 = v2.dot(v2)
+        d3 = v3.dot(v3)
+
+        best_self = self.hem_tip
+        if (d2 < d0 or d2 < d1 or d3 < d0 or d3 < d1):
+            best_self = self.hem_base
+
+        best_other = other.closest_point_on_segment(best_self)
+        return self.sphere_collision(best_other, other.radius)
+
 # -----------------------------------------------------------------------------
 class Chain(UserList):
     def __init__(self, state, points: list[Vector]):
@@ -79,7 +131,7 @@ class Chain(UserList):
     
 
     def align(self, livechain: 'LiveChain'):
-        oin = self.orientation_in
+        # oin = self.orientation_in
         # oout = other.orientation_out
         
         points = self.data

@@ -47,7 +47,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def get_dataset(obj: Object) -> MET_MESH_PG_Dataset:
-    if DatasetOps.is_dataset(obj.data):
+    if DatasetOps.is_dataset(obj):
         return obj.data.medge_dataset
     return None
 

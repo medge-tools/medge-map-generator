@@ -44,11 +44,10 @@ class DatasetVis:
         # Validate
         obj = context.object
         if not obj: return
-        mesh = obj.data
-        if not DatasetOps.is_dataset(mesh): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
-        bm = bmesh.from_edit_mesh(mesh)
+        bm = bmesh.from_edit_mesh(obj.data)
         
         # Region
         region    = context.region
@@ -121,10 +120,10 @@ class DatasetVis:
         # Validate
         obj = context.object
         if not obj: return
-        mesh = obj.data
-        if not DatasetOps.is_dataset(mesh): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
-        bm = bmesh.from_edit_mesh(mesh)
+
+        bm = bmesh.from_edit_mesh(obj.data)
         
         # Layers
         chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)

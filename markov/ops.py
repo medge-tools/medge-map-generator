@@ -1,8 +1,9 @@
 from bpy.types  import Operator, Context
 from bpy.props  import *
 
-from .stats       import MarkovChainStats
+from .stats     import MarkovChainStats
 from .props     import *
+from .chains    import Capsule
 
 
 # -----------------------------------------------------------------------------
@@ -20,8 +21,8 @@ def set_vis_enabeld(state: bool):
 
 # -----------------------------------------------------------------------------
 class MET_OT_EnableMarkovStats(Operator):
-    bl_idname   = 'medge_markov_model.enable_markov_statistics'
-    bl_label    = 'Enable Statistics'
+    bl_idname = 'medge_markov_model.enable_markov_statistics'
+    bl_label  = 'Enable Statistics'
 
 
     @classmethod
@@ -38,8 +39,8 @@ class MET_OT_EnableMarkovStats(Operator):
 
 # -----------------------------------------------------------------------------
 class MET_OT_DisableMarkovStats(Operator):
-    bl_idname   = 'medge_markov_model.disable_markov_statistics'
-    bl_label    = 'Disable Statistics'
+    bl_idname = 'medge_markov_model.disable_markov_statistics'
+    bl_label  = 'Disable Statistics'
 
 
     @classmethod
@@ -57,7 +58,7 @@ class MET_OT_DisableMarkovStats(Operator):
 # -----------------------------------------------------------------------------
 class MET_OT_CreateTransitionMatrix(Operator):
     bl_idname = 'medge_markov_model.create_transition_matrix'
-    bl_label = 'Create Transition Matrix'
+    bl_label  = 'Create Transition Matrix'
 
 
     def execute(self, context: Context):
@@ -70,7 +71,7 @@ class MET_OT_CreateTransitionMatrix(Operator):
 # -----------------------------------------------------------------------------
 class MET_OT_GenerateChain(Operator):
     bl_idname = 'medge_markov_model.generate_chain'
-    bl_label = 'Generate Chain'
+    bl_label  = 'Generate Chain'
 
 
     @classmethod
@@ -85,3 +86,31 @@ class MET_OT_GenerateChain(Operator):
         item = chains.get_selected()
         item.generate_chain(context)
         return {'FINISHED'}        
+
+
+
+# -----------------------------------------------------------------------------
+class MET_OT_Test(Operator):
+    bl_idname   = 'medge_dataset.test'
+    bl_label    = 'Test'
+    bl_options  = {'UNDO'}
+
+    
+    def execute(self, context: Context):
+        objs = context.selected_objects
+        o1 = objs[0]
+        verts = o1.data.vertices
+        v1 = o1.matrix_world @ verts[0].co
+        v2 = o1.matrix_world @ verts[1].co
+        a = Capsule(v1, v2, 1)
+        
+        o2 = objs[1]
+        verts = o2.data.vertices
+        v1 = o2.matrix_world @ verts[0].co
+        v2 = o2.matrix_world @ verts[1].co
+        b = Capsule(v1, v2, 1)
+
+        c = a.collides(b)
+        self.report({'INFO'}, 'Collision: ' + str(c))
+
+        return {'FINISHED'}

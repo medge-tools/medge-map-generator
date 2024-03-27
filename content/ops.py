@@ -27,7 +27,7 @@ class MET_OT_Populate(Operator):
     @classmethod
     def poll(cls, context):
         if not context.object: return False
-        return DatasetOps.is_dataset(context.object.data)
+        return DatasetOps.is_dataset(context.object)
 
     def execute(self, context):
         obj = context.object

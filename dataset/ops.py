@@ -150,7 +150,7 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return get_dataset(obj) and obj.mode == 'EDIT'
+        return DatasetOps.is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, context: Context):
@@ -192,7 +192,7 @@ class MET_OT_SnapToGrid(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return get_dataset(obj)
+        return DatasetOps.is_dataset(obj)
     
 
     def execute(self, context: Context):

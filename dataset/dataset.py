@@ -211,13 +211,13 @@ class DatasetOps:
 
 
     @staticmethod
-    def is_dataset(mesh: Mesh):
-        if not isinstance(mesh, Mesh): return False
+    def is_dataset(obj: Object):
+        if obj.type != 'MESH': return False
         for att in Attribute:
             if att.name == Attribute.LOCATION.name: continue
             if att.name == Attribute.CONNECTED.name: continue
-            if att.label not in mesh.attributes:
-                print('Missing dataset attribute: ' + att.label)
+            if att.label not in obj.data.attributes:
+                print(obj.name + ' is missing dataset attribute: ' + att.label)
                 return False
         return True
     
@@ -276,7 +276,7 @@ class DatasetOps:
 
     @staticmethod
     def resolve_overlap(obj: Object):
-        if not DatasetOps.is_dataset(obj.data): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         mesh = obj.data
@@ -303,7 +303,7 @@ class DatasetOps:
     @staticmethod
     def set_state(obj: Object, new_state: int):
         if obj.mode != 'EDIT': return
-        if not DatasetOps.is_dataset(obj.data): 
+        if not DatasetOps.is_dataset(obj): 
             DatasetOps.convert_to_dataset(obj)
         
         # Transform str to int
@@ -321,7 +321,7 @@ class DatasetOps:
 
     @staticmethod
     def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
-        if not DatasetOps.is_dataset(obj.data): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
@@ -363,7 +363,7 @@ class DatasetOps:
     def select_states(obj: Object, filter: str = ''):
 
         if not filter: return
-        if not DatasetOps.is_dataset(obj.data): return
+        if not DatasetOps.is_dataset(obj): return
         if obj.mode != 'EDIT': return
 
         # Transform str to int
