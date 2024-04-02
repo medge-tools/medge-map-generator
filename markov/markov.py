@@ -2,10 +2,10 @@ from bpy.types import Object
 
 import numpy as np
 
-from ..dataset.dataset  import Attribute, Dataset, DatasetOps
+from ..dataset.dataset  import Attribute, Dataset
+from ..dataset          import dataset
 from ..dataset.movement import PlayerState
-from ..dataset.props    import get_dataset
-from .chains            import ChainPool, LiveChain
+from .chains            import ChainPool, GeneratedChain
 
 
 # -----------------------------------------------------------------------------
@@ -35,9 +35,9 @@ class MarkovChain:
 
         for obj in objects:
             if not obj.visible_get(): continue
-            if not get_dataset(obj): continue
+            if not dataset.is_dataset(obj): continue
 
-            d = DatasetOps.get_dataset(obj)
+            d = dataset.get_dataset(obj)
             D.extend(d)
 
 
@@ -80,7 +80,7 @@ class MarkovChain:
         self.dataset = D
 
 
-    def generate_chain(self, length: int, seed: int, capsule_radius: float):
+    def generate_chain(self, length: int, seed: int) -> tuple[GeneratedChain, Object]:
         np.random.seed(seed)
 
         start_state = PlayerState.Walking.value
@@ -88,10 +88,9 @@ class MarkovChain:
         prev_state = start_state
         prev_chain = self.chain_lists[start_state].random_chain()
         
-        livechain = LiveChain()
-        livechain.append(prev_chain)
+        gen_chain = GeneratedChain()
+        gen_chain.append(prev_chain)
 
-        n = len(prev_chain)
         for _ in range(length):
             # Choose the next state
             probabilities = self.transition_matrix[prev_state]
@@ -102,23 +101,17 @@ class MarkovChain:
             next_chain = cl.random_chain()
             
             # Align the new chain to the current chain
-            next_chain.align(livechain)
-        
-            # If there are collisions, resolve them
-            for chain in livechain.sections:
-                if next_chain.collides(chain):
-                    print(n)
+            next_chain.align(gen_chain)
+            gen_chain.append(next_chain)
 
-            livechain.append(next_chain)
-
+            # 
             prev_state = next_state
             prev_chain = next_chain
-            n += len(next_chain)
 
         # Create Polyline from LiveChain
         name = self.name + '_' + str(length) + '_' + str(seed)
-        DatasetOps.create_polyline(livechain.to_dataset(), name)
-
+        gen_chain.to_polyline(name)
+        return gen_chain
 
 
     def update_statistics(self, from_state: int, to_state: int):

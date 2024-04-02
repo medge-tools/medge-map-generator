@@ -1,8 +1,8 @@
-from bpy.types      import PropertyGroup, Object, Mesh, Context
+from bpy.types      import PropertyGroup, Object, Mesh
 from bpy.props      import *
 
-from .movement      import PlayerState, StateProperty
-from .dataset       import DatasetOps
+from .movement      import PlayerStateProperty
+from .dataset       import is_dataset
 
 classes = []
 
@@ -26,7 +26,7 @@ class MET_DS_PG_OpsSettings(PropertyGroup):
     restrict:       BoolProperty(name='Restrict')
     filter:         StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
 
-    new_state:      StateProperty()
+    new_state:      PlayerStateProperty()
     spacing:        FloatProperty(name='Spacing', default=2)
 
 
@@ -47,7 +47,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def get_dataset(obj: Object) -> MET_MESH_PG_Dataset:
-    if DatasetOps.is_dataset(obj):
+    if is_dataset(obj):
         return obj.data.medge_dataset
     return None
 

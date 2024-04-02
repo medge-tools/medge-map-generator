@@ -93,20 +93,14 @@ def auto_gui_properties(data, layout: bpy.types.UILayout):
 
 
 # -----------------------------------------------------------------------------
-# Handler Callback
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def add_callback(handler, function):
-    for fn in handler:
-        if fn.__name__ == function.__name__: return
-    handler.append(function)
-
-
-# -----------------------------------------------------------------------------
-def remove_callback(handler, function):
-    for fn in handler:
-        if fn.__name__ == function.__name__:
-            handler.remove(fn)
+def get_bmesh(obj: Object):
+    if obj.mode == 'OBJECT':
+        bm = bmesh.new()
+        bm.from_mesh(obj.data)
+        return bm
+    
+    if obj.mode == 'EDIT':
+        return bmesh.from_edit_mesh(obj.data)
 
 
 # -----------------------------------------------------------------------------
@@ -428,6 +422,22 @@ def create_curve(num_points = 3,
     path.use_endpoint_u = True
     return curve
 
+# -----------------------------------------------------------------------------
+# Handler Callback
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def add_callback(handler, callback):
+    for fn in handler:
+        if fn.__name__ == callback.__name__: return
+    handler.append(callback)
+
+
+# -----------------------------------------------------------------------------
+def remove_callback(handler, callback):
+    for fn in handler:
+        if fn.__name__ == callback.__name__:
+            handler.remove(fn)
+
 
 # -----------------------------------------------------------------------------
 # Math
@@ -544,7 +554,9 @@ class B3D_UL_GenericList(UIList):
 
 # -----------------------------------------------------------------------------
 class GenericList:
-
+    """
+    This class can't be used as is. Inherit from this class and add an CollectionProperty named 'items'
+    """
     def add(self):
         item = self.items.add()
         self.selected_item_idx = len(self.items) - 1
@@ -574,7 +586,7 @@ class GenericList:
         return None
 
 
-    selected_item_idx: IntProperty()
+    selected_item_idx: IntProperty(name='PRIVATE')
 
 
 # -----------------------------------------------------------------------------
@@ -627,7 +639,7 @@ class B3D_OT_GenericList_Clear(Operator):
 # -----------------------------------------------------------------------------
 class B3D_OT_GenericList_Move(Operator):
     bl_idname = 'b3d_utils.generic_list_move'
-    bl_label = 'Move Shape'
+    bl_label = 'Move'
     
     direction : EnumProperty(items=(
         ('UP', 'Up', ''),
@@ -646,11 +658,42 @@ class B3D_OT_GenericList_Move(Operator):
 def draw_generic_list_ops(layout: UILayout, list: GenericList):
     begin_generic_list_ops(list)
 
-    layout.operator(B3D_OT_GenericList_Add.bl_idname   , icon='ADD'        , text='')
-    layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE'     , text='')
-    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_UP'    , text='').direction = 'UP'
-    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_DOWN'  , text='').direction = 'DOWN'
-    layout.operator(B3D_OT_GenericList_Clear.bl_idname , icon='TRASH'      , text='')
+    layout.operator(B3D_OT_GenericList_Add.bl_idname   , icon='ADD'      , text='')
+    layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE'   , text='')
+    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_UP'  , text='').direction = 'UP'
+    layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_DOWN', text='').direction = 'DOWN'
+    layout.operator(B3D_OT_GenericList_Clear.bl_idname , icon='TRASH'    , text='')
+
+
+# -----------------------------------------------------------------------------
+def draw_generic_list_add(layout: UILayout, list: GenericList):
+    """Call begin_generic_list_ops beforehand"""
+    layout.operator(B3D_OT_GenericList_Add.bl_idname, icon='ADD', text='')
+
+
+def draw_generic_list_remove(layout: UILayout, list: GenericList):
+    """Call begin_generic_list_ops beforehand"""
+    layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE', text='')
+
+
+def draw_generic_list_move(layout: UILayout, list: GenericList):
+    """Call begin_generic_list_ops beforehand"""
+    layout.operator(B3D_OT_GenericList_Move.bl_idname, icon='TRIA_UP'  , text='').direction = 'UP'
+    layout.operator(B3D_OT_GenericList_Move.bl_idname, icon='TRIA_DOWN', text='').direction = 'DOWN'
+
+
+def draw_generic_list_clear(layout: UILayout, list: GenericList):
+    """Call begin_generic_list_ops beforehand"""
+    layout.operator(B3D_OT_GenericList_Clear.bl_idname, icon='TRASH', text='')
+
+
+# -----------------------------------------------------------------------------
+def draw_generic_list(layout: UILayout, list: GenericList, name: str, _rows=4, with_generic_ops=True):
+    row = layout.row(align=True)
+    row.template_list('B3D_UL_GenericList', name, list, 'items', list, 'selected_item_idx', rows=_rows)
+    if not with_generic_ops: return
+    col = row.column(align=True)
+    draw_generic_list_ops(col, list)
 
 
 # -----------------------------------------------------------------------------

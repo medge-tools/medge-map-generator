@@ -4,8 +4,7 @@ from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
 from .dataset   import *
-from .props     import get_dataset
-from .vis       import DatasetVis
+from .          import props, vis
 
 
 # -----------------------------------------------------------------------------
@@ -53,16 +52,16 @@ class MET_OT_ExportDataset(Operator, ExportHelper):
 # DATASET
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-vis_is_enabled = False
+vis_state = False
 
 def is_vis_enabled():
-    global vis_is_enabled
-    return vis_is_enabled
+    global vis_state
+    return vis_state
 
 
-def set_vis_enabeld(state: bool):
-    global vis_is_enabled
-    vis_is_enabled = state
+def set_vis_state(state: bool):
+    global vis_state
+    vis_state = state
 
 # -----------------------------------------------------------------------------
 class MET_OT_EnableDatasetVis(Operator):
@@ -76,9 +75,9 @@ class MET_OT_EnableDatasetVis(Operator):
 
 
     def execute(self, context: Context):
-        DatasetVis().add_handle(context)
+        vis.add_handle(context)
         context.area.tag_redraw()
-        set_vis_enabeld(True)
+        set_vis_state(True)
         return{'FINISHED'}
     
 
@@ -94,9 +93,9 @@ class MET_OT_DisableDatasetVis(Operator):
 
 
     def execute(self, context: Context):
-        DatasetVis().remove_handle()
+        vis.remove_handle()
         context.area.tag_redraw()
-        set_vis_enabeld(False)
+        set_vis_state(False)
         return {'FINISHED'}
 
 
@@ -117,7 +116,7 @@ class MET_OT_ConvertToDataset(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.convert_to_dataset(obj)
+        props.convert_to_dataset(obj)
         return {'FINISHED'}  
 
 
@@ -137,7 +136,7 @@ class MET_OT_SetState(Operator):
         obj = context.object
         settings = get_dataset(obj).get_ops_settings()
         s = settings.new_state
-        DatasetOps.set_state(obj, PlayerState[s])
+        set_player_state(obj, PlayerState[s])
         return {'FINISHED'} 
 
 
@@ -150,13 +149,13 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return DatasetOps.is_dataset(obj) and obj.mode == 'EDIT'
+        return is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, context: Context):
         obj = context.object
         settings = get_dataset(obj).get_ops_settings()
-        DatasetOps.select_transitions(obj, settings.filter, settings.restrict)
+        select_transitions(obj, settings.filter, settings.restrict)
         return {'FINISHED'}
     
 
@@ -178,7 +177,7 @@ class MET_OT_SelectStates(Operator):
     def execute(self, context: Context):
         obj = context.object
         settings = get_dataset(obj).get_ops_settings()
-        DatasetOps.select_states(obj, settings.filter)
+        select_player_states(obj, settings.filter)
         return {'FINISHED'}
 
 
@@ -192,15 +191,15 @@ class MET_OT_SnapToGrid(Operator):
     @classmethod
     def poll(cls, context: Context):
         obj = context.object
-        return DatasetOps.is_dataset(obj)
+        return is_dataset(obj)
     
 
     def execute(self, context: Context):
         obj = context.object
-        spacing = get_dataset(obj).get_ops_settings().spacing
+        spacing = props.get_dataset(obj).get_ops_settings().spacing
 
         b3d_utils.snap_to_grid(obj.data, spacing)
-        DatasetOps.resolve_overlap(obj)
+        resolve_overlap(obj)
         return {'FINISHED'}
     
 
@@ -219,7 +218,7 @@ class MET_OT_ResolveOverlap(Operator):
 
     def execute(self, context: Context):
         obj = context.object
-        DatasetOps.resolve_overlap(obj)
+        resolve_overlap(obj)
         return {'FINISHED'}
 
 

@@ -1,6 +1,6 @@
 from bpy.types  import Context, Panel
 
-from ..b3d_utils    import draw_generic_list_ops
+from ..b3d_utils    import draw_generic_list
 from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 
 from .ops           import *
@@ -21,34 +21,34 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        chains = get_markov_chains(context)
+        markov = get_markov_chains(context)
 
         col = layout.column(align=True)
 
-        row = col.row(align=True)
-        row.template_list('B3D_UL_GenericList', '#markov_chain_list', chains, 'items', chains, 'selected_item_idx', rows=4)
-        
-        col = row.column(align=True)
-        draw_generic_list_ops(col, chains)
+        draw_generic_list(col, markov, '#markov_chain_list')
 
-        item = chains.get_selected()
+        active_mc = markov.get_selected()
 
-        if not item: return
+        if not active_mc: return
 
         col = layout.column(align=True)
-        col.prop(item, 'collection')
+        col.prop(active_mc, 'collection')
 
         col.separator(factor=2)
         col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
 
         col.separator()
-        if item.has_transition_matrix:
-            col.prop(item, 'length')
-            col.prop(item, 'seed')
-            col.prop(item, 'capsule_radius')
+        if active_mc.has_transition_matrix:
+            col.prop(active_mc, 'length')
+            col.prop(active_mc, 'seed')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
+
+        col.separator(factor=2)
+        draw_generic_list(col, active_mc, '#generated_chain_list', with_generic_ops=False)
+
+
 
 classes.append(MET_PT_MarkovChains)
 

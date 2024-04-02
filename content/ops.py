@@ -1,9 +1,8 @@
 from bpy.types  import Operator
 
-from ..dataset.dataset  import DatasetOps
-from .props             import get_modules
-from .content               import populate
-
+from ..dataset import dataset
+from .props    import get_modules
+from .content  import populate
 
 
 # -----------------------------------------------------------------------------
@@ -27,7 +26,7 @@ class MET_OT_Populate(Operator):
     @classmethod
     def poll(cls, context):
         if not context.object: return False
-        return DatasetOps.is_dataset(context.object)
+        return dataset.is_dataset(context.object)
 
     def execute(self, context):
         obj = context.object

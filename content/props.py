@@ -26,11 +26,16 @@ classes.append(MET_PG_Module)
 class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
     def get_selected(self) -> MET_PG_Module:
+        self.init()
+
         if self.items:
             return self.items[self.selected_item_idx]
         return None
     
+
     def init(self):
+        if self.initialized: return
+        
         self.items.clear()
         
         for state in PlayerState:
@@ -39,8 +44,10 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
         self.initialized = True
 
+
     def to_list(self):
         return [item.object for item in self.items]
+
 
     items: CollectionProperty(type=MET_PG_Module)
     initialized: BoolProperty(default=False)

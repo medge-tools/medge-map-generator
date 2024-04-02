@@ -1,9 +1,9 @@
 from bpy.types  import Context, Panel
 
-from ..main_gui import *
-from .ops       import MET_OT_InitModules, MET_OT_Populate
-from .props     import get_modules
-
+from ..main_gui  import *
+from .ops        import MET_OT_Populate
+from .props      import get_modules
+from ..b3d_utils import draw_generic_list 
 
 # -----------------------------------------------------------------------------
 class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
@@ -20,14 +20,10 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
 
         col = layout.column(align=True)
 
-        if not modules.initialized:
-            col.operator(MET_OT_InitModules.bl_idname)
-        
         col.separator()
         
-        row = col.row(align=True)
-        row.template_list('B3D_UL_GenericList', '#modules', modules, 'items', modules, 'selected_item_idx', rows=4)
-        
+        draw_generic_list(col, modules, '#modules')
+
         col = row.column(align=True)
         
         module = modules.get_selected()

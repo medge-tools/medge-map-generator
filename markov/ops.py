@@ -1,27 +1,25 @@
 from bpy.types  import Operator, Context
 from bpy.props  import *
 
-from .stats     import MarkovChainStats
-from .props     import *
-from .chains    import Capsule
-
+from .props import *
+from .      import stats, force_directed
 
 # -----------------------------------------------------------------------------
-vis_is_enabled = False
+vis_state = False
 
 def is_vis_enabled():
-    global vis_is_enabled
-    return vis_is_enabled
+    global vis_state
+    return vis_state
 
 
-def set_vis_enabeld(state: bool):
-    global vis_is_enabled
-    vis_is_enabled = state
+def set_vis_state(state: bool):
+    global vis_state
+    vis_state = state
 
 
 # -----------------------------------------------------------------------------
 class MET_OT_EnableMarkovStats(Operator):
-    bl_idname = 'medge_markov_model.enable_markov_statistics'
+    bl_idname = 'medge_markov.enable_markov_statistics'
     bl_label  = 'Enable Statistics'
 
 
@@ -31,15 +29,15 @@ class MET_OT_EnableMarkovStats(Operator):
 
 
     def execute(self, context: Context):
-        MarkovChainStats().add_handle(context)
+        stats.add_handle(context)
         context.area.tag_redraw()
-        set_vis_enabeld(True)
+        set_vis_state(True)
         return{'FINISHED'}
     
 
 # -----------------------------------------------------------------------------
 class MET_OT_DisableMarkovStats(Operator):
-    bl_idname = 'medge_markov_model.disable_markov_statistics'
+    bl_idname = 'medge_markov.disable_markov_statistics'
     bl_label  = 'Disable Statistics'
 
 
@@ -49,28 +47,28 @@ class MET_OT_DisableMarkovStats(Operator):
 
 
     def execute(self, context: Context):
-        MarkovChainStats().remove_handle()
+        stats.remove_handle()
         context.area.tag_redraw()
-        set_vis_enabeld(False)
+        set_vis_state(False)
         return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------
 class MET_OT_CreateTransitionMatrix(Operator):
-    bl_idname = 'medge_markov_model.create_transition_matrix'
+    bl_idname = 'medge_markov.create_transition_matrix'
     bl_label  = 'Create Transition Matrix'
 
 
     def execute(self, context: Context):
         chains = get_markov_chains(context)
         item = chains.get_selected()
-        item.create_transition_matrix(context)
+        item.create_transition_matrix()
         return {'FINISHED'}
-        
+
 
 # -----------------------------------------------------------------------------
 class MET_OT_GenerateChain(Operator):
-    bl_idname = 'medge_markov_model.generate_chain'
+    bl_idname = 'medge_markov.generate_chain'
     bl_label  = 'Generate Chain'
 
 
@@ -84,5 +82,28 @@ class MET_OT_GenerateChain(Operator):
     def execute(self, context: Context):
         chains = get_markov_chains(context)
         item = chains.get_selected()
-        item.generate_chain(context)
+        item.generate_chain()
         return {'FINISHED'}        
+    
+
+# -----------------------------------------------------------------------------
+class MET_OT_RunForceDirected(Operator):
+    bl_idname = 'medge_markov.run_force_directed'
+    bl_label  = 'Run Force Directed'
+
+
+    def execute(self, context: Context):
+        bpy.ops.screen.animation_play()
+        return {'FINISHED'}
+        
+
+# -----------------------------------------------------------------------------
+class MET_OT_StopForceDirected(Operator):
+    bl_idname = 'medge_markov.stop_force_directed'
+    bl_label  = 'Stop Force Directed'
+
+
+    def execute(self, context: Context):
+        bpy.ops.screen.animation_cancel()
+        return {'FINISHED'}
+    
