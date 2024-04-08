@@ -2,7 +2,7 @@ from bpy.types  import Operator, Context
 from bpy.props  import *
 
 from .props import *
-from .      import stats, force_directed
+from .      import stats
 
 # -----------------------------------------------------------------------------
 vis_state = False
@@ -86,24 +86,4 @@ class MET_OT_GenerateChain(Operator):
         return {'FINISHED'}        
     
 
-# -----------------------------------------------------------------------------
-class MET_OT_RunForceDirected(Operator):
-    bl_idname = 'medge_markov.run_force_directed'
-    bl_label  = 'Run Force Directed'
-
-
-    def execute(self, context: Context):
-        bpy.ops.screen.animation_play()
-        return {'FINISHED'}
-        
-
-# -----------------------------------------------------------------------------
-class MET_OT_StopForceDirected(Operator):
-    bl_idname = 'medge_markov.stop_force_directed'
-    bl_label  = 'Stop Force Directed'
-
-
-    def execute(self, context: Context):
-        bpy.ops.screen.animation_cancel()
-        return {'FINISHED'}
     

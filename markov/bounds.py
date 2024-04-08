@@ -2,6 +2,22 @@ from mathutils import Vector
 
 
 # -----------------------------------------------------------------------------
+class Hit:
+    def __init__(self, impact_normal: Vector) -> None:
+        self.normal = impact_normal
+
+
+    def __bool__(self):
+        return self.normal.length > 0
+
+    def __mul__(self, other):
+        return self.normal * other
+    
+    def __rmul__(self, other):
+        return self * other
+
+
+# -----------------------------------------------------------------------------
 class AABB:
     def __init__(self, bmin: Vector, bmax: Vector):
         self.bmin = bmin
@@ -28,7 +44,7 @@ class Capsule:
     def __init__(self, base: Vector, tip: Vector, radius: float = .5):
         self.base = base
         self.tip = tip
-        self.radius = radius
+        self._radius = radius
 
 
     @property
@@ -49,7 +65,7 @@ class Capsule:
         self.hem_tip = self.tip - line_offset;
 
 
-    def collides(self, other: 'Capsule'):
+    def collides(self, other: 'Capsule') -> Hit:
         return self.capsule_collision(other)
 
 
@@ -59,14 +75,14 @@ class Capsule:
         return self.tip + min(max(t, 0), 1) * ab
 
 
-    def sphere_collision(self, other: Vector, radius: float):
+    def sphere_collision(self, other: Vector, radius: float) -> Hit:
         closest_point = self.closest_point_on_segment(other)
-        pen_normal = closest_point - other
+        pen_normal = other - closest_point
         pen_depth = self.radius + radius - pen_normal.length
-        return pen_depth > 0
+        return Hit(pen_normal.normalized() * pen_depth)
 
 
-    def capsule_collision(self, other: 'Capsule'):
+    def capsule_collision(self, other: 'Capsule')  -> Hit:
         v0 = other.hem_base - self.hem_base
         v1 = other.hem_tip  - self.hem_base
         v2 = other.hem_base - self.hem_tip

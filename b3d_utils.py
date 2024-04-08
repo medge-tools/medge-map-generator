@@ -751,7 +751,6 @@ def register_subpackage(subpackage = ''):
 
     auto_load.register()
 
-
     global registered_modules
     global registered_classes
 

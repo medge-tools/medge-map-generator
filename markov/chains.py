@@ -6,23 +6,39 @@ import numpy as np
 from sys            import float_info
 from collections    import UserList
 
-from ..dataset.dataset  import Dataset, DatabaseEntry, Attribute, create_polyline
+from ..b3d_utils        import rotation_matrix
+from ..dataset.dataset  import Dataset, DatabaseEntry, Attribute, get_dataset, create_polyline
 from .bounds            import AABB, Capsule
 
 # -----------------------------------------------------------------------------
 class Chain(UserList):
-    def __init__(self, state, points: list[Vector], radius = 1):
+    def __init__(self, 
+                 state, 
+                 points: list[Vector], 
+                 radius = 1):
         super().__init__(copy.deepcopy(points))
 
         self.state = state
-        self.radius = radius
-        self.to_center()
+        self._radius = radius
+        self.capsules = []
+        
+        self.to_origin()
         self.init_capsules()
-        self.update_orientation()
         self.update_aabb()
 
 
-    def to_center(self):
+    @property
+    def radius(self):
+        return self._radius
+    
+
+    @radius.setter
+    def radius(self, value: float):
+        self._radius = value
+        self.update_capsules()
+
+
+    def to_origin(self):
         points = self.data
         offset = copy.deepcopy(points[0])
         
@@ -34,23 +50,13 @@ class Chain(UserList):
         self.capsules = []
 
         for p1, p2 in zip(self.data, self.data[1:]):
-            cap = Capsule(p1, p2, self.radius)
+            cap = Capsule(p1, p2, self._radius)
             self.capsules.append(cap)
 
 
-    def update_orientation(self):
-        points = self.data
-        oin = Vector((0, 1, 0))
-        oout = Vector((0, 1, 0))
-
-        if len(points) >= 2:
-            oin  = points[ 1] - points[ 0]
-            oout = points[-1] - points[-2]
-            oin.normalize()
-            oout.normalize()
-        
-        self.orientation_in  = oin
-        self.orientation_out = oout
+    def update_capsules(self):
+        for cap in self.capsules:
+            cap.radius = self._radius
 
 
     def update_aabb(self):
@@ -70,30 +76,47 @@ class Chain(UserList):
 
         self.aabb = AABB(bmin, bmax)
 
-   
-
-    def update_radius(self, radius: float):
-        self.radius = radius
-        for cap in self.capsules:
-            cap.radius = radius
-
 
     def align(self, livechain: 'GeneratedChain'):
-        offset  = livechain[-1]
-        offset += livechain[-1] - livechain[-2]
+        # To origin for the rotations to be applied properly
+        self.to_origin()
+
+        # Direction vectors 
+        my_dir = Vector((0, 1, 0))
+        if len(self.data) >= 2:
+            my_dir = self.data[1] - self.data[0]
+        other_dir = livechain[-1] - livechain[-2]
+        if other_dir.length <= 0.0001:
+            other_dir = livechain[-1] - livechain[-3]
+
+        # Get rotation matrix around z-axis from direction vectors
+        a = my_dir * Vector((1, 1, 0))
+        b = other_dir * Vector((1, 1, 0))
+        R = rotation_matrix(a, b)
+
+        for p in self.data:
+            p.rotate(R)
+
+        # Move chain to the end of the livechain
+        offset  = copy.deepcopy(livechain[-1])
+        offset += other_dir
 
         for p in self.data:
             p += offset
 
+        # Update bounds
         self.update_aabb()
 
 
-    def collides(self, other: 'Chain', radius: float):
+    def collides(self, other: 'Chain'):
         if not other.aabb.contains(self.aabb): return False
         for my_cap in self.capsules:
             for other_cap in other.capsules:
-                if my_cap.collides(other_cap): return True
+                if (hit := my_cap.collides(other_cap)): return hit
             
+    
+    def rotate(self, degree: float):
+        pass
 
 # -----------------------------------------------------------------------------
 class ChainPool(UserList):
@@ -118,6 +141,40 @@ class GeneratedChain(UserList):
     def append(self, chain: Chain):
         self.data.extend(chain)
         self.sections.append(chain)
+
+
+    def pop(self):
+        k = len(self.data)
+
+        chain = self.sections.pop()
+
+        if not chain: return
+
+        n = len(chain)
+        l = k - n
+        del self.data[l:]
+
+        return chain
+
+
+    def from_dataset(self, dataset_object: Object):
+        if not (dataset := get_dataset(dataset_object)): return
+
+        self.obj = dataset_object
+
+        curr_points = None
+        curr_state = None
+
+        for entry in dataset:
+            if entry[Attribute.CHAIN_START.value]:
+                if curr_points:
+                    self.append(Chain(curr_state, curr_points))
+
+                curr_points = []
+                curr_state = entry[Attribute.PLAYER_STATE.value]
+            
+            point = entry[Attribute.LOCATION.value]
+            curr_points.append(point)
 
 
     def to_dataset(self) -> Dataset:

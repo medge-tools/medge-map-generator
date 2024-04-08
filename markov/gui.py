@@ -6,8 +6,6 @@ from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 from .ops           import *
 from .props         import get_markov_chains
 
-classes = []
-
 
 # -----------------------------------------------------------------------------
 class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
@@ -45,13 +43,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
 
-        col.separator(factor=2)
-        draw_generic_list(col, active_mc, '#generated_chain_list', with_generic_ops=False)
-
-
-
-classes.append(MET_PT_MarkovChains)
-
 
 # -----------------------------------------------------------------------------
 class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
@@ -86,5 +77,3 @@ class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
         col.prop(item, 'from_state')
         col.prop(item, 'to_state')
 
-
-classes.append(MET_PT_MarkovChainsStats)
