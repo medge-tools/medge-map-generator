@@ -33,12 +33,15 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         col.prop(active_mc, 'collection')
 
         col.separator(factor=2)
+        col.prop(active_mc, 'min_chain_length')
+        col.separator()
         col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
 
         col.separator()
         if active_mc.has_transition_matrix:
             col.prop(active_mc, 'length')
             col.prop(active_mc, 'seed')
+            col.prop(active_mc, 'collision_radius')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)

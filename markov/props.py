@@ -32,8 +32,14 @@ class MET_PG_MarkovChain(PropertyGroup):
         if len(objects) == 0: return
 
         global markov_chain_models
-        mc: MarkovChain = markov_chain_models.setdefault(self.name, MarkovChain())
-        mc.create_transition_matrix(objects, self.name)
+
+        if self.name in markov_chain_models:
+            del markov_chain_models[self.name]
+
+        mc = MarkovChain()
+        b = mc.create_transition_matrix(objects, 1, self.name)
+
+        if b: markov_chain_models[self.name] = mc
 
 
     def generate_chain(self):
@@ -69,9 +75,12 @@ class MET_PG_MarkovChain(PropertyGroup):
     display_statistics: BoolProperty(name='Display Statistics')
     from_state: PlayerStateProperty('From', __update_statistics)
     to_state: PlayerStateProperty('To', __update_statistics)
+    
+    min_chain_length: IntProperty(name='Min Chain Length', default=5, min=1)
 
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)
+    collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
 
 
 # -----------------------------------------------------------------------------

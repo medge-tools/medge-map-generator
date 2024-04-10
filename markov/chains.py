@@ -1,14 +1,15 @@
 from bpy.types import Object
-from mathutils import Vector
+from mathutils import Vector, Matrix
 
 import copy
 import numpy as np
 from sys            import float_info
 from collections    import UserList
+from math           import radians
 
 from ..b3d_utils        import rotation_matrix
 from ..dataset.dataset  import Dataset, DatabaseEntry, Attribute, get_dataset, create_polyline
-from .bounds            import AABB, Capsule
+from .bounds            import AABB, Capsule, Hit
 
 # -----------------------------------------------------------------------------
 class Chain(UserList):
@@ -77,7 +78,7 @@ class Chain(UserList):
         self.aabb = AABB(bmin, bmax)
 
 
-    def align(self, livechain: 'GeneratedChain'):
+    def align(self, _other: list[Vector], _align_direction = False, _rotation_offset = 0):
         # To origin for the rotations to be applied properly
         self.to_origin()
 
@@ -85,20 +86,28 @@ class Chain(UserList):
         my_dir = Vector((0, 1, 0))
         if len(self.data) >= 2:
             my_dir = self.data[1] - self.data[0]
-        other_dir = livechain[-1] - livechain[-2]
-        if other_dir.length <= 0.0001:
-            other_dir = livechain[-1] - livechain[-3]
+
+        other_dir = Vector((0, 1, 0))
+        if len(_other) >= 2:
+            other_dir = _other[-1] - _other[-2]
+            if other_dir.length <= 0.0001:
+                other_dir = _other[-1] - _other[-3]
+
+        # Add rotation offset
+        R = Matrix.Rotation(radians(_rotation_offset), 3, 'Z')
 
         # Get rotation matrix around z-axis from direction vectors
-        a = my_dir * Vector((1, 1, 0))
-        b = other_dir * Vector((1, 1, 0))
-        R = rotation_matrix(a, b)
+        if _align_direction:
+            a = my_dir * Vector((1, 1, 0))
+            b = other_dir * Vector((1, 1, 0))
+            A = rotation_matrix(a, b)
+            R = R @ A
 
         for p in self.data:
             p.rotate(R)
 
-        # Move chain to the end of the livechain
-        offset  = copy.deepcopy(livechain[-1])
+        # Move chain to the end of the other chain
+        offset  = copy.deepcopy(_other[-1])
         offset += other_dir
 
         for p in self.data:
@@ -108,11 +117,12 @@ class Chain(UserList):
         self.update_aabb()
 
 
-    def collides(self, other: 'Chain'):
-        if not other.aabb.contains(self.aabb): return False
+    def collides(self, other: 'Chain') -> Hit | None:
+        if not self.aabb.contains(other.aabb): return False
         for my_cap in self.capsules:
             for other_cap in other.capsules:
                 if (hit := my_cap.collides(other_cap)): return hit
+        return None
             
     
     def rotate(self, degree: float):

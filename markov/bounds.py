@@ -3,15 +3,19 @@ from mathutils import Vector
 
 # -----------------------------------------------------------------------------
 class Hit:
-    def __init__(self, impact_normal: Vector) -> None:
-        self.normal = impact_normal
+    def __init__(self, result: bool, impact_vector: Vector) -> None:
+        self.result = result
+        self.impact_vector = impact_vector
 
+    @property
+    def length(self):
+        return self.impact_vector.length
 
     def __bool__(self):
-        return self.normal.length > 0
+        return self.result
 
     def __mul__(self, other):
-        return self.normal * other
+        return self.impact_vector * other
     
     def __rmul__(self, other):
         return self * other
@@ -31,8 +35,16 @@ class AABB:
             return a >= 0 and b >= 0
         
         if isinstance(other, AABB):
-            if other.bmax < self.bmin: return False
-            if other.bmin > self.bmax: return False
+            if (self.bmin.x > other.bmax.x or
+                self.bmin.y > other.bmax.y or
+                self.bmin.z > other.bmax.z):
+                return False
+
+            if (self.bmax.x < other.bmin.x or 
+                self.bmax.y < other.bmin.y or 
+                self.bmax.z < other.bmin.z):
+                return False
+
             return True
         
         raise(Exception('object is neither Vector or AABB'))
@@ -45,6 +57,7 @@ class Capsule:
         self.base = base
         self.tip = tip
         self._radius = radius
+        self.update_hemispheres()
 
 
     @property
@@ -58,6 +71,7 @@ class Capsule:
         self.update_hemispheres()
 
 
+    # TODO: Check if tip == base
     def update_hemispheres(self):
         n = (self.tip - self.base).normalized()
         line_offset = n * self.radius; 
@@ -69,6 +83,7 @@ class Capsule:
         return self.capsule_collision(other)
 
 
+    # TODO: Check if tip == base
     def closest_point_on_segment(self, other: Vector):
         ab = self.base - self.tip
         t = ab.dot(other - self.tip) / ab.dot(ab)
@@ -79,7 +94,7 @@ class Capsule:
         closest_point = self.closest_point_on_segment(other)
         pen_normal = other - closest_point
         pen_depth = self.radius + radius - pen_normal.length
-        return Hit(pen_normal.normalized() * pen_depth)
+        return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth)
 
 
     def capsule_collision(self, other: 'Capsule')  -> Hit:

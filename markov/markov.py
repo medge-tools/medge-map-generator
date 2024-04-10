@@ -1,11 +1,14 @@
 from bpy.types import Object
 
+import copy
 import numpy as np
+from sys import float_info
 
 from ..dataset.dataset  import Attribute, Dataset
 from ..dataset          import dataset
 from ..dataset.movement import PlayerState
-from .chains            import ChainPool, GeneratedChain
+from .chains            import ChainPool, GeneratedChain, Chain
+from .bounds            import Hit
 
 
 # -----------------------------------------------------------------------------
@@ -26,7 +29,7 @@ class MarkovChain:
 
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
-    def create_transition_matrix(self, objects: list[Object], name = ''):
+    def create_transition_matrix(self, objects: list[Object], _min_chain_length = 1, name = '') -> bool:
         self.reset()
         self.name = name
 
@@ -41,11 +44,18 @@ class MarkovChain:
             D.extend(d)
 
 
-        if len(D) == 0: return
+        if len(D) == 0: return False
 
         N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
         TM = np.zeros((N, N), dtype=float)
-        CL = [ChainPool() for _ in range(N)]
+        CP = [ChainPool() for _ in range(N)]
+
+        # Populate ChainPools
+        sps = D.seqs_per_state()
+        for state, seqs in sps.items():
+            for s in seqs:
+                if len(s) < _min_chain_length: continue
+                CP[state].append(state, s)
 
         # Populate transition matrix
         transitions = zip(D, D[1:])
@@ -55,15 +65,10 @@ class MarkovChain:
             i = entry1[Attribute.PLAYER_STATE]
             j = entry2[Attribute.PLAYER_STATE]
 
+            if len(CP[i]) == 0 or len(CP[j]) == 0:
+                continue
+
             TM[i][j] += 1.0
-
-
-        # Populate ChainLists
-        sps = D.seqs_per_state()
-        for state, seqs in sps.items():
-            for s in seqs:
-                CL[state].append(state, s)
-
 
         # Normalize 
         for row in TM:
@@ -72,12 +77,13 @@ class MarkovChain:
                 factor = 1.0/s
                 row[:] = [float(v) * factor for v in row]
 
-
         # Store matrices
         self.nstates = N
         self.transition_matrix = TM
-        self.chain_lists = CL
+        self.chain_lists = CP
         self.dataset = D
+
+        return True
 
 
     def generate_chain(self, length: int, seed: int) -> tuple[GeneratedChain, Object]:
@@ -91,7 +97,55 @@ class MarkovChain:
         gen_chain = GeneratedChain()
         gen_chain.append(prev_chain)
 
-        for _ in range(length):
+
+        def collides(other: Chain) -> Hit | bool:
+            for chain in gen_chain.sections:
+                if (hit := other.collides(chain)): return hit
+            return False
+
+        
+        def resolve_collisions(chain):
+            # Store the penetration depth with the respective rotation
+            smallest_pen_depth = float_info.max
+            best_rotation = 0
+            for r in range(145):
+                # Rotate right
+                temp = copy.deepcopy(chain)
+                temp.align(gen_chain, _rotation_offset=r)
+                hit = collides(temp)
+                if not (hit): 
+                    print(f'Resolved collision with rotation: {r}')
+                    chain.align(gen_chain, _rotation_offset=r)
+                    return
+                
+                if (l := hit.length) < smallest_pen_depth:
+                    smallest_pen_depth = l
+                    best_rotation = r
+                
+                # Rotate left
+                rl = -r
+                temp = copy.deepcopy(chain)
+                temp.align(gen_chain, _rotation_offset=rl)
+                hit = collides(temp)
+                if not (hit): 
+                    print(f'Resolved collision with rotation: {rl}')
+                    chain.align(gen_chain, _rotation_offset=rl)
+                    return
+                
+                if (l := hit.length) < smallest_pen_depth:
+                    smallest_pen_depth = l
+                    best_rotation = rl
+
+            # No rotation found without collisions
+            # Pick the rotation with the smallest penetration depth
+            print(f'Could not resolve collision, best rotation: {best_rotation}')
+            chain.align(gen_chain, best_rotation)
+
+
+        for k in range(length):
+            print(f'=== Iteration: {k} ===')
+            if k == 65:
+                print(k)
             # Choose the next state
             probabilities = self.transition_matrix[prev_state]
             next_state = np.random.choice(self.nstates, p=probabilities)
@@ -102,9 +156,12 @@ class MarkovChain:
             
             # Align the new chain to the current chain
             next_chain.align(gen_chain)
-            gen_chain.append(next_chain)
 
-            # 
+            # Resolve collisions
+            if collides(next_chain):
+                resolve_collisions(next_chain)
+
+            gen_chain.append(next_chain)
             prev_state = next_state
             prev_chain = next_chain
 
