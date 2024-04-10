@@ -15,7 +15,7 @@ from .bounds            import AABB, Capsule, Hit
 class Chain(UserList):
     def __init__(self, 
                  state, 
-                 points: list[Vector], 
+                 points:list[Vector], 
                  radius = 1):
         super().__init__(copy.deepcopy(points))
 
@@ -34,7 +34,7 @@ class Chain(UserList):
     
 
     @radius.setter
-    def radius(self, value: float):
+    def radius(self, value:float):
         self._radius = value
         self.update_capsules()
 
@@ -78,7 +78,7 @@ class Chain(UserList):
         self.aabb = AABB(bmin, bmax)
 
 
-    def align(self, _other: list[Vector], _align_direction = False, _rotation_offset = 0):
+    def align(self, _other:list[Vector], _align_direction=False, _rotation_offset=0):
         # To origin for the rotations to be applied properly
         self.to_origin()
 
@@ -130,7 +130,7 @@ class Chain(UserList):
 
 # -----------------------------------------------------------------------------
 class ChainPool(UserList):
-    def append(self, state, sequence: list[Vector]):
+    def append(self, state, sequence:list[Vector]):
         self.data.append(Chain(state, sequence))
                     
 
@@ -144,33 +144,13 @@ class ChainPool(UserList):
 class GeneratedChain(UserList):
     def __init__(self):
         super().__init__()
-        self.sections = []
         self.obj = None
 
 
-    def append(self, chain: Chain):
-        self.data.extend(chain)
-        self.sections.append(chain)
+    def from_dataset(self, _dataset_object:Object):
+        if not (dataset := get_dataset(_dataset_object)): return
 
-
-    def pop(self):
-        k = len(self.data)
-
-        chain = self.sections.pop()
-
-        if not chain: return
-
-        n = len(chain)
-        l = k - n
-        del self.data[l:]
-
-        return chain
-
-
-    def from_dataset(self, dataset_object: Object):
-        if not (dataset := get_dataset(dataset_object)): return
-
-        self.obj = dataset_object
+        self.obj = _dataset_object
 
         curr_points = None
         curr_state = None
@@ -190,7 +170,7 @@ class GeneratedChain(UserList):
     def to_dataset(self) -> Dataset:
         dataset = Dataset()
 
-        for chain in self.sections:
+        for chain in self.data:
             bmin = chain.aabb.bmin
             bmax = chain.aabb.bmax
 
@@ -212,6 +192,6 @@ class GeneratedChain(UserList):
         return dataset
     
 
-    def to_polyline(self, name: str) -> Object:
-        self.obj = create_polyline(self.to_dataset(), name)
+    def to_polyline(self, _name:str) -> Object:
+        self.obj = create_polyline(self.to_dataset(), _name)
         return self.obj

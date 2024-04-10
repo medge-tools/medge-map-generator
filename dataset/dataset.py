@@ -229,7 +229,7 @@ def object_to_dataset(obj: Object, dataset: Dataset = None):
 
 
 # -----------------------------------------------------------------------------
-def attribute_layers(bm: BMesh):
+def yield_attribute_layers(bm: BMesh):
     layers = bm.verts.layers
     for att in Attribute:
         match(att.type):
@@ -277,7 +277,7 @@ def get_dataset(obj: Object) -> Dataset | None:
     def retrieve_entry(vert):
         entry = DatabaseEntry()
         entry[Attribute.LOCATION.label] = vert.co
-        for layer in attribute_layers(bm):
+        for layer in yield_attribute_layers(bm):
             entry[layer.name] = vert[layer]
         return entry
 

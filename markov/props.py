@@ -49,7 +49,7 @@ class MET_PG_MarkovChain(PropertyGroup):
             return
 
         mc: MarkovChain = markov_chain_models[self.name]
-        mc.generate_chain(self.length, self.seed)
+        mc.generate_chain(self.length, self.seed, self.collision_radius)
 
 
     def __get_name(self):
@@ -81,6 +81,7 @@ class MET_PG_MarkovChain(PropertyGroup):
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)
     collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
+    angle_step: IntProperty(name='Angle Step', default=5, min=1)
 
 
 # -----------------------------------------------------------------------------

@@ -20,7 +20,7 @@ class MarkovChain:
     def reset(self):
         self.name = ''
         self.transition_matrix = None
-        self.chain_lists = None
+        self.chain_pools = None
 
         self.dataset = None
         self.nstates = 0
@@ -29,14 +29,14 @@ class MarkovChain:
 
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
-    def create_transition_matrix(self, objects: list[Object], _min_chain_length = 1, name = '') -> bool:
+    def create_transition_matrix(self, _objects:list[Object], _min_chain_length=1, _name='') -> bool:
         self.reset()
-        self.name = name
+        self.name = _name
 
         D = Dataset()
         N = 0
 
-        for obj in objects:
+        for obj in _objects:
             if not obj.visible_get(): continue
             if not dataset.is_dataset(obj): continue
 
@@ -80,42 +80,50 @@ class MarkovChain:
         # Store matrices
         self.nstates = N
         self.transition_matrix = TM
-        self.chain_lists = CP
+        self.chain_pools = CP
         self.dataset = D
 
         return True
 
 
-    def generate_chain(self, length: int, seed: int) -> tuple[GeneratedChain, Object]:
-        np.random.seed(seed)
+    def generate_chain(self, _length:int, _seed:int, _collision_radius:float) -> tuple[GeneratedChain, Object]:
+        # Update the capsule radius
+        for cp in self.chain_pools:
+            for chain in cp:
+                chain.radius = _collision_radius
+
+        # Prepare chain generation
+        np.random.seed(_seed)
 
         start_state = PlayerState.Walking.value
         
         prev_state = start_state
-        prev_chain = self.chain_lists[start_state].random_chain()
+        prev_chain = self.chain_pools[start_state].random_chain()
         
         gen_chain = GeneratedChain()
         gen_chain.append(prev_chain)
+        
 
-
-        def collides(other: Chain) -> Hit | bool:
-            for chain in gen_chain.sections:
-                if (hit := other.collides(chain)): return hit
+        def collides(chain:Chain) -> Hit | bool:
+            for sec in gen_chain:
+                if (hit := chain.collides(sec)): return hit
             return False
 
         
         def resolve_collisions(chain):
+            if not collides(chain): return
             # Store the penetration depth with the respective rotation
             smallest_pen_depth = float_info.max
             best_rotation = 0
+
             for r in range(145):
                 # Rotate right
                 temp = copy.deepcopy(chain)
-                temp.align(gen_chain, _rotation_offset=r)
+                temp.align(gen_chain[-1], _rotation_offset=r)
                 hit = collides(temp)
                 if not (hit): 
                     print(f'Resolved collision with rotation: {r}')
-                    chain.align(gen_chain, _rotation_offset=r)
+                    chain.align(gen_chain[-1], _rotation_offset=r)
                     return
                 
                 if (l := hit.length) < smallest_pen_depth:
@@ -125,11 +133,11 @@ class MarkovChain:
                 # Rotate left
                 rl = -r
                 temp = copy.deepcopy(chain)
-                temp.align(gen_chain, _rotation_offset=rl)
+                temp.align(gen_chain[-1], _rotation_offset=rl)
                 hit = collides(temp)
                 if not (hit): 
                     print(f'Resolved collision with rotation: {rl}')
-                    chain.align(gen_chain, _rotation_offset=rl)
+                    chain.align(gen_chain[-1], _rotation_offset=rl)
                     return
                 
                 if (l := hit.length) < smallest_pen_depth:
@@ -139,10 +147,9 @@ class MarkovChain:
             # No rotation found without collisions
             # Pick the rotation with the smallest penetration depth
             print(f'Could not resolve collision, best rotation: {best_rotation}')
-            chain.align(gen_chain, best_rotation)
+            chain.align(gen_chain[-1], best_rotation)
 
-
-        for k in range(length):
+        for k in range(_length):
             print(f'=== Iteration: {k} ===')
             if k == 65:
                 print(k)
@@ -151,31 +158,30 @@ class MarkovChain:
             next_state = np.random.choice(self.nstates, p=probabilities)
 
             # Choose random chain
-            cl = self.chain_lists[next_state]
+            cl = self.chain_pools[next_state]
             next_chain = cl.random_chain()
             
             # Align the new chain to the current chain
-            next_chain.align(gen_chain)
+            next_chain.align(gen_chain[-1])
 
             # Resolve collisions
-            if collides(next_chain):
-                resolve_collisions(next_chain)
-
+            resolve_collisions(next_chain)
+            # Prepare for next iteration
             gen_chain.append(next_chain)
             prev_state = next_state
             prev_chain = next_chain
 
         # Create Polyline from LiveChain
-        name = self.name + '_' + str(length) + '_' + str(seed)
+        name = f'{self.name}_{_length}_{_seed}_{_collision_radius}'
         gen_chain.to_polyline(name)
         return gen_chain
 
-
-    def update_statistics(self, from_state: int, to_state: int):
+    
+    def update_statistics(self, from_state:int, to_state:int):
         data = np.zeros((0, 2), dtype=str)
 
         t = self.transition_matrix[from_state][to_state]
-        off = self.chain_lists[from_state][to_state]
+        off = self.chain_pools[from_state][to_state]
 
         header = [[PlayerState(from_state).name + ' -> ' + PlayerState(to_state).name, str(round(t, 3))]]
 
