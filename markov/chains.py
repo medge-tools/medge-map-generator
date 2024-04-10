@@ -16,14 +16,16 @@ class Chain(UserList):
     def __init__(self, 
                  state, 
                  points:list[Vector], 
-                 radius = 1):
+                 radius = 1,
+                 _to_origin = True):
         super().__init__(copy.deepcopy(points))
 
         self.state = state
         self._radius = radius
-        self.capsules = []
+        self.capsules:list[Capsule] = []
         
-        self.to_origin()
+        if _to_origin:
+            self.to_origin()
         self.init_capsules()
         self.update_aabb()
 
@@ -50,14 +52,20 @@ class Chain(UserList):
     def init_capsules(self):
         self.capsules = []
 
+        if len(self.data) == 1:
+            p = self.data[0]
+            cap = Capsule(p, p, self.radius)
+            self.capsules.append(cap)
+            return
+        
         for p1, p2 in zip(self.data, self.data[1:]):
-            cap = Capsule(p1, p2, self._radius)
+            cap = Capsule(p1, p2, self.radius)
             self.capsules.append(cap)
 
 
     def update_capsules(self):
         for cap in self.capsules:
-            cap.radius = self._radius
+            cap.radius = self.radius
 
 
     def update_aabb(self):
@@ -75,6 +83,7 @@ class Chain(UserList):
             if p.y > bmax.y: bmax.y = p.y
             if p.z > bmax.z: bmax.z = p.z
 
+        rv = Vector((self._radius, self._radius, self._radius))
         self.aabb = AABB(bmin, bmax)
 
 
@@ -117,17 +126,14 @@ class Chain(UserList):
         self.update_aabb()
 
 
-    def collides(self, other: 'Chain') -> Hit | None:
-        if not self.aabb.contains(other.aabb): return False
+    def collides(self, _other:'Chain', _force=False) -> Hit | None:
+        if not _force and not self.aabb.contains(_other.aabb): return None
         for my_cap in self.capsules:
-            for other_cap in other.capsules:
+            for other_cap in _other.capsules:
                 if (hit := my_cap.collides(other_cap)): return hit
         return None
             
     
-    def rotate(self, degree: float):
-        pass
-
 # -----------------------------------------------------------------------------
 class ChainPool(UserList):
     def append(self, state, sequence:list[Vector]):

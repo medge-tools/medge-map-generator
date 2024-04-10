@@ -46,6 +46,9 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
 
+        col.separator()
+        col.operator(MET_OT_CollisionTest.bl_idname)
+
 
 # -----------------------------------------------------------------------------
 class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):

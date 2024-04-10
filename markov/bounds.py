@@ -3,19 +3,21 @@ from mathutils import Vector
 
 # -----------------------------------------------------------------------------
 class Hit:
-    def __init__(self, result: bool, impact_vector: Vector) -> None:
-        self.result = result
-        self.impact_vector = impact_vector
+    def __init__(self, _result: bool, _direction: Vector, _my_loc: Vector, _other_loc: Vector) -> None:
+        self.result = _result
+        self.my_loc = _my_loc
+        self.other_loc = _other_loc
+        self.direction = _direction
 
     @property
     def length(self):
-        return self.impact_vector.length
+        return self.direction.length
 
     def __bool__(self):
         return self.result
 
     def __mul__(self, other):
-        return self.impact_vector * other
+        return self.direction * other
     
     def __rmul__(self, other):
         return self * other
@@ -26,6 +28,10 @@ class AABB:
     def __init__(self, bmin: Vector, bmax: Vector):
         self.bmin = bmin
         self.bmax = bmax
+
+
+    def __str__(self) -> str:
+        return f'Min: {self.bmin}, Max: {self.bmax}'
 
 
     def contains(self, other: 'Vector | AABB'):
@@ -53,64 +59,53 @@ class AABB:
 # -----------------------------------------------------------------------------
 # https://wickedengine.net/2020/04/26/capsule-collision-detection/
 class Capsule:
-    def __init__(self, base: Vector, tip: Vector, radius: float = .5):
-        self.base = base
-        self.tip = tip
-        self._radius = radius
-        self.update_hemispheres()
+    def __init__(self, _base: Vector, _tip: Vector, _radius: float = .5):
+        self.base = _base
+        self.tip = _tip
+        self.radius = _radius
 
-
-    @property
-    def radius(self):
-        return self._radius
     
-
-    @radius.setter
-    def radius(self, value: float):
-        self._radius = value
-        self.update_hemispheres()
-
-
-    # TODO: Check if tip == base
-    def update_hemispheres(self):
-        n = (self.tip - self.base).normalized()
-        line_offset = n * self.radius; 
-        self.hem_base = self.base + line_offset; 
-        self.hem_tip = self.tip - line_offset;
+    @property
+    def is_sphere(self):
+        return self.base == self.tip
 
 
     def collides(self, other: 'Capsule') -> Hit:
+        if self.is_sphere:
+            best_other = other.closest_point_on_segment(self.base)
+            return self.sphere_collision(best_other, other.radius)
         return self.capsule_collision(other)
 
 
-    # TODO: Check if tip == base
     def closest_point_on_segment(self, other: Vector):
-        ab = self.base - self.tip
-        t = ab.dot(other - self.tip) / ab.dot(ab)
-        return self.tip + min(max(t, 0), 1) * ab
+        if self.is_sphere: return self.base
+
+        ab = self.tip - self.base
+        t = ab.dot(other - self.base) / ab.dot(ab)
+        return self.base + min(max(t, 0), 1) * ab
 
 
     def sphere_collision(self, other: Vector, radius: float) -> Hit:
         closest_point = self.closest_point_on_segment(other)
         pen_normal = other - closest_point
         pen_depth = self.radius + radius - pen_normal.length
-        return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth)
+        return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth, closest_point, other)
 
 
     def capsule_collision(self, other: 'Capsule')  -> Hit:
-        v0 = other.hem_base - self.hem_base
-        v1 = other.hem_tip  - self.hem_base
-        v2 = other.hem_base - self.hem_tip
-        v3 = other.hem_tip  - self.hem_tip
+        v0 = other.base - self.base
+        v1 = other.tip  - self.base
+        v2 = other.base - self.tip
+        v3 = other.tip  - self.tip
 
         d0 = v0.dot(v0)
         d1 = v1.dot(v1)
         d2 = v2.dot(v2)
         d3 = v3.dot(v3)
 
-        best_self = self.hem_tip
+        best_self = self.base
         if (d2 < d0 or d2 < d1 or d3 < d0 or d3 < d1):
-            best_self = self.hem_base
+            best_self = self.tip
 
         best_other = other.closest_point_on_segment(best_self)
         return self.sphere_collision(best_other, other.radius)

@@ -151,7 +151,7 @@ class MarkovChain:
 
         for k in range(_length):
             print(f'=== Iteration: {k} ===')
-            if k == 65:
+            if k == 87:
                 print(k)
             # Choose the next state
             probabilities = self.transition_matrix[prev_state]
@@ -166,6 +166,7 @@ class MarkovChain:
 
             # Resolve collisions
             resolve_collisions(next_chain)
+
             # Prepare for next iteration
             gen_chain.append(next_chain)
             prev_state = next_state

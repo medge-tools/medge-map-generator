@@ -86,4 +86,38 @@ class MET_OT_GenerateChain(Operator):
         return {'FINISHED'}        
     
 
-    
+# -----------------------------------------------------------------------------
+from .chains import Chain
+
+class MET_OT_CollisionTest(Operator):
+    bl_idname = 'medge_markov.collision_test'
+    bl_label  = 'Collision Test'
+
+
+    def execute(self, context: Context):
+        objs = context.selected_objects
+        obj1 = objs[0]
+        obj2 = objs[1]
+
+        v1s = []
+        for v in obj1.data.vertices:
+            v1s.append(obj1.matrix_world @ v.co)
+
+        v2s = []
+        for v in obj2.data.vertices:
+            v2s.append(obj2.matrix_world @ v.co)
+
+        c1 = Chain(1, v1s, 1, False)
+        c2 = Chain(1, v2s, 1, False)
+        print(f'My: {obj1.name}, Other: {obj2.name}')
+
+        hit = c2.collides(c1, True)
+        if hit:
+            print(hit.result)
+            print(f'Direction: {hit.direction}')
+            print(f'My location: {hit.my_loc}')
+            print(f'Other location: {hit.other_loc}')
+        else:
+            print('No hit')
+
+        return {'FINISHED'} 
