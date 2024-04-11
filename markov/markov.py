@@ -77,7 +77,7 @@ class MarkovChain:
                 factor = 1.0/s
                 row[:] = [float(v) * factor for v in row]
 
-        # Store matrices
+        # Finalize
         self.nstates = N
         self.transition_matrix = TM
         self.chain_pools = CP
@@ -178,20 +178,19 @@ class MarkovChain:
         return gen_chain
 
     
-    def update_statistics(self, from_state:int, to_state:int):
+    def update_statistics(self, _from_state:int, _to_state:int):
         data = np.zeros((0, 2), dtype=str)
 
-        t = self.transition_matrix[from_state][to_state]
-        off = self.chain_pools[from_state][to_state]
+        t = self.transition_matrix[_from_state][_to_state]
 
-        header = [[PlayerState(from_state).name + ' -> ' + PlayerState(to_state).name, str(round(t, 3))]]
+        header = [[PlayerState(_from_state).name + ' -> ' + PlayerState(_to_state).name, str(round(t, 3))]]
 
         data = np.append(data, header, axis=0)
-        data = np.append(data, off.statistics(), axis=0)
 
-        info = [['(Key)', '(Probability)']]
+        info = [['Transition', 'Probability']]
         data = np.append(data, info, axis=0)
 
+        # Pretty printing
         rows, cols = data.shape
         max_width = [0] * cols
         for k in range(cols):
@@ -206,8 +205,8 @@ class MarkovChain:
             for j in range(rows):
                 a[j] = f'{a[j]:{fill}{align}{width}}'
 
+        # Finalize
         seperator = [['-' * max_width[0], '-' * max_width[1]]]
-        data = np.insert(data, -1, seperator, axis=0)
         data = np.insert(data, 1, seperator, axis=0)
         
         self.statistics = data

@@ -1,4 +1,4 @@
-from bpy.types  import Operator
+from bpy.types  import Operator, Context
 
 from ..dataset import dataset
 from .props    import get_modules
@@ -11,8 +11,8 @@ class MET_OT_InitModules(Operator):
     bl_label = "Init Modules"
 
 
-    def execute(self, context):
-        modules = get_modules(context)
+    def execute(self, _context:Context):
+        modules = get_modules(_context)
         modules.init()
         return {'FINISHED'}
     
@@ -24,13 +24,14 @@ class MET_OT_Populate(Operator):
 
 
     @classmethod
-    def poll(cls, context):
-        if not context.object: return False
-        return dataset.is_dataset(context.object)
+    def poll(cls, _context:Context):
+        if not _context.object: return False
+        return dataset.is_dataset(_context.object)
 
-    def execute(self, context):
-        obj = context.object
-        modules = get_modules(context)
+
+    def execute(self, _context:Context):
+        obj = _context.object
+        modules = get_modules(_context)
         populate(obj, modules.to_list())
         return {'FINISHED'}
     

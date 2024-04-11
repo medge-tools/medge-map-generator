@@ -11,12 +11,12 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
     bl_label = 'Populate'
 
 
-    def draw(self, context: Context):
+    def draw(self, _context:Context):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        modules = get_modules(context)
+        modules = get_modules(_context)
 
         col = layout.column(align=True)
 

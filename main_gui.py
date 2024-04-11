@@ -13,6 +13,6 @@ class MET_PT_MapGenMainPanel(MapGenPanel_DefaultProps, Panel):
     bl_idname = 'MET_PT_MapGenMainPanel'
     bl_label = 'Map Generator'
     
-    def draw(self, context: Context):
+    def draw(self, _context:Context):
         pass
 

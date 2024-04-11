@@ -5,8 +5,6 @@ from ..b3d_utils        import GenericList
 from ..dataset.movement import PlayerState
 
 
-classes = []
-
 # -----------------------------------------------------------------------------
 class MET_PG_Module(PropertyGroup):
 
@@ -18,8 +16,6 @@ class MET_PG_Module(PropertyGroup):
     state: IntProperty()
     object: PointerProperty(type=Object, name='Object')
     ignore_z_axis: BoolProperty(name='Ignore Z-Axis')
-
-classes.append(MET_PG_Module)
 
 
 # -----------------------------------------------------------------------------
@@ -52,8 +48,6 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
     items: CollectionProperty(type=MET_PG_Module)
     initialized: BoolProperty(default=False)
 
-classes.append(MET_SCENE_PG_Modules)
-
 
 # -----------------------------------------------------------------------------
 class MET_UL_Module(UIList):
@@ -62,15 +56,13 @@ class MET_UL_Module(UIList):
             layout.alignment = 'CENTER'
         layout.label(text=item.name)
 
-classes.append(MET_UL_Module)
-
 
 # -----------------------------------------------------------------------------
 # SCENE UITLS
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_modules(context: Context) -> MET_SCENE_PG_Modules:
-    return context.scene.medge_modules
+def get_modules(_context:Context) -> MET_SCENE_PG_Modules:
+    return _context.scene.medge_modules
 
 
 # -----------------------------------------------------------------------------

@@ -5,16 +5,16 @@ from .props import *
 from .      import stats
 
 # -----------------------------------------------------------------------------
-vis_state = False
+stats_state = False
 
-def is_vis_enabled():
-    global vis_state
-    return vis_state
+def is_stats_enabled():
+    global stats_state
+    return stats_state
 
 
-def set_vis_state(state: bool):
-    global vis_state
-    vis_state = state
+def set_stats_state(state: bool):
+    global stats_state
+    stats_state = state
 
 
 # -----------------------------------------------------------------------------
@@ -24,14 +24,14 @@ class MET_OT_EnableMarkovStats(Operator):
 
 
     @classmethod
-    def poll(cls, context: Context):
-        return not is_vis_enabled()
+    def poll(cls, _context:Context):
+        return not is_stats_enabled()
 
 
     def execute(self, context: Context):
         stats.add_handle(context)
         context.area.tag_redraw()
-        set_vis_state(True)
+        set_stats_state(True)
         return{'FINISHED'}
     
 
@@ -42,14 +42,14 @@ class MET_OT_DisableMarkovStats(Operator):
 
 
     @classmethod
-    def poll(cls, context: Context):
-        return is_vis_enabled()
+    def poll(cls, _context:Context):
+        return is_stats_enabled()
 
 
-    def execute(self, context: Context):
+    def execute(self, _context:Context):
         stats.remove_handle()
-        context.area.tag_redraw()
-        set_vis_state(False)
+        _context.area.tag_redraw()
+        set_stats_state(False)
         return {'FINISHED'}
 
 
@@ -59,8 +59,8 @@ class MET_OT_CreateTransitionMatrix(Operator):
     bl_label  = 'Create Transition Matrix'
 
 
-    def execute(self, context: Context):
-        chains = get_markov_chains(context)
+    def execute(self, _context:Context):
+        chains = get_markov_chains(_context)
         item = chains.get_selected()
         item.create_transition_matrix()
         return {'FINISHED'}
@@ -73,14 +73,14 @@ class MET_OT_GenerateChain(Operator):
 
 
     @classmethod
-    def poll(cls, context):
-        chains = get_markov_chains(context)
+    def poll(cls, _context:Context):
+        chains = get_markov_chains(_context)
         item = chains.get_selected()
-        return item.has_transition_matrix
+        return item.has_transition_matrix()
 
 
-    def execute(self, context: Context):
-        chains = get_markov_chains(context)
+    def execute(self, _context:Context):
+        chains = get_markov_chains(_context)
         item = chains.get_selected()
         item.generate_chain()
         return {'FINISHED'}        
@@ -89,13 +89,13 @@ class MET_OT_GenerateChain(Operator):
 # -----------------------------------------------------------------------------
 from .chains import Chain
 
-class MET_OT_CollisionTest(Operator):
+class MET_OT_CapsuleCollisionTest(Operator):
     bl_idname = 'medge_markov.collision_test'
     bl_label  = 'Collision Test'
 
 
-    def execute(self, context: Context):
-        objs = context.selected_objects
+    def execute(self,  _context:Context):
+        objs = _context.selected_objects
         obj1 = objs[0]
         obj2 = objs[1]
 

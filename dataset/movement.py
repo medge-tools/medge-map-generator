@@ -102,7 +102,7 @@ class PlayerState(IntEnum):
 
 
 # -----------------------------------------------------------------------------
-def PlayerStateProperty(_name = 'State', _update = None):
+def PlayerStateProperty(_name='State', _update=None):
     def __get_state_items(self, context):
         return [(data.name, data.name, '') for data in PlayerState]
     

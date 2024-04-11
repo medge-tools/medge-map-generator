@@ -3,7 +3,7 @@ from mathutils import Vector
 
 # -----------------------------------------------------------------------------
 class Hit:
-    def __init__(self, _result: bool, _direction: Vector, _my_loc: Vector, _other_loc: Vector) -> None:
+    def __init__(self, _result:bool, _direction:Vector, _my_loc:Vector, _other_loc:Vector) -> None:
         self.result = _result
         self.my_loc = _my_loc
         self.other_loc = _other_loc
@@ -25,7 +25,7 @@ class Hit:
 
 # -----------------------------------------------------------------------------
 class AABB:
-    def __init__(self, bmin: Vector, bmax: Vector):
+    def __init__(self, bmin:Vector, bmax:Vector):
         self.bmin = bmin
         self.bmax = bmax
 
@@ -34,7 +34,7 @@ class AABB:
         return f'Min: {self.bmin}, Max: {self.bmax}'
 
 
-    def contains(self, other: 'Vector | AABB'):
+    def contains(self, other:'Vector|AABB'):
         if isinstance(other, Vector):
             a = other - self.bmin
             b = self.bmax - other
@@ -59,7 +59,7 @@ class AABB:
 # -----------------------------------------------------------------------------
 # https://wickedengine.net/2020/04/26/capsule-collision-detection/
 class Capsule:
-    def __init__(self, _base: Vector, _tip: Vector, _radius: float = .5):
+    def __init__(self, _base:Vector, _tip:Vector, _radius:float = .5):
         self.base = _base
         self.tip = _tip
         self.radius = _radius
@@ -70,33 +70,33 @@ class Capsule:
         return self.base == self.tip
 
 
-    def collides(self, other: 'Capsule') -> Hit:
+    def collides(self, _other:'Capsule') -> Hit:
         if self.is_sphere:
-            best_other = other.closest_point_on_segment(self.base)
-            return self.sphere_collision(best_other, other.radius)
-        return self.capsule_collision(other)
+            best_other = _other.closest_point_on_segment(self.base)
+            return self.sphere_collision(best_other, _other.radius)
+        return self.capsule_collision(_other)
 
 
-    def closest_point_on_segment(self, other: Vector):
+    def closest_point_on_segment(self, _point:Vector):
         if self.is_sphere: return self.base
 
         ab = self.tip - self.base
-        t = ab.dot(other - self.base) / ab.dot(ab)
+        t = ab.dot(_point - self.base) / ab.dot(ab)
         return self.base + min(max(t, 0), 1) * ab
 
 
-    def sphere_collision(self, other: Vector, radius: float) -> Hit:
-        closest_point = self.closest_point_on_segment(other)
-        pen_normal = other - closest_point
-        pen_depth = self.radius + radius - pen_normal.length
-        return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth, closest_point, other)
+    def sphere_collision(self, _point:Vector, _radius:float) -> Hit:
+        closest_point = self.closest_point_on_segment(_point)
+        pen_normal = _point - closest_point
+        pen_depth = self.radius + _radius - pen_normal.length
+        return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth, closest_point, _point)
 
 
-    def capsule_collision(self, other: 'Capsule')  -> Hit:
-        v0 = other.base - self.base
-        v1 = other.tip  - self.base
-        v2 = other.base - self.tip
-        v3 = other.tip  - self.tip
+    def capsule_collision(self, _other:'Capsule')  -> Hit:
+        v0 = _other.base - self.base
+        v1 = _other.tip  - self.base
+        v2 = _other.base - self.tip
+        v3 = _other.tip  - self.tip
 
         d0 = v0.dot(v0)
         d1 = v1.dot(v1)
@@ -107,5 +107,5 @@ class Capsule:
         if (d2 < d0 or d2 < d1 or d3 < d0 or d3 < d1):
             best_self = self.tip
 
-        best_other = other.closest_point_on_segment(best_self)
-        return self.sphere_collision(best_other, other.radius)
+        best_other = _other.closest_point_on_segment(best_self)
+        return self.sphere_collision(best_other, _other.radius)

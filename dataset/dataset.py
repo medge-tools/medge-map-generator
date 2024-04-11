@@ -23,24 +23,24 @@ class AttributeType(str, Enum):
 # https://stackoverflow.com/questions/43862184/associating-string-representations-with-an-enum-that-uses-integer-values
 class Attribute(int, Enum):
     def __new__(cls, 
-                value: int, 
-                label: str, 
-                type: str):
-        obj = int.__new__(cls, value)
-        obj._value_ = value
-        obj.label = label
-        obj.type = type
+                _value: int, 
+                _label: str, 
+                _type: str):
+        obj = int.__new__(cls, _value)
+        obj._value_ = _value
+        obj.label = _label
+        obj.type = _type
         return obj
     
     def __int__(self):
         return self.value
     
     @classmethod
-    def from_string(cls, s):
+    def from_string(cls, _s):
         for att in cls:
-            if att.label == s:
+            if att.label == _s:
                 return att
-        raise ValueError(cls.__name__ + ' has no value matching "' + s + '"')
+        raise ValueError(cls.__name__ + ' has no value matching "' + _s + '"')
 
 
     PLAYER_STATE    = 0, 'player_state' , AttributeType.INT
@@ -69,18 +69,18 @@ class DatabaseEntry(UserList):
                     self.data.append(Vector())
 
 
-    def __getitem__(self, key: int | str):
-        if isinstance(key, int):
-            return self.data[key]
-        if isinstance(key, str):
-            return self.data[Attribute.from_string(key).value]
+    def __getitem__(self, _key:int|str):
+        if isinstance(_key, int):
+            return self.data[_key]
+        if isinstance(_key, str):
+            return self.data[Attribute.from_string(_key).value]
     
 
-    def __setitem__(self, key, value):
-        if isinstance(key, int):        
-            self.data[key] = value
-        if isinstance(key, str):
-            self.data[Attribute.from_string(key).value] = value
+    def __setitem__(self, _key:int|str, _value):
+        if isinstance(_key, int):        
+            self.data[_key] = _value
+        if isinstance(_key, str):
+            self.data[Attribute.from_string(_key).value] = _value
 
 
 # -----------------------------------------------------------------------------
@@ -88,23 +88,23 @@ class Dataset:
     def __init__(self):
         self.data = np.empty((0, len(Attribute)), dtype=object)
 
-    def __getitem__(self, key):
-        return self.data[key]
+    def __getitem__(self, _key):
+        return self.data[_key]
     
-    def __setitem__(self, key, value):
-        self.data[key] = value
+    def __setitem__(self, _key, _value):
+        self.data[_key] = _value
     
     def __len__(self):
         return len(self.data)
     
    
-    def append(self, entry: DatabaseEntry):
-        V = np.array([entry], dtype=object)
+    def append(self, _entry:DatabaseEntry):
+        V = np.array([_entry], dtype=object)
         self.data = np.append(self.data, V, axis=0)
 
 
-    def extend(self, other):
-        self.data = np.concatenate((self.data, other.data), axis=0)
+    def extend(self, _other):
+        self.data = np.concatenate((self.data, _other.data), axis=0)
 
 
     def seqs_per_state(self):
@@ -136,8 +136,8 @@ class Dataset:
 
 # -----------------------------------------------------------------------------
 class DatasetIO:
-    def import_from_file(self, filepath: str) -> None:
-        with open(filepath, 'r') as f:
+    def import_from_file(self, _filepath:str) -> None:
+        with open(_filepath, 'r') as f:
             log = json.load(f)
 
         dataset = Dataset()
@@ -160,19 +160,19 @@ class DatasetIO:
 
             dataset.append(entry)
 
-        name = ntpath.basename(filepath)
+        name = ntpath.basename(_filepath)
         create_polyline(dataset, name)
 
 
-    def write_to_file(self, filepath: str) -> None:
+    def write_to_file(self, _filepath: str) -> None:
         pass
 
 
 # -----------------------------------------------------------------------------
-def object_to_dataset(obj: Object, dataset: Dataset = None):
-    prev_mode = obj.mode
-    b3d_utils.set_object_mode(obj, 'OBJECT')
-    mesh = obj.data
+def object_to_dataset(_obj:Object, _dataset:Dataset = None):
+    prev_mode = _obj.mode
+    b3d_utils.set_object_mode(_obj, 'OBJECT')
+    mesh = _obj.data
     
     n             = len(mesh.vertices)
     player_states = [PlayerState.Walking.value] * n
@@ -184,37 +184,37 @@ def object_to_dataset(obj: Object, dataset: Dataset = None):
     aabb_maxs     = [0] * n * 3
 
 
-    def unpack(packed : list, dest : list):
+    def unpack(_packed:list, _dest:list):
         for k in range(n):
-            dest[k * 3 + 0] = packed[k].x
-            dest[k * 3 + 1] = packed[k].y
-            dest[k * 3 + 2] = packed[k].z
+            _dest[k * 3 + 0] = _packed[k].x
+            _dest[k * 3 + 1] = _packed[k].y
+            _dest[k * 3 + 2] = _packed[k].z
 
 
-    if dataset:
-        player_states = list(dataset[:, Attribute.PLAYER_STATE.value] )
+    if _dataset:
+        player_states = list(_dataset[:, Attribute.PLAYER_STATE.value] )
 
-        packed_ts = list(dataset[:, Attribute.TIMESTAMP.value])
+        packed_ts = list(_dataset[:, Attribute.TIMESTAMP.value])
         unpack(packed_ts, timestamps)
 
-        connections = list(dataset[:, Attribute.CONNECTED.value])
-        chain_starts  = list(dataset[:, Attribute.CHAIN_START.value])
-        lengths = list(dataset[:, Attribute.LENGTH.value])
+        connections = list(_dataset[:, Attribute.CONNECTED.value])
+        chain_starts  = list(_dataset[:, Attribute.CHAIN_START.value])
+        lengths = list(_dataset[:, Attribute.LENGTH.value])
 
-        packed_mins = list(dataset[:, Attribute.AABB_MIN.value])
-        packed_maxs = list(dataset[:, Attribute.AABB_MAX.value])
+        packed_mins = list(_dataset[:, Attribute.AABB_MIN.value])
+        packed_maxs = list(_dataset[:, Attribute.AABB_MAX.value])
         unpack(packed_mins, aabb_mins)
         unpack(packed_maxs, aabb_maxs)
 
 
-    def add_attribute(att: Attribute, data: list):
-        if att.label not in mesh.attributes:
-            x = mesh.attributes.new(name=att.label, type=att.type, domain='POINT')
-            match(att.type):
+    def add_attribute(_att:Attribute, _data:list):
+        if _att.label not in mesh.attributes:
+            x = mesh.attributes.new(name=_att.label, type=_att.type, domain='POINT')
+            match(_att.type):
                 case AttributeType.INT:
-                    x.data.foreach_set('value', data)
+                    x.data.foreach_set('value', _data)
                 case AttributeType.FLOAT_VECTOR:
-                    x.data.foreach_set('vector', data)
+                    x.data.foreach_set('vector', _data)
 
 
     add_attribute(Attribute.PLAYER_STATE, player_states)
@@ -225,12 +225,12 @@ def object_to_dataset(obj: Object, dataset: Dataset = None):
     add_attribute(Attribute.AABB_MIN    , aabb_mins)
     add_attribute(Attribute.AABB_MAX    , aabb_maxs)
         
-    b3d_utils.set_object_mode(obj, prev_mode)
+    b3d_utils.set_object_mode(_obj, prev_mode)
 
 
 # -----------------------------------------------------------------------------
-def yield_attribute_layers(bm: BMesh):
-    layers = bm.verts.layers
+def yield_attribute_layers(_bm:BMesh):
+    layers = _bm.verts.layers
     for att in Attribute:
         match(att.type):
             case AttributeType.INT:
@@ -240,39 +240,39 @@ def yield_attribute_layers(bm: BMesh):
 
 
 # -----------------------------------------------------------------------------
-def is_dataset(obj: Object):
-    if obj.type != 'MESH': return False
+def is_dataset(_obj:Object):
+    if _obj.type != 'MESH': return False
     for att in Attribute:
         if att.type == AttributeType.NONE: continue
-        if att.label not in obj.data.attributes:
-            print(obj.name + ' is missing dataset attribute: ' + att.label)
+        if att.label not in _obj.data.attributes:
+            print(_obj.name + ' is missing dataset attribute: ' + att.label)
             return False
     return True
 
 
 # -----------------------------------------------------------------------------
-def create_polyline(dataset: Dataset, name = 'DATASET') -> Object:
+def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
     # Create polyline
-    verts = dataset[:, Attribute.LOCATION.value]
+    verts = _dataset[:, Attribute.LOCATION.value]
     edges = []
 
     for i in range(len(verts) - 1):
         edges.append( (i, i + 1) )
     
-    mesh = b3d_utils.create_mesh(verts, edges, [], name)
-    obj = b3d_utils.new_object(name, mesh)  
+    mesh = b3d_utils.create_mesh(verts, edges, [], _name)
+    obj = b3d_utils.new_object(_name, mesh)  
 
     # Add dataset to obj
-    object_to_dataset(obj, dataset)
+    object_to_dataset(obj, _dataset)
 
     return obj
 
 
 # -----------------------------------------------------------------------------
-def get_dataset(obj: Object) -> Dataset | None:
-    if not is_dataset(obj): return None
+def get_dataset(_obj:Object) -> Dataset | None:
+    if not is_dataset(_obj): return None
 
-    bm = b3d_utils.get_bmesh(obj)
+    bm = b3d_utils.get_bmesh(_obj)
 
     def retrieve_entry(vert):
         entry = DatabaseEntry()
@@ -304,11 +304,11 @@ def get_dataset(obj: Object) -> Dataset | None:
 
 
 # -----------------------------------------------------------------------------
-def resolve_overlap(obj: Object):
-    if not is_dataset(obj): return
-    if obj.mode != 'EDIT': return
+def resolve_overlap(_obj:Object):
+    if not is_dataset(_obj): return
+    if _obj.mode != 'EDIT': return
 
-    mesh = obj.data
+    mesh = _obj.data
     bm = bmesh.from_edit_mesh(mesh)
 
     for k in range(len(bm.verts) - 1):
@@ -330,35 +330,34 @@ def resolve_overlap(obj: Object):
 
 
 # -----------------------------------------------------------------------------
-def set_player_state(obj: Object, new_state: int):
-    if obj.mode != 'EDIT': return
-    if not is_dataset(obj): 
-        object_to_dataset(obj)
+def set_player_state(_obj:Object, _new_state:int):
+    if _obj.mode != 'EDIT': return
+    if not is_dataset(_obj): return
     
+    bm = b3d_utils.get_bmesh(_obj)
+
     # Transform str to int
-    mesh = obj.data
-    bm = bmesh.from_edit_mesh(mesh)
 
     state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
 
     for v in bm.verts:
         if v.select:
-            v[state_layer] = new_state
+            v[state_layer] = _new_state
 
     bmesh.update_edit_mesh(mesh)
 
 
 # -----------------------------------------------------------------------------
-def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
-    if not is_dataset(obj): return
-    if obj.mode != 'EDIT': return
+def select_transitions(_obj:Object, _filter:str='', _restrict:bool=False):
+    if not is_dataset(_obj): return
+    if _obj.mode != 'EDIT': return
 
     # Transform str to int
-    if filter:
-        filter = filter.split(',')
-        filter = [int(s) if s.isnumeric() else PlayerState[s] for s in filter]
+    if _filter:
+        _filter = _filter.split(',')
+        _filter = [int(s) if s.isnumeric() else PlayerState[s] for s in _filter]
 
-    mesh = obj.data
+    mesh = _obj.data
     bm = bmesh.from_edit_mesh(mesh)
 
     # Select transitions
@@ -375,11 +374,11 @@ def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
 
         if s1 == s2: continue
 
-        if filter: 
-            if s1 not in filter and s2 not in filter:
+        if _filter: 
+            if s1 not in _filter and s2 not in _filter:
                 continue
-            if restrict:
-                if s1 not in filter or s2 not in filter:
+            if _restrict:
+                if s1 not in _filter or s2 not in _filter:
                     continue                    
 
         v1.select = True
@@ -389,18 +388,17 @@ def select_transitions(obj: Object, filter: str = '', restrict: bool = False):
     
 
 # -----------------------------------------------------------------------------
-def select_player_states(obj: Object, filter: str = ''):
-
-    if not filter: return
-    if not is_dataset(obj): return
-    if obj.mode != 'EDIT': return
+def select_player_states(_obj:Object, _filter:str=''):
+    if not _filter: return
+    if not is_dataset(_obj): return
+    if _obj.mode != 'EDIT': return
 
     # Transform str to int
-    if filter:
-        filter = filter.split(',')
-        filter = [int(s) if s.isnumeric() else PlayerState[s] for s in filter]
+    if _filter:
+        _filter = _filter.split(',')
+        _filter = [int(s) if s.isnumeric() else PlayerState[s] for s in _filter]
 
-    mesh = obj.data
+    mesh = _obj.data
     bm = bmesh.from_edit_mesh(mesh)
 
     # Select transitions
@@ -411,9 +409,8 @@ def select_player_states(obj: Object, filter: str = ''):
     for v in bm.verts:
         s = v[state_layer]
 
-        if s in filter:
+        if s in _filter:
             v.select = True
-        
 
     bmesh.update_edit_mesh(mesh)
 

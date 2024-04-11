@@ -1,6 +1,6 @@
 from bpy.types  import Context, Panel
 
-from ..b3d_utils    import draw_generic_list
+from ..b3d_utils    import draw_generic_list, draw_box
 from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 
 from .ops           import *
@@ -14,12 +14,12 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
     bl_label = 'Markov Chains'
 
 
-    def draw(self, context: Context):
+    def draw(self, _context:Context):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        markov = get_markov_chains(context)
+        markov = get_markov_chains(_context)
 
         col = layout.column(align=True)
 
@@ -38,7 +38,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
 
         col.separator()
-        if active_mc.has_transition_matrix:
+        if active_mc.has_transition_matrix():
             col.prop(active_mc, 'length')
             col.prop(active_mc, 'seed')
             col.prop(active_mc, 'collision_radius')
@@ -46,37 +46,29 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
 
-        col.separator()
-        col.operator(MET_OT_CollisionTest.bl_idname)
-
 
 # -----------------------------------------------------------------------------
 class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_MarkovChains.bl_idname
     bl_label = 'Statistics'
 
-    def draw(self, context: Context):
+    def draw(self, _context:Context):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
-        
+
         col = layout.column(align=True)
         row = col.row(align=True)
-        
+
         row.operator(MET_OT_EnableMarkovStats.bl_idname, text='Enable')
         row.operator(MET_OT_DisableMarkovStats.bl_idname, text='Disable')
 
-        if not is_vis_enabled(): return
-
-        chains = get_markov_chains(context)
+        chains = get_markov_chains(_context)
         item = chains.get_selected()
 
         if not item: return
-        if not item.has_transition_matrix: 
-            box = layout.box()
-            row = box.row()
-            row.alignment = 'CENTER'
-            row.label(text='Selected Markov Chain has no transition matrix')
+        if not item.has_transition_matrix(): 
+            draw_box(layout, 'Selected Markov Chain has no transition matrix')
             return
 
         col.separator()

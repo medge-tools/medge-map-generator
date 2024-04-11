@@ -6,16 +6,16 @@ from ..b3d_utils        import duplicate_object
 
 
 # -----------------------------------------------------------------------------
-def populate(obj: Object, modules: list[Object]):
-    if not get_dataset(obj).is_dataset: return
+def populate(_obj:Object, _modules:list[Object]):
+    if not get_dataset(_obj).is_dataset: return
 
-    dataset = get_dataset(obj)
+    dataset = get_dataset(_obj)
 
     for entry in dataset:
         s = entry[Attribute.PLAYER_STATE.label]
         l = entry[Attribute.LOCATION.label]
 
-        m = modules[s]
+        m = _modules[s]
         
         if not m: continue
 

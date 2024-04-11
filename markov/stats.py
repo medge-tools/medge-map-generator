@@ -5,8 +5,8 @@ from .props         import get_markov_chains
 
 
 # -----------------------------------------------------------------------------
-def draw_callback(context: Context):
-    mc = get_markov_chains(context)
+def draw_callback(_context:Context):
+    mc = get_markov_chains(_context)
 
     item = mc.get_selected()
     
@@ -39,7 +39,15 @@ draw_handle = None
 
 
 # -----------------------------------------------------------------------------
-def add_handle(self, context):
+def remove_handle():
+    global draw_handle
+    if draw_handle:
+        SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
+        draw_handle = None
+
+        
+# -----------------------------------------------------------------------------
+def add_handle(_context:Context):
     dir = os.path.dirname(os.path.abspath(__file__))
     bpy.data.fonts.load(
         filepath = dir + '\\..\\fonts\\MartianMono-StdRg.otf', 
@@ -47,14 +55,7 @@ def add_handle(self, context):
     
     global draw_handle
     if draw_handle:
-        self.remove_handle()
+        remove_handle()
     draw_handle = SpaceView3D.draw_handler_add(
-        self.draw_callback,(context,), 'WINDOW', 'POST_PIXEL')
+        draw_callback,(_context,), 'WINDOW', 'POST_PIXEL')
 
-
-# -----------------------------------------------------------------------------
-def remove_handle():
-    global draw_handle
-    if draw_handle:
-        SpaceView3D.draw_handler_remove(draw_handle, 'WINDOW')
-        draw_handle = None

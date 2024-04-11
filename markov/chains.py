@@ -13,10 +13,7 @@ from .bounds            import AABB, Capsule, Hit
 
 # -----------------------------------------------------------------------------
 class Chain(UserList):
-    def __init__(self, 
-                 state, 
-                 points:list[Vector], 
-                 radius = 1,
+    def __init__(self, state:int, points:list[Vector], radius:int = 1,
                  _to_origin = True):
         super().__init__(copy.deepcopy(points))
 

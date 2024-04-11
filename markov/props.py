@@ -3,7 +3,7 @@ from bpy.props  import *
 
 from ..b3d_utils        import GenericList
 from ..dataset.props    import get_dataset
-from ..dataset.movement import PlayerStateProperty
+from ..dataset.movement import PlayerState, PlayerStateProperty
 
 from .markov            import MarkovChain
 
@@ -39,7 +39,9 @@ class MET_PG_MarkovChain(PropertyGroup):
         mc = MarkovChain()
         b = mc.create_transition_matrix(objects, 1, self.name)
 
-        if b: markov_chain_models[self.name] = mc
+        if b: 
+            markov_chain_models[self.name] = mc
+            self.update_statistics()
 
 
     def generate_chain(self):
@@ -58,23 +60,27 @@ class MET_PG_MarkovChain(PropertyGroup):
         return '[SELECT COLLECTION]'
 
     
-    def __get_has_transition_matrix(self):
+    def has_transition_matrix(self) -> bool:
         global markov_chain_models
         return self.name in markov_chain_models
     
 
-    def __update_statistics(self, context):
-        mc: MarkovChain = markov_chain_models[self.name]
-        mc.update_statistics(self.from_state, self.to_state)
+    def update_statistics(self, _context=None):
+        global markov_chain_models
+        if self.name not in markov_chain_models: return
+
+        mc = markov_chain_models[self.name]
+        f = PlayerState[self.from_state].value
+        t = PlayerState[self.to_state].value
+        mc.update_statistics(f, t)
 
 
     name: StringProperty(name='Name', get=__get_name)
     collection: PointerProperty(type=Collection, name='Collection')
-    has_transition_matrix: BoolProperty(default=False, get=__get_has_transition_matrix)
 
     display_statistics: BoolProperty(name='Display Statistics')
-    from_state: PlayerStateProperty('From', __update_statistics)
-    to_state: PlayerStateProperty('To', __update_statistics)
+    from_state: PlayerStateProperty('From', update_statistics)
+    to_state: PlayerStateProperty('To', update_statistics)
     
     min_chain_length: IntProperty(name='Min Chain Length', default=5, min=1)
 

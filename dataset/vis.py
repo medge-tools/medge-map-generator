@@ -14,9 +14,9 @@ draw_handle_post_view = None
 
 
 # -----------------------------------------------------------------------------
-def draw_callback_post_pixel(context: Context):
+def draw_callback_post_pixel(_context:Context):
     # Validate
-    obj = context.object
+    obj = _context.object
     if not obj: return
     if not dataset.is_dataset(obj): return
     if obj.mode != 'EDIT': return
@@ -24,8 +24,8 @@ def draw_callback_post_pixel(context: Context):
     bm = bmesh.from_edit_mesh(obj.data)
     
     # Region
-    region    = context.region
-    region_3d = context.space_data.region_3d
+    region    = _context.region
+    region_3d = _context.space_data.region_3d
     view_mat  = region_3d.view_matrix
 
     # Layers
@@ -91,9 +91,9 @@ def draw_callback_post_pixel(context: Context):
 
 
 # -----------------------------------------------------------------------------
-def draw_callback_post_view(context: Context): 
+def draw_callback_post_view(_context:Context): 
     # Validate
-    obj = context.object
+    obj = _context.object
     if not obj: return
     if not dataset.is_dataset(obj): return
     if obj.mode != 'EDIT': return
@@ -117,11 +117,11 @@ def draw_callback_post_view(context: Context):
                 bmin = obj.matrix_world @ v[aabb_min_layer] 
                 bmax = obj.matrix_world @ v[aabb_max_layer]
 
-                b3d_utils.draw_cube_lines_3d(bmin, bmax, default_color)
+                b3d_utils.draw_aabb_lines_3d(bmin, bmax, default_color)
 
 
 # -----------------------------------------------------------------------------
-def add_handle(context):
+def add_handle(_context:Context):
     global draw_handle_post_pixel
     global draw_handle_post_view
 
@@ -129,9 +129,9 @@ def add_handle(context):
         remove_handle()
 
     draw_handle_post_pixel = SpaceView3D.draw_handler_add(
-        draw_callback_post_pixel,(context,), 'WINDOW', 'POST_PIXEL')
+        draw_callback_post_pixel,(_context,), 'WINDOW', 'POST_PIXEL')
     draw_handle_post_view = SpaceView3D.draw_handler_add(
-        draw_callback_post_view,(context,), 'WINDOW', 'POST_VIEW')
+        draw_callback_post_view,(_context,), 'WINDOW', 'POST_VIEW')
 
 
 # -----------------------------------------------------------------------------
