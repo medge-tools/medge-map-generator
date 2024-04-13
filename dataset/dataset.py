@@ -245,8 +245,8 @@ def is_dataset(_obj:Object):
     for att in Attribute:
         if att.type == AttributeType.NONE: continue
         if att.label not in _obj.data.attributes:
-            print(_obj.name + ' is missing dataset attribute: ' + att.label)
             return False
+            #print(_obj.name + ' is missing dataset attribute: ' + att.label)
     return True
 
 

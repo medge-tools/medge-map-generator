@@ -111,12 +111,12 @@ class MET_OT_CapsuleCollisionTest(Operator):
         c2 = Chain(1, v2s, 1, False)
         print(f'My: {obj1.name}, Other: {obj2.name}')
 
-        hit = c2.collides(c1, True)
+        hit = c1.collides(c2, True)
         if hit:
             print(hit.result)
             print(f'Direction: {hit.direction}')
-            print(f'My location: {hit.my_loc}')
-            print(f'Other location: {hit.other_loc}')
+            print(f'My point: {hit.my_point}')
+            print(f'Other point: {hit.other_point}')
         else:
             print('No hit')
 

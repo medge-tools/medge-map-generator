@@ -3,10 +3,10 @@ from mathutils import Vector
 
 # -----------------------------------------------------------------------------
 class Hit:
-    def __init__(self, _result:bool, _direction:Vector, _my_loc:Vector, _other_loc:Vector) -> None:
+    def __init__(self, _result:bool, _direction:Vector, _my_point:Vector, _other_point:Vector) -> None:
         self.result = _result
-        self.my_loc = _my_loc
-        self.other_loc = _other_loc
+        self.my_point = _my_point
+        self.other_point = _other_point
         self.direction = _direction
 
     @property
@@ -16,39 +16,60 @@ class Hit:
     def __bool__(self):
         return self.result
 
-    def __mul__(self, other):
-        return self.direction * other
+    def __mul__(self, _other):
+        return self.direction * _other
     
-    def __rmul__(self, other):
-        return self * other
+    def __rmul__(self, _other):
+        return self * _other
 
 
 # -----------------------------------------------------------------------------
 class AABB:
-    def __init__(self, bmin:Vector, bmax:Vector):
-        self.bmin = bmin
-        self.bmax = bmax
+    def __init__(self, 
+                 _bmin:Vector=Vector(), 
+                 _bmax:Vector=Vector(), 
+                 _margin:float=0):
+        self._margin_ = Vector((_margin, _margin, _margin))
+        self.bmin = _bmin - self._margin_
+        self.bmax = _bmax + self._margin_
+
+
+    @property
+    def center(self) -> Vector:
+        return (self.bmin + self.bmax) * .5
+
+    # Margin
+    @property
+    def margin(self):
+        return self._margin_
+    
+    @margin.setter
+    def margin(self, _value:float):
+        new_margin = Vector((_value, _value, _value))
+        self.bmin += self._margin_ - new_margin
+        self.bmax -= self._margin_ + new_margin
+        self._margin_ = new_margin
 
 
     def __str__(self) -> str:
         return f'Min: {self.bmin}, Max: {self.bmax}'
 
 
-    def contains(self, other:'Vector|AABB'):
-        if isinstance(other, Vector):
-            a = other - self.bmin
-            b = self.bmax - other
+    def contains(self, _other:'Vector|AABB'):
+        if isinstance(_other, Vector):
+            a = _other - self.bmin
+            b = self.bmax - _other
             return a >= 0 and b >= 0
         
-        if isinstance(other, AABB):
-            if (self.bmin.x > other.bmax.x or
-                self.bmin.y > other.bmax.y or
-                self.bmin.z > other.bmax.z):
+        if isinstance(_other, AABB):
+            if (self.bmin.x > _other.bmax.x or
+                self.bmin.y > _other.bmax.y or
+                self.bmin.z > _other.bmax.z):
                 return False
 
-            if (self.bmax.x < other.bmin.x or 
-                self.bmax.y < other.bmin.y or 
-                self.bmax.z < other.bmin.z):
+            if (self.bmax.x < _other.bmin.x or 
+                self.bmax.y < _other.bmin.y or 
+                self.bmax.z < _other.bmin.z):
                 return False
 
             return True
@@ -57,7 +78,7 @@ class AABB:
 
 
 # -----------------------------------------------------------------------------
-# https://wickedengine.net/2020/04/26/capsule-collision-detection/
+# https://wickedengine.net/capsule-collision-detection/
 class Capsule:
     def __init__(self, _base:Vector, _tip:Vector, _radius:float = .5):
         self.base = _base

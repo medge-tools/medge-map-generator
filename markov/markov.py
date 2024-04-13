@@ -1,13 +1,11 @@
 from bpy.types import Object
 
-import copy
 import numpy as np
-from sys import float_info
 
 from ..dataset.dataset  import Attribute, Dataset
 from ..dataset          import dataset
 from ..dataset.movement import PlayerState
-from .chains            import ChainPool, GeneratedChain, Chain
+from .chains            import Chain, ChainPool, GeneratedChain, GenChainSettings
 from .bounds            import Hit
 
 
@@ -86,73 +84,27 @@ class MarkovChain:
         return True
 
 
-    def generate_chain(self, _length:int, _seed:int, _collision_radius:float) -> tuple[GeneratedChain, Object]:
-        # Update the capsule radius
+    def generate_chain(self, _settings:GenChainSettings) -> GeneratedChain:
+        # Update properties
         for cp in self.chain_pools:
-            for chain in cp:
-                chain.radius = _collision_radius
+            for c in cp:
+                c.radius = _settings.collision_radius
+                c.aabb.margin = _settings.aabb_margin
 
         # Prepare chain generation
-        np.random.seed(_seed)
+        np.random.seed(_settings.seed)
 
         start_state = PlayerState.Walking.value
         
         prev_state = start_state
         prev_chain = self.chain_pools[start_state].random_chain()
         
-        gen_chain = GeneratedChain()
+        gen_chain = GeneratedChain(_settings)
         gen_chain.append(prev_chain)
         
+        for k in range(_settings.length):
+            print(f'--- Iteration: {k} ---')
 
-        def collides(chain:Chain) -> Hit | bool:
-            for sec in gen_chain:
-                if (hit := chain.collides(sec)): return hit
-            return False
-
-        
-        def resolve_collisions(chain):
-            if not collides(chain): return
-            # Store the penetration depth with the respective rotation
-            smallest_pen_depth = float_info.max
-            best_rotation = 0
-
-            for r in range(145):
-                # Rotate right
-                temp = copy.deepcopy(chain)
-                temp.align(gen_chain[-1], _rotation_offset=r)
-                hit = collides(temp)
-                if not (hit): 
-                    print(f'Resolved collision with rotation: {r}')
-                    chain.align(gen_chain[-1], _rotation_offset=r)
-                    return
-                
-                if (l := hit.length) < smallest_pen_depth:
-                    smallest_pen_depth = l
-                    best_rotation = r
-                
-                # Rotate left
-                rl = -r
-                temp = copy.deepcopy(chain)
-                temp.align(gen_chain[-1], _rotation_offset=rl)
-                hit = collides(temp)
-                if not (hit): 
-                    print(f'Resolved collision with rotation: {rl}')
-                    chain.align(gen_chain[-1], _rotation_offset=rl)
-                    return
-                
-                if (l := hit.length) < smallest_pen_depth:
-                    smallest_pen_depth = l
-                    best_rotation = rl
-
-            # No rotation found without collisions
-            # Pick the rotation with the smallest penetration depth
-            print(f'Could not resolve collision, best rotation: {best_rotation}')
-            chain.align(gen_chain[-1], best_rotation)
-
-        for k in range(_length):
-            print(f'=== Iteration: {k} ===')
-            if k == 87:
-                print(k)
             # Choose the next state
             probabilities = self.transition_matrix[prev_state]
             next_state = np.random.choice(self.nstates, p=probabilities)
@@ -160,24 +112,24 @@ class MarkovChain:
             # Choose random chain
             cl = self.chain_pools[next_state]
             next_chain = cl.random_chain()
-            
-            # Align the new chain to the current chain
-            next_chain.align(gen_chain[-1])
+
+            # Align the new chain to the generated chain
+            next_chain.align(gen_chain, 0, _settings.align_orientation)
+            gen_chain.append(next_chain)
 
             # Resolve collisions
-            resolve_collisions(next_chain)
+            #gen_chain.resolve_collision()
 
             # Prepare for next iteration
-            gen_chain.append(next_chain)
             prev_state = next_state
             prev_chain = next_chain
 
         # Create Polyline from LiveChain
-        name = f'{self.name}_{_length}_{_seed}_{_collision_radius}'
+        name = f'{self.name}_{_settings.length}_{_settings.seed}_{_settings.collision_radius}'
         gen_chain.to_polyline(name)
         return gen_chain
 
-    
+        
     def update_statistics(self, _from_state:int, _to_state:int):
         data = np.zeros((0, 2), dtype=str)
 

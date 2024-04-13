@@ -5,8 +5,8 @@ from ..b3d_utils        import GenericList
 from ..dataset.props    import get_dataset
 from ..dataset.movement import PlayerState, PlayerStateProperty
 
-from .markov            import MarkovChain
-
+from .markov import MarkovChain
+from .chains import GenChainSettings
 
 # -----------------------------------------------------------------------------
 markov_chain_models = {}
@@ -37,9 +37,9 @@ class MET_PG_MarkovChain(PropertyGroup):
             del markov_chain_models[self.name]
 
         mc = MarkovChain()
-        b = mc.create_transition_matrix(objects, 1, self.name)
+        success = mc.create_transition_matrix(objects, 1, self.name)
 
-        if b: 
+        if success: 
             markov_chain_models[self.name] = mc
             self.update_statistics()
 
@@ -50,8 +50,17 @@ class MET_PG_MarkovChain(PropertyGroup):
         if not self.name in markov_chain_models:
             return
 
-        mc: MarkovChain = markov_chain_models[self.name]
-        mc.generate_chain(self.length, self.seed, self.collision_radius)
+        settings = GenChainSettings()
+        settings.length                 = self.length 
+        settings.seed                   = self.seed 
+        settings.aabb_margin            = self.aabb_margin
+        settings.collision_radius       = self.collision_radius
+        settings.angle_step             = self.angle_step
+        settings.max_resolve_iterations = self.max_resolve_iterations
+        settings.align_orientation      = self.align_orientation
+
+        mc = markov_chain_models[self.name]
+        mc.generate_chain(settings)
 
 
     def __get_name(self):
@@ -86,9 +95,11 @@ class MET_PG_MarkovChain(PropertyGroup):
 
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)
+    aabb_margin: FloatProperty(name='AABB margin', default=0, min=0)
     collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
     angle_step: IntProperty(name='Angle Step', default=5, min=1)
-
+    align_orientation: BoolProperty(name='Align Orientation')
+    max_resolve_iterations: IntProperty(name='Max Resolve Iterations', default=-1, min=-1)
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):
