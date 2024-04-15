@@ -87,37 +87,41 @@ class MET_OT_GenerateChain(Operator):
     
 
 # -----------------------------------------------------------------------------
-from .chains import Chain
+# Testing
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# from .chains import Chain
 
-class MET_OT_CapsuleCollisionTest(Operator):
-    bl_idname = 'medge_markov.collision_test'
-    bl_label  = 'Collision Test'
+# class MET_OT_CapsuleCollisionTest(Operator):
+#     bl_idname = 'medge_markov.collision_test'
+#     bl_label  = 'Collision Test'
 
 
-    def execute(self,  _context:Context):
-        objs = _context.selected_objects
-        obj1 = objs[0]
-        obj2 = objs[1]
+#     def execute(self,  _context:Context):
+#         objs = _context.selected_objects
+#         obj1 = objs[0]
+#         obj2 = objs[1]
 
-        v1s = []
-        for v in obj1.data.vertices:
-            v1s.append(obj1.matrix_world @ v.co)
+#         v1s = []
+#         for v in obj1.data.vertices:
+#             v1s.append(obj1.matrix_world @ v.co)
 
-        v2s = []
-        for v in obj2.data.vertices:
-            v2s.append(obj2.matrix_world @ v.co)
+#         v2s = []
+#         for v in obj2.data.vertices:
+#             v2s.append(obj2.matrix_world @ v.co)
 
-        c1 = Chain(1, v1s, 1, False)
-        c2 = Chain(1, v2s, 1, False)
-        print(f'My: {obj1.name}, Other: {obj2.name}')
+#         c1 = Chain(1, v1s, 1, False)
+#         c2 = Chain(1, v2s, 1, False)
+#         print(f'My: {obj1.name}, Other: {obj2.name}')
 
-        hit = c1.collides(c2, True)
-        if hit:
-            print(hit.result)
-            print(f'Direction: {hit.direction}')
-            print(f'My point: {hit.my_point}')
-            print(f'Other point: {hit.other_point}')
-        else:
-            print('No hit')
+#         hit = c1.collides(c2, True)
+#         if hit:
+#             print(hit.result)
+#             print(f'Direction: {hit.direction}')
+#             print(f'My point: {hit.my_point}')
+#             print(f'Other point: {hit.other_point}')
+#         else:
+#             print('No hit')
 
-        return {'FINISHED'} 
+#         return {'FINISHED'} 
+    

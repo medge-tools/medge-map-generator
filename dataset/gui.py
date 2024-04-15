@@ -29,6 +29,7 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         if not (dataset := get_dataset(obj)): 
             col.operator(MET_OT_ConvertToDataset.bl_idname)
             draw_box(layout, 'Make sure it is a polyline')
+            return
         else:
             col.operator(MET_OT_ConvertToDataset.bl_idname, text='Update Attributes')
 

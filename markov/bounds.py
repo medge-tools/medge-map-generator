@@ -30,13 +30,26 @@ class AABB:
                  _bmax:Vector=Vector(), 
                  _margin:float=0):
         self._margin_ = Vector((_margin, _margin, _margin))
-        self.bmin = _bmin - self._margin_
-        self.bmax = _bmax + self._margin_
+        self._bmin_ = _bmin - self._margin_
+        self._bmax_ = _bmax + self._margin_
 
-
+    # BMin
     @property
-    def center(self) -> Vector:
-        return (self.bmin + self.bmax) * .5
+    def bmin(self):
+        return self._bmin_
+    
+    @bmin.setter
+    def bmin(self, _value:Vector):
+        self._bmin_ = _value - self._margin_
+    
+    #BMax
+    @property
+    def bmax(self):
+        return self._bmax_
+    
+    @bmax.setter
+    def bmax(self, _value:Vector):
+        self._bmax_ = _value + self._margin_
 
     # Margin
     @property
@@ -52,7 +65,7 @@ class AABB:
 
 
     def __str__(self) -> str:
-        return f'Min: {self.bmin}, Max: {self.bmax}'
+        return f'(Margin included) Min: {self.bmin}, Max: {self.bmax}, Margin: {self.margin}'
 
 
     def contains(self, _other:'Vector|AABB'):

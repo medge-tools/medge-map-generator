@@ -2,6 +2,7 @@ from bpy.types import Object
 from mathutils import Vector, Matrix
 
 import copy
+import itertools
 import numpy as np
 from sys            import float_info
 from collections    import UserList
@@ -28,8 +29,7 @@ class Chain(UserList):
         
         if _to_origin:
             self.to_origin()
-        self.update_capsules()
-        self.update_aabb()
+        self.update()
 
 
     @property
@@ -50,6 +50,11 @@ class Chain(UserList):
         
         for p in points:
             p -= offset
+
+
+    def update(self):
+        self.update_capsules()
+        self.update_aabb()
 
     
     def update_capsules(self):
@@ -85,7 +90,7 @@ class Chain(UserList):
         self.aabb.bmax = bmax
 
 
-    def align(self, _gen_chain:'GeneratedChain', _rotation_offset=0, _align_direction=False):
+    def align(self, _gen_chain:list['Chain'], _align_direction=False, _rotation_offset=0, ):
         # To origin for the rotations to be applied properly
         self.to_origin()
 
@@ -115,7 +120,7 @@ class Chain(UserList):
         self.update_aabb()
 
     
-    def get_directions(self, _gen_chain:'GeneratedChain') -> tuple[Vector, Vector]:
+    def get_directions(self, _gen_chain:list['Chain']) -> tuple[Vector, Vector]:
         # Direction vectors 
         my_dir = Vector((0, 1, 0))
         if len(self.data) >= 2:
@@ -145,8 +150,28 @@ class Chain(UserList):
             for other_cap in _other.capsules:
                 if (hit := my_cap.collides(other_cap)): return hit
         return None
-            
     
+
+    def mirror_xy(self):
+        """Mirrors the chains in the xy-plane along it's starting direction"""
+        if len(self.data) <= 2: return
+
+        # Project point to the line along the direction
+        # https://textbooks.math.gatech.edu/ila/projections.html
+
+        offset = copy.deepcopy(self.data[0])
+        u = self.data[1] - self.data[0]
+
+        for p in self.data:
+            p -= offset
+            v = (p.dot(u) / u.dot(u)) * u
+            a = Vector( (v.x, v.y, p.z) )
+            # Mirror data by adding the distance vector between data and projection
+            d = a - p
+            p += d * 2
+            p += offset
+
+
 # -----------------------------------------------------------------------------
 class ChainPool(UserList):
     def append(self, state, sequence:list[Vector]):
@@ -173,10 +198,67 @@ class GenChainSettings:
 
 # -----------------------------------------------------------------------------
 class GeneratedChain(UserList):
-    def __init__(self, _settings=None, _data=None):
+    def __init__(self, _data=None, _settings=None):
         super().__init__(_data)
         self.obj:Object = None
         self.settings:GenChainSettings = _settings
+
+
+    def resolve_collisions(self) -> bool:
+        reverse:list[tuple[int,Chain]] = reversed(list(enumerate(self.data)))
+
+        for k, ch1 in reverse:
+            for j, ch2 in reverse:
+                if k == j: continue
+                if not ch1.collides(ch2): continue
+
+                print('Collision detected, trying to resolve...')
+
+                r = len(self.data) - k
+                permutations = [''.join(seq) for seq in itertools.product('01', repeat=r)]
+
+                for perm in permutations:
+                    if(new_data := self.try_permutation(k, perm)): 
+                        print('Success!')
+                        self.data = new_data
+                        return True
+                    
+                print('Failed')
+                
+        return False
+        
+
+    def try_permutation(self, _start_idx:int, _permutation:str) -> list[Chain] | None:
+        """Tries to resolve collisions by mirroring chains according to a permutation"""
+        temp:list[Chain] = copy.deepcopy(self.data)
+
+        r = len(self.data) - _start_idx
+
+        if r == 1:
+            temp[-1].mirror_xy()
+        else:
+            self.apply_permutation(temp, _start_idx, _permutation)
+
+        # Check for collisions
+        for k in range(_start_idx, len(temp)):
+            for ch2 in reversed(temp):
+                ch1 = temp[k]
+                if ch1.collides(ch2): return None
+        return temp
+
+
+    def apply_permutation(self, data:list[Chain], _start_idx:int, _permutation:str):
+        # Mirror data 
+        p = 0
+        end = min(_start_idx + len(_permutation), len(data))
+        for k in range(_start_idx, end, 1):
+            if _permutation[p] == '1':
+                data[k].mirror_xy()
+            p += 1
+
+        # Align mirrored data
+        for k in range(_start_idx + 1, len(data)):
+            data[k].align(data[:k], self.settings.align_orientation)
 
 
     def from_dataset(self, _dataset_object:Object):
@@ -197,32 +279,6 @@ class GeneratedChain(UserList):
 
             point = entry[Attribute.LOCATION.value]
             curr_points.append(point)
-
-
-    def resolve_collision(self):
-        # We only resolve the collision of the last appended chain
-        if not (hit := self.check_collision(-1)): return
-
-        
-
-        
-    def rotate_chain(self, _chain_idx:Chain):
-        # Store the penetration depth with the respective rotation
-        smallest_pen_depth = float_info.max
-        best_rotation = 0
-
-
-    def try_rotation(self, _chain_idx:int, _rotation:float):
-        chain: Chain = copy.deepcopy(self.data[_chain_idx])
-        chain.align(self.data[_chain_idx-1], _rotation, self.settings.align_orientation)
-
-
-    def check_collision(self, _chain_idx:int) -> Hit | bool:
-        chain = self.data[_chain_idx]
-        for k, sec in reversed(list(enumerate(self.data))):
-            if k == _chain_idx: continue
-            if (hit := chain.collides(sec)): return hit
-        return False
 
 
     def to_dataset(self) -> Dataset:

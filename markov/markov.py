@@ -99,7 +99,7 @@ class MarkovChain:
         prev_state = start_state
         prev_chain = self.chain_pools[start_state].random_chain()
         
-        gen_chain = GeneratedChain(_settings)
+        gen_chain = GeneratedChain(None, _settings)
         gen_chain.append(prev_chain)
         
         for k in range(_settings.length):
@@ -114,11 +114,11 @@ class MarkovChain:
             next_chain = cl.random_chain()
 
             # Align the new chain to the generated chain
-            next_chain.align(gen_chain, 0, _settings.align_orientation)
+            next_chain.align(gen_chain, _settings.align_orientation)
             gen_chain.append(next_chain)
 
-            # Resolve collisions
-            #gen_chain.resolve_collision()
+            # Resolve any collisions
+            gen_chain.resolve_collisions()
 
             # Prepare for next iteration
             prev_state = next_state
