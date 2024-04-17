@@ -85,11 +85,13 @@ class MarkovChain:
 
 
     def generate_chain(self, _settings:GenChainSettings) -> GeneratedChain:
+        scale = 1000000
         # Update properties
         for cp in self.chain_pools:
-            for c in cp:
-                c.radius = _settings.collision_radius
-                c.aabb.margin = _settings.aabb_margin
+            for chain in cp:
+                chain.height = _settings.player_height * scale
+                chain.radius = _settings.collision_radius * scale
+                chain.resize(scale)
 
         # Prepare chain generation
         np.random.seed(_settings.seed)
@@ -102,8 +104,8 @@ class MarkovChain:
         gen_chain = GeneratedChain(None, _settings)
         gen_chain.append(prev_chain)
         
-        for k in range(_settings.length):
-            print(f'--- Iteration: {k} ---')
+        for k in range(1, _settings.length, 1):
+            print(f'---Iteration: {k}------------------------------------------------------------')
 
             # Choose the next state
             probabilities = self.transition_matrix[prev_state]
@@ -124,9 +126,15 @@ class MarkovChain:
             prev_state = next_state
             prev_chain = next_chain
 
+        invscale = 1 / scale
+
+        for chain in gen_chain:
+            chain.resize(invscale)
+
         # Create Polyline from LiveChain
         name = f'{self.name}_{_settings.length}_{_settings.seed}_{_settings.collision_radius}'
         gen_chain.to_polyline(name)
+
         return gen_chain
 
         
@@ -162,4 +170,3 @@ class MarkovChain:
         data = np.insert(data, 1, seperator, axis=0)
         
         self.statistics = data
-

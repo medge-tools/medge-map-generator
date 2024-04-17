@@ -53,10 +53,8 @@ class MET_PG_MarkovChain(PropertyGroup):
         settings = GenChainSettings()
         settings.length                 = self.length 
         settings.seed                   = self.seed 
-        settings.aabb_margin            = self.aabb_margin
         settings.collision_radius       = self.collision_radius
-        settings.angle_step             = self.angle_step
-        settings.max_resolve_iterations = self.max_resolve_iterations
+        settings.player_height          = self.player_height
         settings.align_orientation      = self.align_orientation
 
         mc = markov_chain_models[self.name]
@@ -95,11 +93,10 @@ class MET_PG_MarkovChain(PropertyGroup):
 
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)
-    aabb_margin: FloatProperty(name='AABB margin', default=0, min=0)
+    player_height: FloatProperty(name='Player Height', default=1.92, min=1)
     collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
-    angle_step: IntProperty(name='Angle Step', default=5, min=1)
     align_orientation: BoolProperty(name='Align Orientation')
-    max_resolve_iterations: IntProperty(name='Max Resolve Iterations', default=-1, min=-1)
+
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):

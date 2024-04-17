@@ -90,38 +90,59 @@ class MET_OT_GenerateChain(Operator):
 # Testing
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# from .chains import Chain
+from .chains import Chain
+from ..      import b3d_utils
 
-# class MET_OT_CapsuleCollisionTest(Operator):
-#     bl_idname = 'medge_markov.collision_test'
-#     bl_label  = 'Collision Test'
+class MET_OT_CapsuleCollisionTest(Operator):
+    bl_idname = 'medge_markov.collision_test'
+    bl_label  = 'Collision Test'
 
 
-#     def execute(self,  _context:Context):
-#         objs = _context.selected_objects
-#         obj1 = objs[0]
-#         obj2 = objs[1]
+    def execute(self,  _context:Context):
+        objs = _context.selected_objects
+        obj1 = objs[0]
+        obj2 = objs[1]
 
-#         v1s = []
-#         for v in obj1.data.vertices:
-#             v1s.append(obj1.matrix_world @ v.co)
+        v1s = []
+        for v in obj1.data.vertices:
+            v1s.append(obj1.matrix_world @ v.co)
 
-#         v2s = []
-#         for v in obj2.data.vertices:
-#             v2s.append(obj2.matrix_world @ v.co)
+        v2s = []
+        for v in obj2.data.vertices:
+            v2s.append(obj2.matrix_world @ v.co)
 
-#         c1 = Chain(1, v1s, 1, False)
-#         c2 = Chain(1, v2s, 1, False)
-#         print(f'My: {obj1.name}, Other: {obj2.name}')
+        state = 1
+        height = 1.92
+        radius = .5
 
-#         hit = c1.collides(c2, True)
-#         if hit:
-#             print(hit.result)
-#             print(f'Direction: {hit.direction}')
-#             print(f'My point: {hit.my_point}')
-#             print(f'Other point: {hit.other_point}')
-#         else:
-#             print('No hit')
+        c1 = Chain(state, v1s, height, radius, False)
+        c2 = Chain(state, v2s, height, radius, False)
+        print(f'My: {obj1.name}, Other: {obj2.name}')
 
-#         return {'FINISHED'} 
+        # base = []
+        # tip = []
+        # for cap in c1.capsules:
+        #     base.append(cap.base)
+        #     tip.append(cap.tip)
+
+
+        # mesh = b3d_utils.create_mesh(base, [], [], 'Base')
+        # b3d_utils.new_object('Base', mesh)
+        # mesh = b3d_utils.create_mesh(tip, [], [], 'Tip')
+        # b3d_utils.new_object('Tip', mesh)
+
+        hits = c1.collides(c2, True)
+        if hits:
+            print('\n')
+            for hit in hits:
+                print(hit.result, end=', ')
+                print(f'Depth: {hit.depth}', end=', ')
+                print(f'Direction: {hit.pen}')
+                print(f'My point: {hit.my_point}', end=', ')
+                print(f'Other point: {hit.other_point}', end=', ')
+                print('\n')
+        else:
+            print('No hit')
+
+        return {'FINISHED'} 
     
