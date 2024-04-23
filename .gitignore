@@ -1,6 +1,7 @@
 # VSCode
 .vscode/
 test.*
+.VSCodeCounter/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

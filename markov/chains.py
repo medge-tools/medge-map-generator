@@ -3,10 +3,11 @@ from mathutils import Vector, Matrix
 
 import copy
 import itertools
+import random
 import numpy as np
 from sys            import float_info
 from collections    import UserList
-from math           import radians, floor
+from math           import radians
 from dataclasses    import dataclass
 
 from ..b3d_utils       import rotation_matrix
@@ -82,10 +83,76 @@ class Chain(UserList):
         self.capsules = []
         height = Vector( (0, 0, self.height) )
         
-        for p in self.data:
+        def add_capsule(point:Vector):
+            nonlocal height
+            cap = Capsule(point, point + height, self.radius)
+            self.capsules.append(cap)
+
+        if len(self.data) == 1:
+            p = self.data[0]
             cap = Capsule(p, p + height, self.radius)
             self.capsules.append(cap)
+            return
+
+        p1 = self.data[0]
+        idx = 1
+        p2 = self.data[idx]
+
+        dir = p2 - p1
+        length = dir.length
+        dir.normalize()
+    
+        diameter = self.radius * 2
+
+        # Fit capsules along the chain
+        while True:
+
+            # Place capsules on current edge while they do not overextend
+            while diameter <= length:
+                offset = dir * self.radius
+                P = p1 + offset
+
+                add_capsule(P)
+
+                length -= diameter
+                p1 = P + offset
+
+            # If we are at the last edge, place a capsule that doesn't overextend
+            if idx == len(self.data) - 1:
+                dir = p1 - p2
+
+                offset = dir.normalized() * self.radius
+                P = p2 + offset
+
+                add_capsule(P)
+                return
             
+            # Check if we can fit a capsule that will overlap with the next edge
+            if self.radius <= length:
+                offset = dir * self.radius
+                P = p1 + offset
+                add_capsule(P)
+
+            # Find starting point on next edge
+            rest = length
+
+            p1 = p2
+            idx += 1
+            p2 = self.data[idx]
+
+            dir = p2 - p1
+            length = dir.length
+            dir.normalize()
+
+            s = self.radius - rest
+            offset = dir * s
+            P = p1 + offset
+
+            add_capsule(P)
+
+            length -= s
+            p1 = P + dir * self.radius
+
 
     def update_aabb(self):
         fmax = float_info.max
@@ -102,6 +169,8 @@ class Chain(UserList):
             if p.y > bmax.y: bmax.y = p.y
             if p.z > bmax.z: bmax.z = p.z
 
+        bmax.z += self.height
+
         self.aabb.bmin = bmin
         self.aabb.bmax = bmax
 
@@ -114,7 +183,7 @@ class Chain(UserList):
 
         # Add rotation offset
         R = Matrix.Rotation(radians(_rotation_offset), 3, 'Z')
-        
+
         if _align_direction:
             # Get rotation matrix around z-axis from direction vectors
             a = my_dir * Vector((1, 1, 0))
@@ -212,54 +281,69 @@ class ChainPool(UserList):
 class GenChainSettings:
     length:int                 = 1
     seed:int                   = 0
-    player_height:float        = 1.92
+    collision_height:float     = 1.92
     collision_radius:float     = 1
     align_orientation:bool     = False
+    angle_range:int            = 180
+    angle_step:int             = 10
 
 
 # -----------------------------------------------------------------------------
 class GeneratedChain(UserList):
-    def __init__(self, _data=None, _settings=None):
+    def __init__(self, _data=None, _settings:GenChainSettings=None):
         super().__init__(_data)
         self.obj:Object = None
         self.settings:GenChainSettings = _settings
 
+        self.angles = []
+        for k in range(0, _settings.angle_range, _settings.angle_step):
+            self.angles.append(k)
+        random.shuffle(self.angles)
+
 
     def resolve_collisions(self):
         smallest_depth = float_info.max
-        best_perm = None
+        best_mirror_perm = None
+        best_rotation_offset = []
 
-
-        def test_permutation(_start_idx, _permutation:str):
+        def test_configuration(_start_idx:int, _mirror_permutation:str) -> bool:
             nonlocal smallest_depth
-            nonlocal best_perm
+            nonlocal best_mirror_perm
+            nonlocal best_rotation_offset
             
-            total_depth = self.try_permutation(_start_idx, _permutation)
-            
-            if total_depth > 0:
-                print(f'Start index: {_start_idx}, Tested permutation: {_permutation}, with total depth: {total_depth}')
+            for angle in self.angles:
+                total_depth = self.try_configuration(_start_idx, _mirror_permutation, angle)
+                
+                if total_depth > 0:
+                    depth = len(self.data) - _start_idx
+                    print(f'Chain depth: {depth}, Tested configuration: ({_mirror_permutation}, {angle}), with total penetration: {total_depth}')
 
-                if total_depth < smallest_depth: 
-                    smallest_depth = total_depth
-                    best_perm = _permutation
+                    if total_depth < smallest_depth: 
+                        smallest_depth = total_depth
+                        best_mirror_perm = _mirror_permutation
+                        best_rotation_offset = angle
 
-                return False
-            
-            print(f'0 Collisions with permutation: {_permutation}')
-            self.apply_permutation(self.data, k, _permutation)
+                else:            
+                    print(f'0 Collisions with permutation: {_mirror_permutation}')
+                    self.apply_configuration(self.data, k, _mirror_permutation, angle)
 
-            return True
-
+                    return True
+                
+            return False
 
         # Max depth
         max_depth = len(self.data)
 
+        found_collision = False
         for k, ch1 in reversed(list(enumerate(self.data))):
             for j, ch2 in enumerate(self.data):
                 if k == j: break
                 if not ch1.collides(ch2, _quick=True): continue
+                found_collision = True
                 if j < max_depth:
                     max_depth = j
+
+        if not found_collision: return
         
         print(f'Max depth: {max_depth}')
 
@@ -269,15 +353,15 @@ class GeneratedChain(UserList):
         for k in range(len(self.data) - 1, max_depth - 1, -1):
             r = len(self.data) - k
 
-            permutations = [''.join(seq) for seq in itertools.product('01', repeat=r) if r == 1 or seq[0] != '0']
+            mirror_perms = [''.join(seq) for seq in itertools.product('01', repeat=r) if r == 1 or seq[0] != '0']
 
-            for perm in permutations:
-                if(test_permutation(k, perm)): return
+            for mp in mirror_perms:
+                if test_configuration(k, mp): return
         
-        if best_perm:
-            print(f'Best permutation: {best_perm}, with total depth: {smallest_depth}')
-            start_idx = len(self.data) - len(best_perm)
-            self.apply_permutation(self.data, start_idx, best_perm)
+        # We have not found a configuration with 0 collisions, so apply the best configuration
+        print(f'Best configuration: {best_mirror_perm}, with total depth: {smallest_depth}')
+        start_idx = len(self.data) - len(best_mirror_perm)
+        self.apply_configuration(self.data, start_idx, best_mirror_perm, best_rotation_offset)
         
 
     def check_collisions(self, _data:list[Chain]) -> float:
@@ -296,24 +380,24 @@ class GeneratedChain(UserList):
         return total_depth 
 
 
-    def try_permutation(self, _start_idx:int, _permutation:str) -> float:
+    def try_configuration(self, _start_idx:int, _mirror_permutation:str, _rotation_offset:int) -> float:
         temp:list[Chain] = copy.deepcopy(self.data)
-        self.apply_permutation(temp, _start_idx, _permutation)
+        self.apply_configuration(temp, _start_idx, _mirror_permutation, _rotation_offset)
         return self.check_collisions(temp)
     
 
-    def apply_permutation(self, data:list[Chain], _start_idx:int, _permutation:str):
+    def apply_configuration(self, _data:list[Chain], _start_idx:int, _mirror_permutation:str, _rotation_offset:int):
         # Mirror data 
         p = 0
-        end = min(_start_idx + len(_permutation), len(data))
+        end = min(_start_idx + len(_mirror_permutation), len(_data))
         for k in range(_start_idx, end, 1):
-            if _permutation[p] == '1':
-                data[k].mirror_xy()
+            if _mirror_permutation[p] == '1':
+                _data[k].mirror_xy()
             p += 1
 
         # Align mirrored data
-        for k in range(_start_idx + 1, len(data)):
-            data[k].align(data[:k], self.settings.align_orientation)
+        for k in range(_start_idx + 1, len(_data)):
+            _data[k].align(_data[:k], self.settings.align_orientation, _rotation_offset)
 
 
     def from_dataset(self, _dataset_object:Object):

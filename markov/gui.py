@@ -41,15 +41,16 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         if active_mc.has_transition_matrix():
             col.prop(active_mc, 'length')
             col.prop(active_mc, 'seed')
-            col.prop(active_mc, 'player_height')
+            col.prop(active_mc, 'collision_height')
             col.prop(active_mc, 'collision_radius')
+            col.prop(active_mc, 'angle_range')
+            col.prop(active_mc, 'angle_step')
+            
             col.prop(active_mc, 'align_orientation')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)
 
-        #col.separator()
-        #col.operator(MET_OT_CapsuleCollisionTest.bl_idname)
 
 
 # -----------------------------------------------------------------------------

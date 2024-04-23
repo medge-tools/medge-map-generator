@@ -85,11 +85,13 @@ class MarkovChain:
 
 
     def generate_chain(self, _settings:GenChainSettings) -> GeneratedChain:
+        # Scale the chain to combat floating point errors when calculating collisions
         scale = 1000000
-        # Update properties
+
+        # Scale and update properties
         for cp in self.chain_pools:
             for chain in cp:
-                chain.height = _settings.player_height * scale
+                chain.height = _settings.collision_height * scale
                 chain.radius = _settings.collision_radius * scale
                 chain.resize(scale)
 
@@ -104,7 +106,7 @@ class MarkovChain:
         gen_chain = GeneratedChain(None, _settings)
         gen_chain.append(prev_chain)
         
-        for k in range(1, _settings.length, 1):
+        for k in range(len(gen_chain), _settings.length, 1):
             print(f'---Iteration: {k}------------------------------------------------------------')
 
             # Choose the next state
@@ -126,6 +128,7 @@ class MarkovChain:
             prev_state = next_state
             prev_chain = next_chain
 
+        # Scale the chain back to original size
         invscale = 1 / scale
 
         for chain in gen_chain:

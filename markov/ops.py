@@ -119,17 +119,16 @@ class MET_OT_CapsuleCollisionTest(Operator):
         c2 = Chain(state, v2s, height, radius, False)
         print(f'My: {obj1.name}, Other: {obj2.name}')
 
-        # base = []
-        # tip = []
-        # for cap in c1.capsules:
-        #     base.append(cap.base)
-        #     tip.append(cap.tip)
+        base = []
+        tip = []
+        for cap in c1.capsules:
+            base.append(cap.base)
+            tip.append(cap.tip)
 
-
-        # mesh = b3d_utils.create_mesh(base, [], [], 'Base')
-        # b3d_utils.new_object('Base', mesh)
-        # mesh = b3d_utils.create_mesh(tip, [], [], 'Tip')
-        # b3d_utils.new_object('Tip', mesh)
+        mesh = b3d_utils.create_mesh(base, [], [], 'Base')
+        b3d_utils.new_object('Base', mesh, 'TEST')
+        mesh = b3d_utils.create_mesh(tip, [], [], 'Tip')
+        b3d_utils.new_object('Tip', mesh, 'TEST')
 
         hits = c1.collides(c2, True)
         if hits:
@@ -143,6 +142,39 @@ class MET_OT_CapsuleCollisionTest(Operator):
                 print('\n')
         else:
             print('No hit')
+
+        return {'FINISHED'} 
+    
+
+    
+class MET_OT_UpdateCapsuleTest(Operator):
+    bl_idname = 'medge_markov.update_capsules_test'
+    bl_label  = 'Update Capsules Test'
+
+
+    def execute(self,  _context:Context):
+        obj = _context.object
+
+        verts = []
+        for v in obj.data.vertices:
+            verts.append(obj.matrix_world @ v.co)
+
+        state = 1
+        height = 1.92
+        radius = .5
+
+        c1 = Chain(state, verts, height, radius, False)
+
+        base = []
+        tip = []
+        for cap in c1.capsules:
+            base.append(cap.base)
+            tip.append(cap.tip)
+
+        mesh = b3d_utils.create_mesh(base, [], [], 'Base')
+        b3d_utils.new_object('Base', mesh, 'TEST')
+        mesh = b3d_utils.create_mesh(tip, [], [], 'Tip')
+        b3d_utils.new_object('Tip', mesh, 'TEST')
 
         return {'FINISHED'} 
     
