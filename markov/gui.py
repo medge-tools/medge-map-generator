@@ -47,6 +47,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.prop(active_mc, 'angle_step')
             
             col.prop(active_mc, 'align_orientation')
+            col.prop(active_mc, 'random_angle')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)

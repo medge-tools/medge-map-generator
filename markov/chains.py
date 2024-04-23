@@ -286,6 +286,7 @@ class GenChainSettings:
     align_orientation:bool     = False
     angle_range:int            = 180
     angle_step:int             = 10
+    random_angle:bool          = False
 
 
 # -----------------------------------------------------------------------------
@@ -296,9 +297,13 @@ class GeneratedChain(UserList):
         self.settings:GenChainSettings = _settings
 
         self.angles = []
-        for k in range(0, _settings.angle_range, _settings.angle_step):
-            self.angles.append(k)
-        random.shuffle(self.angles)
+
+        for a in range(0, _settings.angle_range, _settings.angle_step):
+            self.angles.append(a)
+            self.angles.append(-a)
+
+        if self.settings.random_angle:
+            random.shuffle(self.angles)
 
 
     def resolve_collisions(self):
@@ -316,7 +321,7 @@ class GeneratedChain(UserList):
                 
                 if total_depth > 0:
                     depth = len(self.data) - _start_idx
-                    print(f'Chain depth: {depth}, Tested configuration: ({_mirror_permutation}, {angle}), with total penetration: {total_depth}')
+                    print(f'Chain depth: {depth}, Tested configuration: (permutation: {_mirror_permutation}, angle: {angle} ), with total penetration: {total_depth}')
 
                     if total_depth < smallest_depth: 
                         smallest_depth = total_depth
