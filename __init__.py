@@ -11,11 +11,12 @@ bl_info = {
 
 
 # -----------------------------------------------------------------------------
-import bpy
+from bpy.types import Scene
 from bpy.props import PointerProperty
-from .markov.props import MET_SCENE_PG_MarkovChains
 
-from .b3d_utils import register_subpackage, unregister_subpackages
+from .b3d_utils     import register_subpackage, unregister_subpackages
+from .markov.props  import MET_SCENE_PG_MarkovChains
+from .content.props import MET_SCENE_PG_Modules
 
 
 # -----------------------------------------------------------------------------
@@ -25,12 +26,13 @@ def register():
     register_subpackage('markov')
     register_subpackage('content')
 
-    bpy.types.Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
+    Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
+    Scene.medge_modules = PointerProperty(type=MET_SCENE_PG_Modules)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    # Temp solution during development
-    del bpy.types.Scene.medge_markov_chains
+    del Scene.medge_modules
+    del Scene.medge_markov_chains
 
     unregister_subpackages()

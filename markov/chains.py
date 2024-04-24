@@ -1,10 +1,10 @@
 from bpy.types import Object
 from mathutils import Vector, Matrix
 
-import copy
 import itertools
 import random
 import numpy as np
+from copy import deepcopy
 from sys            import float_info
 from collections    import UserList
 from math           import radians
@@ -23,7 +23,7 @@ class Chain(UserList):
                  _height:float = 1.92,
                  _radius:int = 1,
                  _to_origin:bool = True):
-        super().__init__(copy.deepcopy(_points))
+        super().__init__(deepcopy(_points))
 
         self.state = _state
         self._height_ = _height
@@ -61,7 +61,7 @@ class Chain(UserList):
 
     def to_origin(self):
         points = self.data
-        offset = copy.deepcopy(points[0])
+        offset = deepcopy(points[0])
         
         for p in points:
             p -= offset
@@ -195,7 +195,7 @@ class Chain(UserList):
             p.rotate(R)
 
         # Move chain to the end of the other chain
-        offset  = copy.deepcopy(_gen_chain[-1][-1])
+        offset  = deepcopy(_gen_chain[-1][-1])
         offset += other_dir
 
         for p in self.data:
@@ -248,7 +248,7 @@ class Chain(UserList):
         # Project point to the line along the direction
         # https://textbooks.math.gatech.edu/ila/projections.html
 
-        offset = copy.deepcopy(self.data[0])
+        offset = deepcopy(self.data[0])
         u = self.data[1] - self.data[0]
 
         for p in self.data:
@@ -273,20 +273,31 @@ class ChainPool(UserList):
     def random_chain(self) -> Chain:
         n = len(self.data)
         k = np.random.choice(n)
-        return copy.deepcopy(self.data[k])
+        return deepcopy(self.data[k])
  
 
 # -----------------------------------------------------------------------------
 @dataclass
 class GenChainSettings:
-    length:int                 = 1
-    seed:int                   = 0
-    collision_height:float     = 1.92
-    collision_radius:float     = 1
-    align_orientation:bool     = False
-    angle_range:int            = 180
-    angle_step:int             = 10
-    random_angle:bool          = False
+    length:int             = 1
+    seed:int               = 0
+    collision_height:float = 1.92
+    collision_radius:float = 1
+    angle_range:int        = 180
+    angle_step:int         = 10
+    align_orientation:bool = True
+    random_angle:bool      = False
+
+    def __str__(self):
+        return f'\
+{self.length}_\
+{self.seed}_\
+{self.collision_height}_\
+{self.collision_radius}_\
+{self.angle_range}_\
+{self.angle_step}_\
+{str(self.align_orientation)[0]}_\
+{str(self.random_angle)[0]}'
 
 
 # -----------------------------------------------------------------------------
@@ -298,12 +309,9 @@ class GeneratedChain(UserList):
 
         self.angles = []
 
-        for a in range(0, _settings.angle_range, _settings.angle_step):
+        for a in range(0, _settings.angle_range + 1, _settings.angle_step):
             self.angles.append(a)
             self.angles.append(-a)
-
-        if self.settings.random_angle:
-            random.shuffle(self.angles)
 
 
     def resolve_collisions(self):
@@ -316,12 +324,15 @@ class GeneratedChain(UserList):
             nonlocal best_mirror_perm
             nonlocal best_rotation_offset
             
+            if self.settings.random_angle:
+                random.shuffle(self.angles)
+
             for angle in self.angles:
                 total_depth = self.try_configuration(_start_idx, _mirror_permutation, angle)
                 
                 if total_depth > 0:
                     depth = len(self.data) - _start_idx
-                    print(f'Chain depth: {depth}, Tested configuration: (permutation: {_mirror_permutation}, angle: {angle} ), with total penetration: {total_depth}')
+                    print(f'Chain depth: {depth}, Tested configuration: (permutation: {_mirror_permutation}, angle: {angle}), with total penetration: {total_depth}')
 
                     if total_depth < smallest_depth: 
                         smallest_depth = total_depth
@@ -340,11 +351,14 @@ class GeneratedChain(UserList):
         max_depth = len(self.data)
 
         found_collision = False
+
         for k, ch1 in reversed(list(enumerate(self.data))):
             for j, ch2 in enumerate(self.data):
                 if k == j: break
                 if not ch1.collides(ch2, _quick=True): continue
+
                 found_collision = True
+
                 if j < max_depth:
                     max_depth = j
 
@@ -364,7 +378,7 @@ class GeneratedChain(UserList):
                 if test_configuration(k, mp): return
         
         # We have not found a configuration with 0 collisions, so apply the best configuration
-        print(f'Best configuration: {best_mirror_perm}, with total depth: {smallest_depth}')
+        print(f'Best configuration: (permutation: {best_mirror_perm}, angle: {best_rotation_offset}), with total depth: {smallest_depth}')
         start_idx = len(self.data) - len(best_mirror_perm)
         self.apply_configuration(self.data, start_idx, best_mirror_perm, best_rotation_offset)
         
@@ -386,7 +400,7 @@ class GeneratedChain(UserList):
 
 
     def try_configuration(self, _start_idx:int, _mirror_permutation:str, _rotation_offset:int) -> float:
-        temp:list[Chain] = copy.deepcopy(self.data)
+        temp:list[Chain] = deepcopy(self.data)
         self.apply_configuration(temp, _start_idx, _mirror_permutation, _rotation_offset)
         return self.check_collisions(temp)
     

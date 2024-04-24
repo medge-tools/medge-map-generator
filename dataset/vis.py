@@ -34,7 +34,7 @@ def draw_callback_post_pixel(_context:Context):
     chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
 
     # Settings
-    vis_settings      = props.get_dataset(obj).get_vis_settings()
+    vis_settings      = props.get_dataset_prop(obj).get_vis_settings()
     min_draw_distance = vis_settings.min_draw_distance
     max_draw_distance = vis_settings.max_draw_distance
     default_color     = vis_settings.default_color
@@ -106,7 +106,7 @@ def draw_callback_post_view(_context:Context):
     aabb_max_layer    = bm.verts.layers.float_vector.get(Attribute.AABB_MAX.label)
     
     # Settings
-    vis_settings  = props.get_dataset(obj).get_vis_settings()
+    vis_settings  = props.get_dataset_prop(obj).get_vis_settings()
     default_color = vis_settings.default_color
     draw_abbb     = vis_settings.draw_aabb
 

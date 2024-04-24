@@ -1,12 +1,12 @@
 import bpy, blf, os
 from bpy.types import Context, SpaceView3D
 
-from .props         import get_markov_chains
+from .props         import get_markov_chains_prop
 
 
 # -----------------------------------------------------------------------------
 def draw_callback(_context:Context):
-    mc = get_markov_chains(_context)
+    mc = get_markov_chains_prop(_context)
 
     item = mc.get_selected()
     

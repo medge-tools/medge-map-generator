@@ -229,17 +229,6 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
 
 
 # -----------------------------------------------------------------------------
-def yield_attribute_layers(_bm:BMesh):
-    layers = _bm.verts.layers
-    for att in Attribute:
-        match(att.type):
-            case AttributeType.INT:
-                yield layers.int.get(att.label)
-            case AttributeType.FLOAT_VECTOR:
-                yield layers.float_vector.get(att.label)
-
-
-# -----------------------------------------------------------------------------
 def is_dataset(_obj:Object):
     if _obj.type != 'MESH': return False
     for att in Attribute:
@@ -267,6 +256,16 @@ def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
 
     return obj
 
+# -----------------------------------------------------------------------------
+def yield_attribute_layers(_bm:BMesh):
+    layers = _bm.verts.layers
+    for att in Attribute:
+        match(att.type):
+            case AttributeType.INT:
+                yield layers.int.get(att.label)
+            case AttributeType.FLOAT_VECTOR:
+                yield layers.float_vector.get(att.label)
+
 
 # -----------------------------------------------------------------------------
 def get_dataset(_obj:Object) -> Dataset | None:
@@ -276,7 +275,7 @@ def get_dataset(_obj:Object) -> Dataset | None:
 
     def retrieve_entry(vert):
         entry = DatabaseEntry()
-        entry[Attribute.LOCATION.label] = vert.co
+        entry[Attribute.LOCATION.value] = vert.co
         for layer in yield_attribute_layers(bm):
             entry[layer.name] = vert[layer]
         return entry
@@ -293,11 +292,11 @@ def get_dataset(_obj:Object) -> Dataset | None:
         if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
             c = True
 
-        entry[Attribute.CONNECTED.label] = c
+        entry[Attribute.CONNECTED.value] = c
         dataset.append(entry)
     
     entry = retrieve_entry(bm.verts[-1])
-    entry[Attribute.CONNECTED.label] = False
+    entry[Attribute.CONNECTED.value] = False
     dataset.append(entry)
     
     return dataset

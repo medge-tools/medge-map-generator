@@ -1,9 +1,9 @@
 from bpy.types  import Context, Panel
 
-from ..main_gui  import *
-from .ops        import MET_OT_Populate
-from .props      import get_modules
-from ..b3d_utils import draw_generic_list 
+from ..main_gui        import *
+from ..b3d_utils       import draw_box 
+from .props            import get_modules_prop
+from .ops              import *
 
 # -----------------------------------------------------------------------------
 class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
@@ -16,28 +16,34 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        modules = get_modules(_context)
+        modules = get_modules_prop(_context)
 
         col = layout.column(align=True)
-
         col.separator()
         
-        draw_generic_list(col, modules, '#modules')
+        row = col.row(align=True)
+        row.template_list('MET_UL_Module', '#modules', modules, 'items', modules, 'selected_item_idx', rows=10)
 
-        col = row.column(align=True)
+        col.separator()
+        col.operator(MET_OT_UpdateActiveStates.bl_idname)
         
         module = modules.get_selected()
 
         if not module: return
 
+        col.separator(factor=2)
         col = layout.column(align=True)
-        col.prop(module, 'object')
 
+        col.prop(module, 'use_collection')
         col.separator()
-        box = col.box()
-        row = box.row()
-        row.alignment = 'CENTER'
-        row.label(text='Selected Dataset will be populated')
+
+        if module.use_collection:
+            col.prop(module, 'collection')
+        else:
+            col.prop(module, 'object')
+
+        col.separator(factor=2)
+        draw_box(col, 'Selected Dataset will be populated')
 
         col.separator()
         col.operator(MET_OT_Populate.bl_idname)

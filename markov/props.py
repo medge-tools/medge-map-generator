@@ -2,11 +2,12 @@ from bpy.types  import PropertyGroup, Collection, Context
 from bpy.props  import *
 
 from ..b3d_utils        import GenericList
-from ..dataset.props    import get_dataset
+from ..dataset.props    import get_dataset_prop
 from ..dataset.movement import PlayerState, PlayerStateProperty
 
 from .markov import MarkovChain
 from .chains import GenChainSettings
+
 
 # -----------------------------------------------------------------------------
 markov_chain_models = {}
@@ -26,7 +27,7 @@ class MET_PG_MarkovChain(PropertyGroup):
 
         objects = []
         for obj in self.collection.all_objects:
-            if not get_dataset(obj): continue
+            if not get_dataset_prop(obj): continue
             objects.append(obj)
 
         if len(objects) == 0: return
@@ -37,7 +38,7 @@ class MET_PG_MarkovChain(PropertyGroup):
             del markov_chain_models[self.name]
 
         mc = MarkovChain()
-        success = mc.create_transition_matrix(objects, 1, self.name)
+        success = mc.create_transition_matrix(objects, self.name)
 
         if success: 
             markov_chain_models[self.name] = mc
@@ -55,8 +56,8 @@ class MET_PG_MarkovChain(PropertyGroup):
         settings.seed              = self.seed 
         settings.collision_radius  = self.collision_radius
         settings.collision_height  = self.collision_height
-        settings.align_orientation = self.align_orientation
         settings.angle_step        = self.angle_step
+        settings.align_orientation = self.align_orientation
         settings.random_angle      = self.random_angle
 
         mc = markov_chain_models[self.name]
@@ -92,19 +93,19 @@ class MET_PG_MarkovChain(PropertyGroup):
     from_state: PlayerStateProperty('From', update_statistics)
     to_state: PlayerStateProperty('To', update_statistics)
     
-    min_chain_length: IntProperty(name='Min Chain Length', default=5, min=1)
-
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)
     collision_height: FloatProperty(name='Collision Height', default=1.92, min=1)
     collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
-    align_orientation: BoolProperty(name='Align Orientation')
     angle_range:IntProperty(name='Angle Range', default=180, min=0, max=180)
     angle_step: IntProperty(name='Angle Step', default=10, min=0, max=360)
+    align_orientation: BoolProperty(name='Align Orientation')
     random_angle: BoolProperty(name='Random Angle')
+
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):
+
     def get_selected(self) -> MET_PG_MarkovChain | None:
         if self.items:
             return self.items[self.selected_item_idx]
@@ -114,10 +115,10 @@ class MET_SCENE_PG_MarkovChains(PropertyGroup, GenericList):
     
 
 # -----------------------------------------------------------------------------
-# SCENE UITLS
+# Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_markov_chains(context: Context) -> MET_SCENE_PG_MarkovChains:
+def get_markov_chains_prop(context: Context) -> MET_SCENE_PG_MarkovChains:
     return context.scene.medge_markov_chains
 
 
@@ -125,11 +126,11 @@ def get_markov_chains(context: Context) -> MET_SCENE_PG_MarkovChains:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# BUG: We call these manually in init because the auto_load throws an AttributeError every other reload
+# BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 # def register():
 #     bpy.types.Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
 
 # -----------------------------------------------------------------------------
 # def unregister():
-#     del bpy.types.Scene.
+#     del bpy.types.Scene.medge_markov_chains
     

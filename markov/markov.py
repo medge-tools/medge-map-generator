@@ -27,7 +27,7 @@ class MarkovChain:
 
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
-    def create_transition_matrix(self, _objects:list[Object], _min_chain_length=1, _name='') -> bool:
+    def create_transition_matrix(self, _objects:list[Object], _name='') -> bool:
         self.reset()
         self.name = _name
 
@@ -52,7 +52,6 @@ class MarkovChain:
         sps = D.seqs_per_state()
         for state, seqs in sps.items():
             for s in seqs:
-                if len(s) < _min_chain_length: continue
                 CP[state].append(state, s)
 
         # Populate transition matrix
@@ -62,9 +61,6 @@ class MarkovChain:
 
             i = entry1[Attribute.PLAYER_STATE]
             j = entry2[Attribute.PLAYER_STATE]
-
-            if len(CP[i]) == 0 or len(CP[j]) == 0:
-                continue
 
             TM[i][j] += 1.0
 
@@ -135,7 +131,7 @@ class MarkovChain:
             chain.resize(invscale)
 
         # Create Polyline from LiveChain
-        name = f'{self.name}_{_settings.length}_{_settings.seed}_{_settings.collision_radius}'
+        name = f'{self.name}_{_settings}'
         gen_chain.to_polyline(name)
 
         return gen_chain

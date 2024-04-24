@@ -4,7 +4,7 @@ from ..b3d_utils    import draw_generic_list, draw_box
 from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 
 from .ops           import *
-from .props         import get_markov_chains
+from .props         import get_markov_chains_prop
 
 
 # -----------------------------------------------------------------------------
@@ -19,7 +19,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        markov = get_markov_chains(_context)
+        markov = get_markov_chains_prop(_context)
 
         col = layout.column(align=True)
 
@@ -33,8 +33,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         col.prop(active_mc, 'collection')
 
         col.separator(factor=2)
-        col.prop(active_mc, 'min_chain_length')
-        col.separator()
         col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
 
         col.separator(factor=2)
@@ -70,7 +68,7 @@ class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
         row.operator(MET_OT_EnableMarkovStats.bl_idname, text='Enable')
         row.operator(MET_OT_DisableMarkovStats.bl_idname, text='Disable')
 
-        chains = get_markov_chains(_context)
+        chains = get_markov_chains_prop(_context)
         item = chains.get_selected()
 
         if not item: return

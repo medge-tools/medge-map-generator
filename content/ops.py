@@ -1,37 +1,44 @@
 from bpy.types  import Operator, Context
 
-from ..dataset import dataset
-from .props    import get_modules
-from .content  import populate
+from ..dataset.dataset import is_dataset, get_dataset
+from .props            import get_modules_prop
+from .content          import populate
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_InitModules(Operator):
-    bl_idname = "medge_content.init_modules"
-    bl_label = "Init Modules"
+class MET_OT_UpdateActiveStates(Operator):
+    bl_idname = 'medge_content.update_active_states'
+    bl_label = 'Update Active States'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        obj = _context.object
+        if not obj: return False
+        return is_dataset(obj)
 
 
     def execute(self, _context:Context):
-        modules = get_modules(_context)
-        modules.init()
+        modules = get_modules_prop(_context)
+        modules.update_active_states(get_dataset(_context.object))
         return {'FINISHED'}
     
 
 # -----------------------------------------------------------------------------
 class MET_OT_Populate(Operator):
-    bl_idname = "medge_content.populate"
-    bl_label = "Populate"
+    bl_idname = 'medge_content.populate'
+    bl_label = 'Populate'
 
 
     @classmethod
     def poll(cls, _context:Context):
-        if not _context.object: return False
-        return dataset.is_dataset(_context.object)
+        obj = _context.object
+        if not obj: return False
+        return is_dataset(obj)
 
 
     def execute(self, _context:Context):
-        obj = _context.object
-        modules = get_modules(_context)
-        populate(obj, modules.to_list())
+        modules = get_modules_prop(_context)
+        populate(_context.object, modules.items)
         return {'FINISHED'}
-    
+

@@ -134,7 +134,7 @@ class MET_OT_SetState(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = props.get_dataset(obj).get_ops_settings()
+        settings = props.get_dataset_prop(obj).get_ops_settings()
         s = settings.new_state
         set_player_state(obj, PlayerState[s])
         return {'FINISHED'} 
@@ -154,7 +154,7 @@ class MET_OT_SelectTransitions(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = props.get_dataset(obj).get_ops_settings()
+        settings = props.get_dataset_prop(obj).get_ops_settings()
         select_transitions(obj, settings.filter, settings.restrict)
         return {'FINISHED'}
     

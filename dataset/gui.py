@@ -3,7 +3,7 @@ from    .ops        import *
 
 from ..b3d_utils import draw_box
 from ..main_gui  import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
-from .props      import get_dataset
+from .props      import get_dataset_prop
 from .ops        import is_vis_enabled
 
 
@@ -26,7 +26,7 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
 
         col = layout.column(align=True)
 
-        if not (dataset := get_dataset(obj)): 
+        if not (dataset := get_dataset_prop(obj)): 
             col.operator(MET_OT_ConvertToDataset.bl_idname)
             draw_box(layout, 'Make sure it is a polyline')
             return
@@ -84,7 +84,7 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
             return
 
         if not (obj := _context.active_object): return
-        if not (dataset := get_dataset(obj)): return
+        if not (dataset := get_dataset_prop(obj)): return
 
         vis_settings = dataset.get_vis_settings()
         

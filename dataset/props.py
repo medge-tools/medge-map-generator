@@ -43,7 +43,7 @@ class MET_MESH_PG_Dataset(PropertyGroup):
 # SCENE UITLS
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_dataset(_obj:Object) -> MET_MESH_PG_Dataset:
+def get_dataset_prop(_obj:Object) -> MET_MESH_PG_Dataset:
     if is_dataset(_obj):
         return _obj.data.medge_dataset
     return None

@@ -450,9 +450,10 @@ def map_range(_value, _in_min, _in_max, _out_min, _out_max):
 # -----------------------------------------------------------------------------
 # https://stackoverflow.com/questions/45142959/calculate-rotation-matrix-to-align-two-vectors-in-3d-space 
 def rotation_matrix(_v1, _v2):
-    """ Find the rotation matrix that aligns vec1 to vec2
-    :param vec1: A 3d "source" vector
-    :param vec2: A 3d "destination" vector
+    """ 
+    Find the rotation matrix that aligns vec1 to vec2
+    :param vec1: A 3d 'source' vector
+    :param vec2: A 3d 'destination' vector
     :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
     """
     _v1 = [_v1.x, _v1.y, _v1.z]

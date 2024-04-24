@@ -1,8 +1,11 @@
-from bpy.types import PropertyGroup, Object, Scene, Context, UIList
-from bpy.props import *
+from bpy.types        import PropertyGroup, Object, Collection, Context, UIList
+from bpy.props        import *
+
+from random import randint
 
 from ..b3d_utils        import GenericList
 from ..dataset.movement import PlayerState
+from ..dataset.dataset  import Dataset, Attribute
 
 
 # -----------------------------------------------------------------------------
@@ -11,11 +14,23 @@ class MET_PG_Module(PropertyGroup):
     def __get_name(self):
         return PlayerState(self.state).name
 
+
+    def random_object(self):
+        if not self.use_collection:
+            return self.object
+        else:        
+            n = len(self.collection.objects)
+            k = randint(0, n - 1)
+            return self.collection.objects[k]
+
+
     name: StringProperty(name='Name', get=__get_name)
-    active: BoolProperty(name='Active', default=False)
-    state: IntProperty()
+    state: IntProperty(name='PRIVATE')
+    active: BoolProperty(name='PRIVATE')
+
     object: PointerProperty(type=Object, name='Object')
-    ignore_z_axis: BoolProperty(name='Ignore Z-Axis')
+    collection: PointerProperty(type=Collection, name='Collection')
+    use_collection: BoolProperty(name='Use Collection')
 
 
 # -----------------------------------------------------------------------------
@@ -41,12 +56,16 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
         self.initialized = True
 
 
-    def to_list(self):
-        return [item.object for item in self.items]
+    def update_active_states(self, _dataset:Dataset):
+        states = _dataset[:, Attribute.PLAYER_STATE.value]
+        for m in self.items:
+            m.active = False
+            if m.state in states:
+                m.active = True
 
 
     items: CollectionProperty(type=MET_PG_Module)
-    initialized: BoolProperty(default=False)
+    initialized: BoolProperty(name='PRIVATE', default=False)
 
 
 # -----------------------------------------------------------------------------
@@ -54,14 +73,19 @@ class MET_UL_Module(UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
         if self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
-        layout.label(text=item.name)
+
+        ic = 'RADIOBUT_OFF'
+        if item.active:
+            ic = 'RADIOBUT_ON'
+                
+        layout.label(text=item.name, icon=ic)
 
 
 # -----------------------------------------------------------------------------
-# SCENE UITLS
+# Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_modules(_context:Context) -> MET_SCENE_PG_Modules:
+def get_modules_prop(_context:Context) -> MET_SCENE_PG_Modules:
     return _context.scene.medge_modules
 
 
@@ -69,9 +93,11 @@ def get_modules(_context:Context) -> MET_SCENE_PG_Modules:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def register():
-    Scene.medge_modules = PointerProperty(type=MET_SCENE_PG_Modules)
+# BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
+# def register():
+#    Scene.medge_modules = PointerProperty(type=MET_SCENE_PG_Modules)
+
 
 # -----------------------------------------------------------------------------
-def unregister():
-    del Scene.medge_modules
+# def unregister():
+#     del Scene.medge_modules
