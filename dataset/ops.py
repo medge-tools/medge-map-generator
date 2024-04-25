@@ -136,7 +136,7 @@ class MET_OT_SetState(Operator):
         obj = _context.object
         settings = props.get_dataset_prop(obj).get_ops_settings()
         s = settings.new_state
-        set_player_state(obj, PlayerState[s])
+        set_player_state(obj, State[s])
         return {'FINISHED'} 
 
 

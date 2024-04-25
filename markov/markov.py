@@ -4,7 +4,7 @@ import numpy as np
 
 from ..dataset.dataset  import Attribute, Dataset
 from ..dataset          import dataset
-from ..dataset.movement import PlayerState
+from ..dataset.movement import State
 from .chains            import Chain, ChainPool, GeneratedChain, GenChainSettings
 from .bounds            import Hit
 
@@ -44,7 +44,7 @@ class MarkovChain:
 
         if len(D) == 0: return False
 
-        N = max(D[:, Attribute.PLAYER_STATE.value]) + 1
+        N = max(D[:, Attribute.STATE.value]) + 1
         TM = np.zeros((N, N), dtype=float)
         CP = [ChainPool() for _ in range(N)]
 
@@ -59,8 +59,8 @@ class MarkovChain:
         for (entry1, entry2) in transitions:
             if not entry1[Attribute.CONNECTED]: continue
 
-            i = entry1[Attribute.PLAYER_STATE]
-            j = entry2[Attribute.PLAYER_STATE]
+            i = entry1[Attribute.STATE]
+            j = entry2[Attribute.STATE]
 
             TM[i][j] += 1.0
 
@@ -94,7 +94,7 @@ class MarkovChain:
         # Prepare chain generation
         np.random.seed(_settings.seed)
 
-        start_state = PlayerState.Walking.value
+        start_state = State.Walking.value
         
         prev_state = start_state
         prev_chain = self.chain_pools[start_state].random_chain()
@@ -142,7 +142,7 @@ class MarkovChain:
 
         t = self.transition_matrix[_from_state][_to_state]
 
-        header = [[PlayerState(_from_state).name + ' -> ' + PlayerState(_to_state).name, str(round(t, 3))]]
+        header = [[State(_from_state).name + ' -> ' + State(_to_state).name, str(round(t, 3))]]
 
         data = np.append(data, header, axis=0)
 

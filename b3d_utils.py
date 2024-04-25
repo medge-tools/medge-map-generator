@@ -13,6 +13,7 @@ from    mathutils   import Vector, Matrix, Euler
 
 import math
 import numpy as np
+from copy import deepcopy
 
 
 # -----------------------------------------------------------------------------
@@ -80,10 +81,10 @@ def link_to_scene(_obj:Object, _collection:str=None):
         c = bpy.context.blend_data.collections.get(_collection)
         if c == None:
             c = bpy.data.collections.new(_collection)
-            bpy.context.scene.collection.children.link(c)
+            bpy.context.collection.children.link(c)
         c.objects.link(_obj)
     else:
-        bpy.context.scene.collection.objects.link(_obj)
+        bpy.context.collection.objects.link(_obj)
 
 
 # -----------------------------------------------------------------------------
@@ -121,20 +122,19 @@ def remove_object(_obj:Object):
 
 
 # -----------------------------------------------------------------------------
-def duplicate_object(_obj:Object, instance=False) -> Object:
-    if instance:
-        mesh = _obj.data
-        inst = new_object(_obj.name + '_INSTANCE', mesh, _obj.name + '_GENERATED')
-        return inst
+def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
+    if _instance:
+        return new_object(_obj.name + '_INST', _obj.data, _collection)
     else:
         copy = _obj.copy()
         copy.data = _obj.data.copy()
-        link_to_scene(copy)
+        copy.name = _obj.name + '_COPY'
+        link_to_scene(copy, _collection)
         return copy
 
 
 # -----------------------------------------------------------------------------
-def create_mesh(
+def new_mesh(
         _verts:list[tuple[float, float, float]], 
         _edges:list[tuple[int, int]], 
         _faces:list[tuple[int, ...]], 
@@ -244,6 +244,7 @@ def transform(_mesh:Mesh, _transforms:list[Matrix]):
         bmesh.update_edit_mesh(_mesh)  
 
 
+
 # -----------------------------------------------------------------------------
 def snap_to_grid(_mesh:Mesh, _spacing:float):
     mode = bpy.context.mode
@@ -263,6 +264,28 @@ def snap_to_grid(_mesh:Mesh, _spacing:float):
         bm.to_mesh(_mesh)
     elif mode == 'EDIT_MESH':
         bmesh.update_edit_mesh(_mesh)  
+
+
+# -----------------------------------------------------------------------------
+# https://blenderartists.org/t/help-needed-boolean-union-of-many-objects/561736/10
+def union_objects(_objects:list[Object]):
+    deselect_all_objects()
+
+    for obj in _objects:
+        select_object(obj)
+
+    bpy.ops.object.join()
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
+    obj = bpy.context.object
+
+    box = create_bounding_box(obj)
+    
+
+    # mod = cube.modifiers.new('Boolean', 'BOOLEAN')
+    # mod.operation = 'INTERSECT'
+    # mod.object = obj
+    # bpy.ops.object.modifier_apply(modifier='Boolean')
 
 
 # -----------------------------------------------------------------------------
@@ -313,16 +336,19 @@ def unparent(_obj:Object, _keep_world_location=True):
 # Create
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def create_cube(_scale:tuple[float, float, float]=(1, 1, 1)) -> Mesh:
+def create_cube(_size:tuple[float, float, float]=(1, 1, 1)) -> Mesh:
+    s = Vector(_size)
+    s *= .5
+
     verts = [
-        Vector((-1 * _scale[0], -1 * _scale[1], -1 * _scale[2])),
-        Vector((-1 * _scale[0],  1 * _scale[1], -1 * _scale[2])),
-        Vector(( 1 * _scale[0],  1 * _scale[1], -1 * _scale[2])),
-        Vector(( 1 * _scale[0], -1 * _scale[1], -1 * _scale[2])),
-        Vector((-1 * _scale[0], -1 * _scale[1],  1 * _scale[2])),
-        Vector((-1 * _scale[0],  1 * _scale[1],  1 * _scale[2])),
-        Vector(( 1 * _scale[0],  1 * _scale[1],  1 * _scale[2])),
-        Vector(( 1 * _scale[0], -1 * _scale[1],  1 * _scale[2])),
+        Vector((-1 * s[0], -1 * s[1], -1 * s[2])),
+        Vector((-1 * s[0],  1 * s[1], -1 * s[2])),
+        Vector(( 1 * s[0],  1 * s[1], -1 * s[2])),
+        Vector(( 1 * s[0], -1 * s[1], -1 * s[2])),
+        Vector((-1 * s[0], -1 * s[1],  1 * s[2])),
+        Vector((-1 * s[0],  1 * s[1],  1 * s[2])),
+        Vector(( 1 * s[0],  1 * s[1],  1 * s[2])),
+        Vector(( 1 * s[0], -1 * s[1],  1 * s[2])),
     ]
     faces = [
         (0, 1, 2, 3),
@@ -332,19 +358,22 @@ def create_cube(_scale:tuple[float, float, float]=(1, 1, 1)) -> Mesh:
         (6, 7, 3, 2),
         (5, 6, 2, 1),
     ]
-    return create_mesh(verts, [], faces, 'CUBE')
+    return new_mesh(verts, [], faces, 'CUBE')
 
 
 # -----------------------------------------------------------------------------
-def create_arrow(_scale:tuple[float, float]=(1, 1)) -> Mesh:
+def create_arrow(_size:tuple[float, float]=(1, 1)) -> Mesh:
+    s = Vector(_size)
+    s *= .5
+
     verts = [
-        Vector((-1 * _scale[0],  0.4 * _scale[1], 0)),
-        Vector(( 0 * _scale[0],  0.4 * _scale[1], 0)),
-        Vector(( 0 * _scale[0],  1   * _scale[1], 0)), 
-        Vector(( 1 * _scale[0],  0   * _scale[1], 0)), 
-        Vector(( 0 * _scale[0], -1   * _scale[1], 0)), 
-        Vector(( 0 * _scale[0], -0.4 * _scale[1], 0)),
-        Vector((-1 * _scale[0], -0.4 * _scale[1], 0)),
+        Vector((-1 * s[0],  0.4 * s[1], 0)),
+        Vector(( 0 * s[0],  0.4 * s[1], 0)),
+        Vector(( 0 * s[0],  1   * s[1], 0)), 
+        Vector(( 1 * s[0],  0   * s[1], 0)), 
+        Vector(( 0 * s[0], -1   * s[1], 0)), 
+        Vector(( 0 * s[0], -0.4 * s[1], 0)),
+        Vector((-1 * s[0], -0.4 * s[1], 0)),
     ]
     edges = [
         (0, 1),
@@ -355,8 +384,31 @@ def create_arrow(_scale:tuple[float, float]=(1, 1)) -> Mesh:
         (5, 6),
         (6, 0),
     ]
-    return create_mesh(verts, edges, [], 'ARROW')
+    return new_mesh(verts, edges, [], 'ARROW')
 
+# -----------------------------------------------------------------------------
+# https://www.reddit.com/r/blenderhelp/comments/13d0r4u/comment/jjknwde/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
+def create_bounding_box(_obj:Object) -> Object:
+    bbox_min = Vector((float('inf'), float('inf'), float('inf')))
+    bbox_max = Vector((float('-inf'), float('-inf'), float('-inf')))
+
+    for vertex in _obj.data.vertices:
+        world_coords = _obj.matrix_world @ vertex.co
+        bbox_min.x = min(bbox_min[0], world_coords[0])
+        bbox_min.y = min(bbox_min[1], world_coords[1])
+        bbox_min.z = min(bbox_min[2], world_coords[2])
+
+        bbox_max.x = max(bbox_max[0], world_coords[0])
+        bbox_max.y = max(bbox_max[1], world_coords[1])
+        bbox_max.z = max(bbox_max[2], world_coords[2])
+
+    # Calculate box dimensions based on bounding box
+    center = (bbox_max + bbox_min) * 0.5
+    size = (bbox_max - bbox_min) * 0.5
+
+    # Create the box object
+    bpy.ops.mesh.primitive_cube_add(location=center, scale=size)
+    return bpy.context.object
 
 # -----------------------------------------------------------------------------
 def circle(_radius:float, 
@@ -402,7 +454,7 @@ def create_cylinder(_radius=2,
                 v4 = v2 + per_circle_verts
                 faces.append((v1, v3, v4, v2))
 
-    return create_mesh(verts, [], faces, 'CYLINDER')
+    return new_mesh(verts, [], faces, 'CYLINDER')
 
 
 # -----------------------------------------------------------------------------

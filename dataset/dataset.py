@@ -10,7 +10,7 @@ from enum import Enum
 from collections import UserList
 
 from ..        import b3d_utils
-from .movement import PlayerState
+from .movement import State
 
 
 # -----------------------------------------------------------------------------
@@ -43,7 +43,7 @@ class Attribute(int, Enum):
         raise ValueError(cls.__name__ + ' has no value matching "' + _s + '"')
 
 
-    PLAYER_STATE    = 0, 'player_state' , AttributeType.INT
+    STATE    = 0, 'player_state' , AttributeType.INT
     LOCATION        = 1, 'location'     , AttributeType.NONE
     TIMESTAMP       = 2, 'timestamp'    , AttributeType.FLOAT_VECTOR
     CONNECTED       = 3, 'connected'    , AttributeType.INT
@@ -58,15 +58,16 @@ class Attribute(int, Enum):
 # -----------------------------------------------------------------------------
 class DatabaseEntry(UserList):
     def __init__(self) -> None:
-        self.data = []
+        data = []
         for att in Attribute:
             match(att.type):
                 case AttributeType.NONE:
-                    self.data.append(None)
+                    data.append(None)
                 case AttributeType.INT:
-                    self.data.append(0)
+                    data.append(0)
                 case AttributeType.FLOAT_VECTOR:
-                    self.data.append(Vector())
+                    data.append(Vector())
+        self.data = np.array(data, dtype=object)
 
 
     def __getitem__(self, _key:int|str):
@@ -112,16 +113,16 @@ class Dataset:
         sequences: dict[int, list[list[Vector]]] = {}
 
         for entry in self.data:
-            sequences.setdefault(entry[Attribute.PLAYER_STATE.value], [])    
+            sequences.setdefault(entry[Attribute.STATE.value], [])    
         
         entry0 = self.data[0]
-        curr_state = entry0[Attribute.PLAYER_STATE.value]
+        curr_state = entry0[Attribute.STATE.value]
         curr_chain = [entry0[Attribute.LOCATION.value]]
         
         sequences[curr_state].append(curr_chain)
 
         for entry in self.data[1:]:
-            s = entry[Attribute.PLAYER_STATE.value]
+            s = entry[Attribute.STATE.value]
             l = entry[Attribute.LOCATION.value]
 
             if s == curr_state:
@@ -143,7 +144,7 @@ class DatasetIO:
         dataset = Dataset()
 
         for item in log:
-            player_state = int(item[Attribute.PLAYER_STATE.label])
+            player_state = int(item[Attribute.STATE.label])
 
             ts = str(item[Attribute.TIMESTAMP.label]).split(':')
             timestamp = Vector(( float(ts[0]), float(ts[1]), float(ts[2]) ))
@@ -154,7 +155,7 @@ class DatasetIO:
             location = Vector((x * -1, y, z))
 
             entry = DatabaseEntry()
-            entry[Attribute.PLAYER_STATE.value] = player_state
+            entry[Attribute.STATE.value] = player_state
             entry[Attribute.TIMESTAMP.value] = timestamp
             entry[Attribute.LOCATION.value] = location
 
@@ -175,7 +176,7 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
     mesh = _obj.data
     
     n             = len(mesh.vertices)
-    player_states = [PlayerState.Walking.value] * n
+    player_states = [State.Walking.value] * n
     timestamps    = [0] * n * 3
     connections     = [True] * n
     chain_starts  = [False] * n
@@ -192,7 +193,7 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
 
 
     if _dataset:
-        player_states = list(_dataset[:, Attribute.PLAYER_STATE.value] )
+        player_states = list(_dataset[:, Attribute.STATE.value] )
 
         packed_ts = list(_dataset[:, Attribute.TIMESTAMP.value])
         unpack(packed_ts, timestamps)
@@ -217,7 +218,7 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
                     x.data.foreach_set('vector', _data)
 
 
-    add_attribute(Attribute.PLAYER_STATE, player_states)
+    add_attribute(Attribute.STATE, player_states)
     add_attribute(Attribute.TIMESTAMP   , timestamps)
     add_attribute(Attribute.CONNECTED   , connections)
     add_attribute(Attribute.CHAIN_START , chain_starts)
@@ -248,7 +249,7 @@ def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
     for i in range(len(verts) - 1):
         edges.append( (i, i + 1) )
     
-    mesh = b3d_utils.create_mesh(verts, edges, [], _name)
+    mesh = b3d_utils.new_mesh(verts, edges, [], _name)
     obj = b3d_utils.new_object(_name, mesh)  
 
     # Add dataset to obj
@@ -269,6 +270,20 @@ def yield_attribute_layers(_bm:BMesh):
 
 # -----------------------------------------------------------------------------
 def get_dataset(_obj:Object) -> Dataset | None:
+    """
+    ### BUG:
+    I called this before a for-loop and then retrieved the location from it,
+    but after repeatedly calling the operation in a Operator, the values in the Vector objects randomly became incredibly large.
+
+    ### Example:
+
+    def op():
+        dataset = get_dataset(_obj)
+
+        for entry in dataset:
+            p = entry[Attribute.LOCATION.value]  
+    #### Each time op() was called this 'p' of Vector type became randomly corrupted
+    """
     if not is_dataset(_obj): return None
 
     bm = b3d_utils.get_bmesh(_obj)
@@ -276,6 +291,7 @@ def get_dataset(_obj:Object) -> Dataset | None:
     def retrieve_entry(vert):
         entry = DatabaseEntry()
         entry[Attribute.LOCATION.value] = vert.co
+        print(vert.co)
         for layer in yield_attribute_layers(bm):
             entry[layer.name] = vert[layer]
         return entry
@@ -337,7 +353,7 @@ def set_player_state(_obj:Object, _new_state:int):
 
     # Transform str to int
 
-    state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
 
     for v in bm.verts:
         if v.select:
@@ -354,13 +370,13 @@ def select_transitions(_obj:Object, _filter:str='', _restrict:bool=False):
     # Transform str to int
     if _filter:
         _filter = _filter.split(',')
-        _filter = [int(s) if s.isnumeric() else PlayerState[s] for s in _filter]
+        _filter = [int(s) if s.isnumeric() else State[s] for s in _filter]
 
     mesh = _obj.data
     bm = bmesh.from_edit_mesh(mesh)
 
     # Select transitions
-    state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
 
     b3d_utils.deselect_all_vertices(bm)
 
@@ -395,13 +411,13 @@ def select_player_states(_obj:Object, _filter:str=''):
     # Transform str to int
     if _filter:
         _filter = _filter.split(',')
-        _filter = [int(s) if s.isnumeric() else PlayerState[s] for s in _filter]
+        _filter = [int(s) if s.isnumeric() else State[s] for s in _filter]
 
     mesh = _obj.data
     bm = bmesh.from_edit_mesh(mesh)
 
     # Select transitions
-    state_layer = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
 
     b3d_utils.deselect_all_vertices(bm)
 

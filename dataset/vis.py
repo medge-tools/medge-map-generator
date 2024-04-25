@@ -5,7 +5,7 @@ from    bpy.types   import Context, SpaceView3D
 
 from ..         import b3d_utils
 from .dataset   import Attribute
-from .movement  import PlayerState
+from .movement  import State
 from .          import props, dataset
 
 # -----------------------------------------------------------------------------
@@ -29,7 +29,7 @@ def draw_callback_post_pixel(_context:Context):
     view_mat  = region_3d.view_matrix
 
     # Layers
-    state_layer       = bm.verts.layers.int.get(Attribute.PLAYER_STATE.label)
+    state_layer       = bm.verts.layers.int.get(Attribute.STATE.label)
     time_layer        = bm.verts.layers.float_vector.get(Attribute.TIMESTAMP.label)
     chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
 
@@ -83,7 +83,7 @@ def draw_callback_post_pixel(_context:Context):
         state = v[state_layer]
         
         if vis_settings.to_name:
-            state = PlayerState(state).name
+            state = State(state).name
 
         blf.size(0, font_size * 1.5)
         blf.position(0, co_2d[0] - font_size, co_2d[1], 0)

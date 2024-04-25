@@ -1,7 +1,7 @@
 from bpy.types      import PropertyGroup, Object, Mesh
 from bpy.props      import *
 
-from .movement      import PlayerStateProperty
+from .movement      import StateProperty
 from .dataset       import is_dataset
 
 
@@ -24,7 +24,7 @@ class MET_DS_PG_OpsSettings(PropertyGroup):
     restrict:   BoolProperty(name='Restrict')
     filter:     StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
 
-    new_state:  PlayerStateProperty()
+    new_state:  StateProperty()
 
 
 # -----------------------------------------------------------------------------
@@ -53,10 +53,11 @@ def get_dataset_prop(_obj:Object) -> MET_MESH_PG_Dataset:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def register():
-    Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
+# BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
+# def register():
+#    Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
 
 
 # -----------------------------------------------------------------------------
-def unregister():
-    del Mesh.medge_dataset
+# def unregister():
+#    del Mesh.medge_dataset

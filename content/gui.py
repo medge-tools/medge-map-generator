@@ -22,7 +22,7 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
         col.separator()
         
         row = col.row(align=True)
-        row.template_list('MET_UL_Module', '#modules', modules, 'items', modules, 'selected_item_idx', rows=10)
+        row.template_list('MET_UL_Module', '#modules', modules, 'items', modules, 'selected_item_idx', rows=5)
 
         col.separator()
         col.operator(MET_OT_UpdateActiveStates.bl_idname)

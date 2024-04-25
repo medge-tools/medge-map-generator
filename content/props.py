@@ -4,7 +4,7 @@ from bpy.props        import *
 from random import randint
 
 from ..b3d_utils        import GenericList
-from ..dataset.movement import PlayerState
+from ..dataset.movement import State
 from ..dataset.dataset  import Dataset, Attribute
 
 
@@ -12,10 +12,10 @@ from ..dataset.dataset  import Dataset, Attribute
 class MET_PG_Module(PropertyGroup):
 
     def __get_name(self):
-        return PlayerState(self.state).name
+        return State(self.state).name
 
 
-    def random_object(self):
+    def random_object(self) -> Object:
         if not self.use_collection:
             return self.object
         else:        
@@ -49,7 +49,7 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
         
         self.items.clear()
         
-        for state in PlayerState:
+        for state in State:
             module = self.add()
             module.state = state
 
@@ -57,7 +57,7 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
 
     def update_active_states(self, _dataset:Dataset):
-        states = _dataset[:, Attribute.PLAYER_STATE.value]
+        states = _dataset[:, Attribute.STATE.value]
         for m in self.items:
             m.active = False
             if m.state in states:

@@ -1,4 +1,4 @@
-from bpy.types  import Operator, Context
+from bpy.types  import Event, Operator, Context
 
 from ..dataset.dataset import is_dataset, get_dataset
 from .props            import get_modules_prop
@@ -25,9 +25,17 @@ class MET_OT_UpdateActiveStates(Operator):
     
 
 # -----------------------------------------------------------------------------
+from ..dataset.dataset import Dataset, Attribute
+from copy import deepcopy
+
+
 class MET_OT_Populate(Operator):
     bl_idname = 'medge_content.populate'
     bl_label = 'Populate'
+    bl_options = {'UNDO'}
+
+
+    dataset: Dataset
 
 
     @classmethod
@@ -38,7 +46,7 @@ class MET_OT_Populate(Operator):
 
 
     def execute(self, _context:Context):
-        modules = get_modules_prop(_context)
-        populate(_context.object, modules.items)
+        modules = get_modules_prop(_context).items
+        populate(_context.object, modules)
         return {'FINISHED'}
 

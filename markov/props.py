@@ -3,7 +3,7 @@ from bpy.props  import *
 
 from ..b3d_utils        import GenericList
 from ..dataset.props    import get_dataset_prop
-from ..dataset.movement import PlayerState, PlayerStateProperty
+from ..dataset.movement import State, StateProperty
 
 from .markov import MarkovChain
 from .chains import GenChainSettings
@@ -80,8 +80,8 @@ class MET_PG_MarkovChain(PropertyGroup):
         if self.name not in markov_chain_models: return
 
         mc = markov_chain_models[self.name]
-        f = PlayerState[self.from_state].value
-        t = PlayerState[self.to_state].value
+        f = State[self.from_state].value
+        t = State[self.to_state].value
 
         mc.update_statistics(f, t)
 
@@ -90,8 +90,8 @@ class MET_PG_MarkovChain(PropertyGroup):
     collection: PointerProperty(type=Collection, name='Collection')
 
     display_statistics: BoolProperty(name='Display Statistics')
-    from_state: PlayerStateProperty('From', update_statistics)
-    to_state: PlayerStateProperty('To', update_statistics)
+    from_state: StateProperty('From', update_statistics)
+    to_state: StateProperty('To', update_statistics)
     
     length: IntProperty(name='Length', default=100, min=0)
     seed: IntProperty(name='Seed', default=2024, min=0)

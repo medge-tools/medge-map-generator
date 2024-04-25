@@ -155,19 +155,19 @@ class Chain(UserList):
 
 
     def update_aabb(self):
-        fmax = float_info.max
-        fmin = -fmax
+        fmax = float('inf')
+        fmin = float('-inf')
         bmin = Vector((fmax, fmax, fmax))
         bmax = Vector((fmin, fmin, fmin))
         
         for p in self.data:
-            if p.x < bmin.x: bmin.x = p.x
-            if p.y < bmin.y: bmin.y = p.y
-            if p.z < bmin.z: bmin.z = p.z
+            bmin.x = min(bmin.x, p.x)
+            bmin.y = min(bmin.y, p.y)
+            bmin.z = min(bmin.z, p.z)
 
-            if p.x > bmax.x: bmax.x = p.x
-            if p.y > bmax.y: bmax.y = p.y
-            if p.z > bmax.z: bmax.z = p.z
+            bmax.x = max(bmax.x, p.x)
+            bmax.y = max(bmax.y, p.y)
+            bmax.z = max(bmax.z, p.z) 
 
         bmax.z += self.height
 
@@ -433,7 +433,7 @@ class GeneratedChain(UserList):
                     self.append(Chain(curr_state, curr_points))
 
                 curr_points = []
-                curr_state = entry[Attribute.PLAYER_STATE.value]
+                curr_state = entry[Attribute.STATE.value]
 
             point = entry[Attribute.LOCATION.value]
             curr_points.append(point)
@@ -448,7 +448,7 @@ class GeneratedChain(UserList):
 
             for k, point in enumerate(chain):
                 entry = DatabaseEntry()
-                entry[Attribute.PLAYER_STATE.value] = chain.state
+                entry[Attribute.STATE.value] = chain.state
                 entry[Attribute.LOCATION.value] = point
                 entry[Attribute.AABB_MIN.value] = bmin
                 entry[Attribute.AABB_MAX.value] = bmax

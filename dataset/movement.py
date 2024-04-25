@@ -3,7 +3,7 @@ from bpy.props import EnumProperty
 from enum import IntEnum
 
 
-class PlayerState(IntEnum):
+class State(IntEnum):
     NONE                           = 0
     Walking                        = 1
     Falling                        = 2
@@ -102,9 +102,9 @@ class PlayerState(IntEnum):
 
 
 # -----------------------------------------------------------------------------
-def PlayerStateProperty(_name='State', _update=None):
+def StateProperty(_name='State', _update=None):
     def __get_state_items(self, context):
-        return [(data.name, data.name, '') for data in PlayerState]
+        return [(data.name, data.name, '') for data in State]
     
 
     return EnumProperty(name=_name, 
