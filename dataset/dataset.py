@@ -1,13 +1,14 @@
 import  bmesh
 from    mathutils   import Vector
 from    bpy.types   import Object
-from    bmesh.types import BMesh
+from    bmesh.types import BMesh, BMLayerAccessVert
 
 import ntpath
 import json
-import numpy as np
-from enum import Enum
-from collections import UserList
+import numpy       as np
+from   enum        import Enum
+from   collections import UserList
+from   typing      import Generator
 
 from ..        import b3d_utils
 from .movement import State
@@ -170,7 +171,7 @@ class DatasetIO:
 
 
 # -----------------------------------------------------------------------------
-def object_to_dataset(_obj:Object, _dataset:Dataset = None):
+def to_dataset(_obj:Object, _dataset:Dataset = None):
     prev_mode = _obj.mode
     b3d_utils.set_object_mode(_obj, 'OBJECT')
     mesh = _obj.data
@@ -216,15 +217,17 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
                     x.data.foreach_set('value', _data)
                 case AttributeType.FLOAT_VECTOR:
                     x.data.foreach_set('vector', _data)
+                case _:
+                    raise Exception(f'Unknown case for attribute: {_att.type}')
 
 
     add_attribute(Attribute.STATE, player_states)
-    add_attribute(Attribute.TIMESTAMP   , timestamps)
-    add_attribute(Attribute.CONNECTED   , connections)
-    add_attribute(Attribute.CHAIN_START , chain_starts)
-    add_attribute(Attribute.LENGTH      , lengths)
-    add_attribute(Attribute.AABB_MIN    , aabb_mins)
-    add_attribute(Attribute.AABB_MAX    , aabb_maxs)
+    add_attribute(Attribute.TIMESTAMP  , timestamps)
+    add_attribute(Attribute.CONNECTED  , connections)
+    add_attribute(Attribute.CHAIN_START, chain_starts)
+    add_attribute(Attribute.LENGTH     , lengths)
+    add_attribute(Attribute.AABB_MIN   , aabb_mins)
+    add_attribute(Attribute.AABB_MAX   , aabb_maxs)
         
     b3d_utils.set_object_mode(_obj, prev_mode)
 
@@ -232,11 +235,12 @@ def object_to_dataset(_obj:Object, _dataset:Dataset = None):
 # -----------------------------------------------------------------------------
 def is_dataset(_obj:Object):
     if _obj.type != 'MESH': return False
+
     for att in Attribute:
         if att.type == AttributeType.NONE: continue
         if att.label not in _obj.data.attributes:
             return False
-            #print(_obj.name + ' is missing dataset attribute: ' + att.label)
+        
     return True
 
 
@@ -253,12 +257,13 @@ def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
     obj = b3d_utils.new_object(_name, mesh)  
 
     # Add dataset to obj
-    object_to_dataset(obj, _dataset)
+    to_dataset(obj, _dataset)
 
     return obj
 
+
 # -----------------------------------------------------------------------------
-def yield_attribute_layers(_bm:BMesh):
+def attribute_layers(_bm:BMesh) -> Generator[BMLayerAccessVert, None, None]:
     layers = _bm.verts.layers
     for att in Attribute:
         match(att.type):
@@ -269,34 +274,17 @@ def yield_attribute_layers(_bm:BMesh):
 
 
 # -----------------------------------------------------------------------------
-def get_dataset(_obj:Object) -> Dataset | None:
-    """
-    ### BUG:
-    I called this before a for-loop and then retrieved the location from it,
-    but after repeatedly calling the operation in a Operator, the values in the Vector objects randomly became incredibly large.
-
-    ### Example:
-
-    def op():
-        dataset = get_dataset(_obj)
-
-        for entry in dataset:
-            p = entry[Attribute.LOCATION.value]  
-    #### Each time op() was called this 'p' of Vector type became randomly corrupted
-    """
-    if not is_dataset(_obj): return None
-
+def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
     bm = b3d_utils.get_bmesh(_obj)
 
     def retrieve_entry(vert):
         entry = DatabaseEntry()
         entry[Attribute.LOCATION.value] = vert.co
-        print(vert.co)
-        for layer in yield_attribute_layers(bm):
-            entry[layer.name] = vert[layer]
-        return entry
 
-    dataset = Dataset()
+        for layer in attribute_layers(bm):
+            entry[layer.name] = vert[layer]
+
+        return entry
 
     bm.verts.ensure_lookup_table()
 
@@ -309,13 +297,13 @@ def get_dataset(_obj:Object) -> Dataset | None:
             c = True
 
         entry[Attribute.CONNECTED.value] = c
-        dataset.append(entry)
+
+        yield entry
     
     entry = retrieve_entry(bm.verts[-1])
     entry[Attribute.CONNECTED.value] = False
-    dataset.append(entry)
-    
-    return dataset
+
+    yield entry
 
 
 # -----------------------------------------------------------------------------

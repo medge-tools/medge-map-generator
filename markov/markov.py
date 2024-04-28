@@ -2,11 +2,9 @@ from bpy.types import Object
 
 import numpy as np
 
-from ..dataset.dataset  import Attribute, Dataset
-from ..dataset          import dataset
+from ..dataset.dataset  import Attribute, Dataset, is_dataset, dataset_entries
 from ..dataset.movement import State
-from .chains            import Chain, ChainPool, GeneratedChain, GenChainSettings
-from .bounds            import Hit
+from .chains            import ChainPool, GeneratedChain, GenChainSettings
 
 
 # -----------------------------------------------------------------------------
@@ -36,10 +34,10 @@ class MarkovChain:
 
         for obj in _objects:
             if not obj.visible_get(): continue
-            if not dataset.is_dataset(obj): continue
+            if not is_dataset(obj): continue
 
-            d = dataset.get_dataset(obj)
-            D.extend(d)
+            for entry in dataset_entries(obj):
+                D.append(entry)
 
 
         if len(D) == 0: return False
@@ -57,10 +55,10 @@ class MarkovChain:
         # Populate transition matrix
         transitions = zip(D, D[1:])
         for (entry1, entry2) in transitions:
-            if not entry1[Attribute.CONNECTED]: continue
+            if not entry1[Attribute.CONNECTED.value]: continue
 
-            i = entry1[Attribute.STATE]
-            j = entry2[Attribute.STATE]
+            i = entry1[Attribute.STATE.value]
+            j = entry2[Attribute.STATE.value]
 
             TM[i][j] += 1.0
 

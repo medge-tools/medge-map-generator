@@ -5,7 +5,7 @@ from random import randint
 
 from ..b3d_utils        import GenericList
 from ..dataset.movement import State
-from ..dataset.dataset  import Dataset, Attribute
+from ..dataset.dataset  import Attribute, dataset_entries
 
 
 # -----------------------------------------------------------------------------
@@ -56,12 +56,13 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
         self.initialized = True
 
 
-    def update_active_states(self, _dataset:Dataset):
-        states = _dataset[:, Attribute.STATE.value]
+    def update_active_states(self, _obj:Object):
         for m in self.items:
             m.active = False
-            if m.state in states:
-                m.active = True
+
+        for entry in dataset_entries(_obj):
+            idx = entry[Attribute.STATE.value]
+            self.items[idx].active = True
 
 
     items: CollectionProperty(type=MET_PG_Module)

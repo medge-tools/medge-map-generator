@@ -11,7 +11,7 @@ from math           import radians
 from dataclasses    import dataclass
 
 from ..b3d_utils       import rotation_matrix
-from ..dataset.dataset import Dataset, DatabaseEntry, Attribute, get_dataset, create_polyline
+from ..dataset.dataset import Dataset, DatabaseEntry, Attribute, dataset_entries, create_polyline
 from .bounds           import AABB, Capsule, Hit
 
 
@@ -420,14 +420,12 @@ class GeneratedChain(UserList):
 
 
     def from_dataset(self, _dataset_object:Object):
-        if not (dataset := get_dataset(_dataset_object)): return
-
         self.obj = _dataset_object
 
         curr_points = None
         curr_state = None
 
-        for entry in dataset:
+        for entry in dataset_entries(_dataset_object):
             if entry[Attribute.CHAIN_START.value]:
                 if curr_points:
                     self.append(Chain(curr_state, curr_points))

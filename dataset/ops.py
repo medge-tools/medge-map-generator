@@ -3,8 +3,9 @@ from bpy.types              import Operator, Context
 from bpy_extras.io_utils    import ImportHelper, ExportHelper
 from bpy.props              import StringProperty
 
-from .dataset   import *
-from .          import props, vis
+from .dataset import *
+from .props   import get_dataset_prop
+from .        import vis
 
 
 # -----------------------------------------------------------------------------
@@ -116,7 +117,7 @@ class MET_OT_ConvertToDataset(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        object_to_dataset(obj)
+        to_dataset(obj)
         return {'FINISHED'}  
 
 
@@ -134,7 +135,7 @@ class MET_OT_SetState(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = props.get_dataset_prop(obj).get_ops_settings()
+        settings = get_dataset_prop(obj).get_ops_settings()
         s = settings.new_state
         set_player_state(obj, State[s])
         return {'FINISHED'} 
@@ -154,7 +155,7 @@ class MET_OT_SelectTransitions(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = props.get_dataset_prop(obj).get_ops_settings()
+        settings = get_dataset_prop(obj).get_ops_settings()
         select_transitions(obj, settings.filter, settings.restrict)
         return {'FINISHED'}
     
@@ -173,7 +174,7 @@ class MET_OT_SelectStates(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = get_dataset(obj).get_ops_settings()
+        settings = get_dataset_prop(obj).get_ops_settings()
         select_player_states(obj, settings.filter)
         return {'FINISHED'}
 

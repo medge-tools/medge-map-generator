@@ -17,8 +17,67 @@ from copy import deepcopy
 
 
 # -----------------------------------------------------------------------------
-# Operations
+# Object
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def new_object(_name:str, _data:bpy.types.ID, _collection:str=None, _parent:Object=None):
+    obj = bpy.data.objects.new(_name, _data)
+    link_to_scene(obj, _collection)
+    if(_parent): obj.parent = _parent
+    set_active(obj)
+    return obj
+
+
+# -----------------------------------------------------------------------------
+def link_to_scene(_obj:Object, _collection:str=None):
+    if _obj == None: return
+    """If the collection == None, then the object will be linked to the root collection"""
+    for uc in _obj.users_collection:
+        uc.objects.unlink(_obj)
+
+    if _collection is not None:
+        c = bpy.context.blend_data.collections.get(_collection)
+        if c == None:
+            c = bpy.data.collections.new(_collection)
+            bpy.context.collection.children.link(c)
+        c.objects.link(_obj)
+    else:
+        bpy.context.collection.objects.link(_obj)
+
+
+# -----------------------------------------------------------------------------
+def remove_object(_obj:Object):
+    bpy.data.objects.remove(_obj)
+
+
+# -----------------------------------------------------------------------------
+def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
+    if _instance:
+        instance = new_object(_obj.name + '_INST', _obj.data, _collection)
+        set_active(instance)
+        return instance
+    else:
+        copy = _obj.copy()
+        copy.data = _obj.data.copy()
+        copy.name = _obj.name + '_COPY'
+        link_to_scene(copy, _collection)
+        set_active(copy)
+        return copy
+
+
+# -----------------------------------------------------------------------------
+def join_objects(_objects:list[Object]) -> Object:
+    deselect_all_objects()
+
+    for obj in _objects:
+        select_object(obj)
+
+    bpy.ops.object.join()
+    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+
+    return bpy.context.object
+
+
 # -----------------------------------------------------------------------------
 def set_active(_obj:Object):
     active = bpy.context.active_object
@@ -57,82 +116,52 @@ def deselect_all_objects():
 
 
 # -----------------------------------------------------------------------------
-def select_all_vertices(_bm:BMesh):
-    for v in _bm.verts:
-        v.select = True
-    _bm.select_flush_mode()   
+# Rotation mode: 
+#   https://gist.github.com/behreajj/2dbb6fb7cee78c167cd85085e67bcdf6
+# Mirror rotation: 
+#   https://www.gamedev.net/forums/topic/#599824-mirroring-a-quaternion-against-the-yz-plane/
+def get_rotation_mirrored_x_axis(_obj:Object) -> Euler:
+    prev_rot_mode = _obj.rotation_mode
+    _obj.rotation_mode = 'QUATERNION'
+    q = _obj.rotation_quaternion.copy()
+    q.x *= -1
+    q.w *= -1
+    _obj.rotation_mode = prev_rot_mode
+    return q.to_euler()
 
 
 # -----------------------------------------------------------------------------
-def deselect_all_vertices(_bm:BMesh):
-    for v in _bm.verts:
-        v.select = False
-    _bm.select_flush_mode()   
-    
-
-# -----------------------------------------------------------------------------
-def link_to_scene(_obj:Object, _collection:str=None):
-    if _obj == None: return
-    """If the collection == None, then the object will be linked to the root collection"""
-    for uc in _obj.users_collection:
-        uc.objects.unlink(_obj)
-
-    if _collection is not None:
-        c = bpy.context.blend_data.collections.get(_collection)
-        if c == None:
-            c = bpy.data.collections.new(_collection)
-            bpy.context.collection.children.link(c)
-        c.objects.link(_obj)
-    else:
-        bpy.context.collection.objects.link(_obj)
+# https://blender.stackexchange.com/questions/159538/how-to-apply-all-transformations-to-an-object-at-low-level
+def apply_all_transforms(_obj: Object):
+    mb = _obj.matrix_basis
+    if hasattr(_obj.data, 'transform'):
+        _obj.data.transform(mb)
+    for c in _obj.children:
+        c.matrix_local = mb @ c.matrix_local
+        
+    _obj.matrix_basis.identity()
 
 
 # -----------------------------------------------------------------------------
-def auto_gui_properties(_data:PropertyGroup, _layout:UILayout):
-    for key in _data.__annotations__.keys():
-        _layout.prop(_data, key)
+# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
+def set_parent(_child:Object, _parent:Object, _keep_world_location=True):
+    _child.parent = _parent
+    if _keep_world_location:
+        _child.matrix_parent_inverse = _parent.matrix_world.inverted()
 
 
 # -----------------------------------------------------------------------------
-def get_bmesh(_obj:Object):
-    if _obj.mode == 'OBJECT':
-        bm = bmesh.new()
-        bm.from_mesh(_obj.data)
-        return bm
-    
-    if _obj.mode == 'EDIT':
-        return bmesh.from_edit_mesh(_obj.data)
+# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
+def unparent(_obj:Object, _keep_world_location=True):
+    parented_wm = _obj.matrix_world.copy()
+    _obj.parent = None
+    if _keep_world_location:
+        _obj.matrix_world = parented_wm
 
 
 # -----------------------------------------------------------------------------
-# Scene
+# Mesh
 # -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def new_object(_name:str, _data:bpy.types.ID, _collection:str=None, _parent:Object = None):
-    obj = bpy.data.objects.new(_name, _data)
-    link_to_scene(obj, _collection)
-    if(_parent): obj.parent = _parent
-    set_active(obj)
-    return obj
-
-
-# -----------------------------------------------------------------------------
-def remove_object(_obj:Object):
-    bpy.data.objects.remove(_obj)
-
-
-# -----------------------------------------------------------------------------
-def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
-    if _instance:
-        return new_object(_obj.name + '_INST', _obj.data, _collection)
-    else:
-        copy = _obj.copy()
-        copy.data = _obj.data.copy()
-        copy.name = _obj.name + '_COPY'
-        link_to_scene(copy, _collection)
-        return copy
-
-
 # -----------------------------------------------------------------------------
 def new_mesh(
         _verts:list[tuple[float, float, float]], 
@@ -224,6 +253,31 @@ def convert_to_new_mesh(_obj:Object) -> Object:
 
 
 # -----------------------------------------------------------------------------
+def get_bmesh(_obj:Object):
+    if _obj.mode == 'OBJECT':
+        bm = bmesh.new()
+        bm.from_mesh(_obj.data)
+        return bm
+    
+    if _obj.mode == 'EDIT':
+        return bmesh.from_edit_mesh(_obj.data)
+
+
+# -----------------------------------------------------------------------------
+def select_all_vertices(_bm:BMesh):
+    for v in _bm.verts:
+        v.select = True
+    _bm.select_flush_mode()   
+
+
+# -----------------------------------------------------------------------------
+def deselect_all_vertices(_bm:BMesh):
+    for v in _bm.verts:
+        v.select = False
+    _bm.select_flush_mode()   
+    
+
+# -----------------------------------------------------------------------------
 def transform(_mesh:Mesh, _transforms:list[Matrix]):
     mode = bpy.context.mode
     bm = bmesh.new()
@@ -267,70 +321,21 @@ def snap_to_grid(_mesh:Mesh, _spacing:float):
 
 
 # -----------------------------------------------------------------------------
-# https://blenderartists.org/t/help-needed-boolean-union-of-many-objects/561736/10
-def union_objects(_objects:list[Object]):
-    deselect_all_objects()
+def mesh_bounds(_obj:Object) -> tuple[Vector, Vector]:
+    bbmin = Vector((float('inf'), float('inf'), float('inf')))
+    bbmax = Vector((float('-inf'), float('-inf'), float('-inf')))
 
-    for obj in _objects:
-        select_object(obj)
+    for vertex in _obj.data.vertices:
+        world_co = _obj.matrix_world @ vertex.co
+        bbmin.x = min(bbmin[0], world_co[0])
+        bbmin.y = min(bbmin[1], world_co[1])
+        bbmin.z = min(bbmin[2], world_co[2])
 
-    bpy.ops.object.join()
-    bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+        bbmax.x = max(bbmax[0], world_co[0])
+        bbmax.y = max(bbmax[1], world_co[1])
+        bbmax.z = max(bbmax[2], world_co[2])
 
-    obj = bpy.context.object
-
-    box = create_bounding_box(obj)
-    
-
-    # mod = cube.modifiers.new('Boolean', 'BOOLEAN')
-    # mod.operation = 'INTERSECT'
-    # mod.object = obj
-    # bpy.ops.object.modifier_apply(modifier='Boolean')
-
-
-# -----------------------------------------------------------------------------
-# Rotation mode: 
-#   https://gist.github.com/behreajj/2dbb6fb7cee78c167cd85085e67bcdf6
-# Mirror rotation: 
-#   https://www.gamedev.net/forums/topic/# 599824-mirroring-a-quaternion-against-the-yz-plane/
-def get_rotation_mirrored_x_axis(_obj:Object) -> Euler:
-    prev_rot_mode = _obj.rotation_mode
-    _obj.rotation_mode = 'QUATERNION'
-    q = _obj.rotation_quaternion.copy()
-    q.x *= -1
-    q.w *= -1
-    _obj.rotation_mode = prev_rot_mode
-    return q.to_euler()
-
-
-# -----------------------------------------------------------------------------
-# https://blender.stackexchange.com/questions/159538/how-to-apply-all-transformations-to-an-object-at-low-level
-def apply_all_transforms(_obj: Object):
-    mb = _obj.matrix_basis
-    if hasattr(_obj.data, 'transform'):
-        _obj.data.transform(mb)
-    for c in _obj.children:
-        c.matrix_local = mb @ c.matrix_local
-        
-    _obj.matrix_basis.identity()
-
-
-# -----------------------------------------------------------------------------
-# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
-def set_parent(_child:Object, _parent:Object, _keep_world_location=True):
-    _child.parent = _parent
-    if _keep_world_location:
-        _child.matrix_parent_inverse = _parent.matrix_world.inverted()
-
-
-# -----------------------------------------------------------------------------
-# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
-def unparent(_obj:Object, _keep_world_location=True):
-    parented_wm = _obj.matrix_world.copy()
-    _obj.parent = None
-    if _keep_world_location:
-        _obj.matrix_world = parented_wm
-
+    return bbmin, bbmax
 
 # -----------------------------------------------------------------------------
 # Create
@@ -386,21 +391,11 @@ def create_arrow(_size:tuple[float, float]=(1, 1)) -> Mesh:
     ]
     return new_mesh(verts, edges, [], 'ARROW')
 
+
 # -----------------------------------------------------------------------------
-# https://www.reddit.com/r/blenderhelp/comments/13d0r4u/comment/jjknwde/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button
 def create_bounding_box(_obj:Object) -> Object:
-    bbox_min = Vector((float('inf'), float('inf'), float('inf')))
-    bbox_max = Vector((float('-inf'), float('-inf'), float('-inf')))
-
-    for vertex in _obj.data.vertices:
-        world_coords = _obj.matrix_world @ vertex.co
-        bbox_min.x = min(bbox_min[0], world_coords[0])
-        bbox_min.y = min(bbox_min[1], world_coords[1])
-        bbox_min.z = min(bbox_min[2], world_coords[2])
-
-        bbox_max.x = max(bbox_max[0], world_coords[0])
-        bbox_max.y = max(bbox_max[1], world_coords[1])
-        bbox_max.z = max(bbox_max[2], world_coords[2])
+    """_obj: Object of type Mesh"""
+    bbox_min, bbox_max = mesh_bounds(_obj)
 
     # Calculate box dimensions based on bounding box
     center = (bbox_max + bbox_min) * 0.5
@@ -409,6 +404,7 @@ def create_bounding_box(_obj:Object) -> Object:
     # Create the box object
     bpy.ops.mesh.primitive_cube_add(location=center, scale=size)
     return bpy.context.object
+
 
 # -----------------------------------------------------------------------------
 def circle(_radius:float, 
@@ -422,6 +418,7 @@ def circle(_radius:float,
         x = a + _radius * math.cos(angle_radius)
         y = b + _radius * math.sin(angle_radius)
         verts.append((x, y, c))
+        
     # Adding the first vertex as last vertex to close the loop
     verts.append(verts[0])
     return verts
@@ -529,7 +526,7 @@ def rotation_matrix(_v1, _v2):
 
 
 # -----------------------------------------------------------------------------
-# GPU
+# Graphics
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/61699/how-to-draw-geometry-in-3d-view-window-with-bgl
@@ -596,6 +593,12 @@ def draw_aabb_lines_3d(_bmin:Vector, _bmax:Vector, _color:tuple, _width=1):
 # -----------------------------------------------------------------------------
 # Layout
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def auto_gui_props(_data:PropertyGroup, _layout:UILayout):
+    for key in _data.__annotations__.keys():
+        _layout.prop(_data, key)
+
+
 # -----------------------------------------------------------------------------
 def draw_box(_layout:UILayout, _text:str, _alignment='CENTER'):
     box = _layout.box()
