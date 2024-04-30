@@ -41,7 +41,13 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         col.prop(settings, 'new_state')
         col.separator()
         col.operator(MET_OT_SetState.bl_idname)
-
+        
+        col.separator()
+        col.prop(settings, 'filter')
+        
+        col.separator()
+        col.operator(MET_OT_SelectStates.bl_idname)
+        
         col.separator()
         col.prop(settings, 'use_filter')
         if settings.use_filter:
@@ -50,12 +56,6 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         
         col.separator()
         col.operator(MET_OT_SelectTransitions.bl_idname)
-        
-        col.separator()
-        col.prop(settings, 'filter')
-        
-        col.separator()
-        col.operator(MET_OT_SelectStates.bl_idname)
 
 
 # -----------------------------------------------------------------------------

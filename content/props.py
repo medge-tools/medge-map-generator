@@ -15,7 +15,7 @@ class MET_PG_Module(PropertyGroup):
         return State(self.state).name
 
 
-    def random_object(self) -> Object:
+    def random_object(self) -> Object | None:
         if not self.use_collection:
             return self.object
         else:        

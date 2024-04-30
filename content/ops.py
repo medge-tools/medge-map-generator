@@ -40,6 +40,6 @@ class MET_OT_Populate(Operator):
 
     def execute(self, _context:Context):
         modules = get_modules_prop(_context).items
-        populate(_context.object, modules)
+        populate(_context.object, modules, _context)
         return {'FINISHED'}
 

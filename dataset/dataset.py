@@ -307,6 +307,44 @@ def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
 
 
 # -----------------------------------------------------------------------------
+def dataset_sequences(_obj:Object, _length2d=False) -> Generator[tuple[int, list[Vector], float], None, None]:
+    """Returns (state, locations, total length)"""
+    entries = dataset_entries(_obj)
+
+    entry0 = next(entries)
+    curr_state = entry0[Attribute.STATE.value]
+    curr_chain = [entry0[Attribute.LOCATION.value]]
+    curr_length = 0
+
+    prev_l = None
+
+    for entry in entries:
+        s = entry[Attribute.STATE.value]
+        l = entry[Attribute.LOCATION.value]
+
+        if prev_l:
+            if _length2d:
+                p1 = Vector((l.x, l.y, 0))
+                p2 = Vector((prev_l.x, prev_l.y, 0))
+                curr_length += (p1 - p2).length
+            else:
+                curr_length += (l - prev_l).length
+
+        if s == curr_state:
+            curr_chain.append(l)
+
+        else:
+            yield curr_state, curr_chain, curr_length
+            curr_state = s
+            curr_chain = [l]
+            curr_length = 0
+
+        prev_l = l
+    
+    yield curr_state, curr_chain, curr_length
+
+
+# -----------------------------------------------------------------------------
 def resolve_overlap(_obj:Object):
     if not is_dataset(_obj): return
     if _obj.mode != 'EDIT': return
