@@ -77,15 +77,6 @@ def join_objects(_objects:list[Object]) -> Object:
 
     return bpy.context.object
 
-
-# -----------------------------------------------------------------------------
-def set_active(_obj:Object):
-    active = bpy.context.active_object
-    if active: active.select_set(False)
-    bpy.context.view_layer.objects.active = _obj
-    _obj.select_set(True)
-
-
 # -----------------------------------------------------------------------------
 def set_object_mode(_obj:Object, _mode:str):
     bpy.context.view_layer.objects.active = _obj
@@ -113,6 +104,14 @@ def select_all_objects():
 def deselect_all_objects():
     for obj in bpy.context.selected_objects:
         obj.select_set(False)
+
+
+
+# -----------------------------------------------------------------------------
+def set_active(_obj:Object):
+    active = bpy.context.active_object
+    if active: active.select_set(False)
+    select_object(_obj)
 
 
 # -----------------------------------------------------------------------------
@@ -336,6 +335,15 @@ def mesh_bounds(_obj:Object) -> tuple[Vector, Vector]:
         bbmax.z = max(bbmax[2], world_co[2])
 
     return bbmin, bbmax
+
+
+# -----------------------------------------------------------------------------
+# Collection
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def get_active_collection():
+    return bpy.context.view_layer.active_layer_collection.collection
+
 
 # -----------------------------------------------------------------------------
 # Create

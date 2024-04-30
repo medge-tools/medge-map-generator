@@ -43,8 +43,14 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
             col.prop(module, 'object')
 
         col.separator(factor=2)
-        draw_box(col, 'Selected Dataset will be populated')
+        draw_box(col, 'Selected Dataset Object will be populated')
 
         col.separator()
         col.operator(MET_OT_Populate.bl_idname)
+        
+        col.separator(factor=2)
+        draw_box(col, 'Select Collection')
+
+        col.separator()
+        col.operator(MET_OT_FinalizeContent.bl_idname)
 

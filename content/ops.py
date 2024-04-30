@@ -1,8 +1,9 @@
 from bpy.types  import Operator, Context
 
+from ..b3d_utils       import get_active_collection
 from ..dataset.dataset import is_dataset
-from .props            import get_modules_prop
-from .content          import populate
+from .props            import get_modules_prop, get_population_prop
+from .content          import populate, finalize
 
 
 # -----------------------------------------------------------------------------
@@ -43,3 +44,23 @@ class MET_OT_Populate(Operator):
         populate(_context.object, modules, _context)
         return {'FINISHED'}
 
+
+# -----------------------------------------------------------------------------
+class MET_OT_FinalizeContent(Operator):
+    bl_idname = 'medge_content.finalize_content'
+    bl_label = 'Finalize Content'
+    bl_options = {'UNDO'}
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        collection = get_active_collection()
+        if not collection: return False
+        prop = get_population_prop(collection)
+        return prop.has_content
+
+
+    def execute(self, _context:Context):
+        collection = get_active_collection()
+        finalize(collection)
+        return {'FINISHED'}

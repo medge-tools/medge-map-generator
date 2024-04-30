@@ -71,7 +71,7 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
 # -----------------------------------------------------------------------------
 class MET_UL_Module(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
+    def draw_item(self, context, layout, data, item:MET_PG_Module, icon, active_data, active_property, index, flt_flag):
         if self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
 
@@ -83,11 +83,21 @@ class MET_UL_Module(UIList):
 
 
 # -----------------------------------------------------------------------------
+class MET_COLLECTION_PG_Population(PropertyGroup):
+    has_content: BoolProperty(name='PRIVATE', default=False)
+
+
+# -----------------------------------------------------------------------------
 # Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def get_modules_prop(_context:Context) -> MET_SCENE_PG_Modules:
     return _context.scene.medge_modules
+
+
+# -----------------------------------------------------------------------------
+def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_Population:
+    return _collection.medge_population
 
 
 # -----------------------------------------------------------------------------
@@ -97,8 +107,10 @@ def get_modules_prop(_context:Context) -> MET_SCENE_PG_Modules:
 # BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 # def register():
 #    Scene.medge_modules = PointerProperty(type=MET_SCENE_PG_Modules)
+#    Collection.medge_population = PointerProperty(type=MET_COLLECTION_PG_Population)
 
 
 # -----------------------------------------------------------------------------
 # def unregister():
+#     del Collection.medge_population
 #     del Scene.medge_modules

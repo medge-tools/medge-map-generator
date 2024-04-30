@@ -1,25 +1,19 @@
 import bpy
-from bpy.types import Object, Context
+from bpy.types import Object, Context, Collection
 from mathutils import Vector
 
 from math import pi
 
 from ..dataset.dataset import is_dataset, dataset_sequences
-from ..b3d_utils       import duplicate_object, mesh_bounds, remove_object
-from .props            import MET_PG_Module
-
-# 1, 12
-# 9, 9
-# 1, 274
-# 7, 108
-# 
+from ..b3d_utils       import duplicate_object, mesh_bounds, remove_object, set_active
+from .props            import MET_PG_Module, get_population_prop
 
 
 # -----------------------------------------------------------------------------
 def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
     if not is_dataset(_obj): return
 
-    collection = 'POPULATED_' + _obj.name
+    collection_name = 'POPULATED_' + _obj.name
     population = []
     next_location = None
 
@@ -54,7 +48,7 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
 
             next_location += origin - start
 
-            m = duplicate_object(module, True, collection)
+            m = duplicate_object(module, True, collection_name)
             m.name = f'{n_module}_{m.name}'
             m.location = next_location
             population.append(m)
@@ -67,7 +61,7 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
     # mod = population.modifiers.new('Curve', 'CURVE')
 
     # Convert the dataset object to a curve
-    curve = duplicate_object(_obj, False, collection)
+    curve = duplicate_object(_obj, False, collection_name)
     bpy.ops.object.convert(target='CURVE')
 
     # Keep modules parallel to the +z axis
@@ -111,13 +105,18 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
         # The curve modifier rotates the object for some reason, changing the title on a 2D curve has no affect
         # Instead we rotate it back
         c.rotation_euler.y = pi * .5
-
-
-def finalize():
-    pass
-    # # Apply the modifier
-    # set_active(population)
-    # bpy.ops.object.modifier_apply(modifier="Curve")
     
-    # # Delete the curve
-    # remove_object(curve)
+    # Update collection property
+    collection = bpy.data.collections[collection_name]
+    get_population_prop(collection).has_content = True
+
+
+def finalize(_collection:Collection):
+    for obj in _collection.objects:
+        if obj.type == 'CURVE':
+            remove_object(obj)
+            continue
+        set_active(obj)
+        bpy.ops.object.modifier_apply(modifier='Curve', single_user=True)
+
+    
