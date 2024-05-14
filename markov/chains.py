@@ -1,14 +1,13 @@
 from bpy.types import Object
 from mathutils import Vector, Matrix
 
-import itertools
-import random
-import numpy as np
-from copy import deepcopy
-from sys            import float_info
-from collections    import UserList
-from math           import radians
-from dataclasses    import dataclass
+import itertools, random
+import numpy     as np
+from copy        import deepcopy
+from sys         import float_info
+from collections import UserList
+from math        import radians
+from dataclasses import dataclass
 
 from ..b3d_utils       import rotation_matrix
 from ..dataset.dataset import Dataset, DatabaseEntry, Attribute, dataset_entries, create_polyline

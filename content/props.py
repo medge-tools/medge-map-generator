@@ -1,5 +1,5 @@
-from bpy.types        import PropertyGroup, Object, Collection, Context, UIList
-from bpy.props        import *
+from bpy.types import PropertyGroup, Object, Collection, Context, UIList, UILayout
+from bpy.props import *
 
 from random import randint
 
@@ -18,42 +18,41 @@ class MET_PG_Module(PropertyGroup):
     def random_object(self) -> Object | None:
         if not self.use_collection:
             return self.object
-        else:        
-            n = len(self.collection.objects)
+        
+        else:
+            objects = self.collection.objects
+            n = len(objects)
             k = randint(0, n - 1)
-            return self.collection.objects[k]
+            return objects[k]
 
 
-    name: StringProperty(name='Name', get=__get_name)
-    state: IntProperty(name='PRIVATE')
+    name:   StringProperty(name='Name', get=__get_name)
+    state:  IntProperty(name='PRIVATE')
     active: BoolProperty(name='PRIVATE')
 
-    object: PointerProperty(type=Object, name='Object')
-    collection: PointerProperty(type=Collection, name='Collection')
-    use_collection: BoolProperty(name='Use Collection')
+    deform_z:            BoolProperty(name='Deform Z')
+    only_at_chain_start: BoolProperty(name='Only At Chain Start')
+    object:              PointerProperty(type=Object, name='Object')
+    use_collection:      BoolProperty(name='Use Collection')
+    collection:          PointerProperty(type=Collection, name='Collection')
 
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
     def get_selected(self) -> MET_PG_Module:
-        self.init()
-
         if self.items:
             return self.items[self.selected_item_idx]
+        
         return None
     
 
-    def init(self):
-        if self.initialized: return
-        
+    def init(self):        
         self.items.clear()
         
         for state in State:
             module = self.add()
             module.state = state
-
-        self.initialized = True
 
 
     def update_active_states(self, _obj:Object):
@@ -62,15 +61,16 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
 
         for entry in dataset_entries(_obj):
             idx = entry[Attribute.STATE.value]
-            self.items[idx].active = True
+            item = self.items[idx]
+            item.active = True
+            
 
-
-    items: CollectionProperty(type=MET_PG_Module)
-    initialized: BoolProperty(name='PRIVATE', default=False)
+    items: CollectionProperty(type=MET_PG_Module)    
 
 
 # -----------------------------------------------------------------------------
-class MET_UL_Module(UIList):
+class MET_UL_ModuleList(UIList):
+
     def draw_item(self, context, layout, data, item:MET_PG_Module, icon, active_data, active_property, index, flt_flag):
         if self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
@@ -78,8 +78,29 @@ class MET_UL_Module(UIList):
         ic = 'RADIOBUT_OFF'
         if item.active:
             ic = 'RADIOBUT_ON'
-                
+    
         layout.label(text=item.name, icon=ic)
+
+
+    def draw_filter(self, _context:Context|None, _layout:UILayout):
+        _layout.separator() 
+        col = _layout.column(align=True) 
+        col.prop(self, 'filter_active', text='', icon='RADIOBUT_ON') 
+
+
+    def filter_items(self, _context:Context|None, _data, _property:str):
+        items = getattr(_data, _property) 
+        filtered = [self.bitflag_filter_item] * len(items)
+        
+        if self.filter_active:
+            for k, item in enumerate(items):
+                if item.active: continue
+                filtered[k] &= ~self.bitflag_filter_item
+        
+        return filtered, []
+
+
+    filter_active: BoolProperty(name='Filter Active')
 
 
 # -----------------------------------------------------------------------------

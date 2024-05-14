@@ -1,10 +1,10 @@
 from bpy.types  import Context, Panel
 
-from ..b3d_utils    import draw_generic_list, draw_box
-from ..main_gui     import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from ..         import b3d_utils
+from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 
-from .ops           import *
-from .props         import get_markov_chains_prop
+from .ops       import MET_OT_CreateTransitionMatrix, MET_OT_GenerateChain, MET_OT_EnableMarkovStats, MET_OT_DisableMarkovStats
+from .props     import get_markov_chains_prop
 
 
 # -----------------------------------------------------------------------------
@@ -23,7 +23,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
 
         col = layout.column(align=True)
 
-        draw_generic_list(col, markov, '#markov_chain_list')
+        b3d_utils.draw_generic_list(col, markov, '#markov_chain_list')
 
         active_mc = markov.get_selected()
 
@@ -51,7 +51,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.operator(MET_OT_GenerateChain.bl_idname)
 
 
-
 # -----------------------------------------------------------------------------
 class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
     bl_parent_id = MET_PT_MarkovChains.bl_idname
@@ -73,7 +72,7 @@ class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
 
         if not item: return
         if not item.has_transition_matrix(): 
-            draw_box(layout, 'Selected Markov Chain has no transition matrix')
+            b3d_utils.draw_box('Selected Markov Chain has no transition matrix', layout)
             return
 
         col.separator()

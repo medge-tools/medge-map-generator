@@ -6,30 +6,30 @@ import  bpy
 import  bmesh
 import  gpu
 from    gpu_extras.batch import batch_for_shader
-from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup
+from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID
 from    bpy.props   import *
 from    bmesh.types import BMesh
 from    mathutils   import Vector, Matrix, Euler
 
 import math
 import numpy as np
-from copy import deepcopy
+from typing import Callable
 
 
 # -----------------------------------------------------------------------------
 # Object
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def new_object(_name:str, _data:bpy.types.ID, _collection:str=None, _parent:Object=None):
+def new_object(_name:str, _data:ID, _collection:str=None, _parent:Object=None):
     obj = bpy.data.objects.new(_name, _data)
-    link_to_scene(obj, _collection)
+    link_object_to_scene(obj, _collection)
     if(_parent): obj.parent = _parent
-    set_active(obj)
+    set_active_object(obj)
     return obj
 
 
 # -----------------------------------------------------------------------------
-def link_to_scene(_obj:Object, _collection:str=None):
+def link_object_to_scene(_obj:Object, _collection:str=None):
     if _obj == None: return
     """If the collection == None, then the object will be linked to the root collection"""
     for uc in _obj.users_collection:
@@ -39,10 +39,10 @@ def link_to_scene(_obj:Object, _collection:str=None):
         c = bpy.context.blend_data.collections.get(_collection)
         if c == None:
             c = bpy.data.collections.new(_collection)
-            bpy.context.collection.children.link(c)
+            bpy.context.scene.collection.children.link(c)
         c.objects.link(_obj)
     else:
-        bpy.context.collection.objects.link(_obj)
+        bpy.context.scene.collection.objects.link(_obj)
 
 
 # -----------------------------------------------------------------------------
@@ -54,14 +54,14 @@ def remove_object(_obj:Object):
 def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
     if _instance:
         instance = new_object(_obj.name + '_INST', _obj.data, _collection)
-        set_active(instance)
+        set_active_object(instance)
         return instance
     else:
         copy = _obj.copy()
         copy.data = _obj.data.copy()
         copy.name = _obj.name + '_COPY'
-        link_to_scene(copy, _collection)
-        set_active(copy)
+        link_object_to_scene(copy, _collection)
+        set_active_object(copy)
         return copy
 
 
@@ -108,7 +108,7 @@ def deselect_all_objects():
 
 
 # -----------------------------------------------------------------------------
-def set_active(_obj:Object):
+def set_active_object(_obj:Object):
     active = bpy.context.active_object
     if active: active.select_set(False)
     select_object(_obj)
@@ -131,7 +131,7 @@ def get_rotation_mirrored_x_axis(_obj:Object) -> Euler:
 
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/159538/how-to-apply-all-transformations-to-an-object-at-low-level
-def apply_all_transforms(_obj: Object):
+def apply_all_transforms(_obj:Object):
     mb = _obj.matrix_basis
     if hasattr(_obj.data, 'transform'):
         _obj.data.transform(mb)
@@ -159,21 +159,10 @@ def unparent(_obj:Object, _keep_world_location=True):
 
 
 # -----------------------------------------------------------------------------
-# Mesh
+# Data
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def new_mesh(
-        _verts:list[tuple[float, float, float]], 
-        _edges:list[tuple[int, int]], 
-        _faces:list[tuple[int, ...]], 
-        _name: str) -> Mesh:
-    mesh = bpy.data.meshes.new(_name)
-    mesh.from_pydata(_verts, _edges, _faces)
-    return mesh
-
-
-# -----------------------------------------------------------------------------
-def remove_mesh(_mesh:Mesh):
+def remove_data(_mesh:Mesh):
     # Extra test because this can crash Blender if not done correctly.
     result = False
     if _mesh and _mesh.users == 0: 
@@ -192,10 +181,24 @@ def remove_mesh(_mesh:Mesh):
 
 # -----------------------------------------------------------------------------
 # https://blenderartists.org/t/how-to-replace-a-mesh/596225/4
-def set_mesh(_obj:Object, _mesh:Mesh):
-    old_mesh = _obj.data
-    _obj.data = _mesh
-    remove_mesh(old_mesh)
+def set_data(_obj:Object, _data:ID):
+    old_data = _obj.data
+    _obj.data = _data
+    remove_data(old_data)
+
+
+# -----------------------------------------------------------------------------
+# Mesh
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def new_mesh(
+        _verts:list[tuple[float, float, float]], 
+        _edges:list[tuple[int, int]], 
+        _faces:list[tuple[int, ...]], 
+        _name: str) -> Mesh:
+    mesh = bpy.data.meshes.new(_name)
+    mesh.from_pydata(_verts, _edges, _faces)
+    return mesh
 
 
 # -----------------------------------------------------------------------------
@@ -239,7 +242,7 @@ def join_meshes(_meshes:list[Mesh]):
 
 # -----------------------------------------------------------------------------
 def convert_to_mesh_in_place(_obj:Object):
-    set_active(_obj)
+    set_active_object(_obj)
     bpy.ops.object.convert(target='MESH') 
 
 
@@ -479,18 +482,207 @@ def create_curve(_num_points=3,
     path.use_endpoint_u = True
     return curve
 
+
+# -----------------------------------------------------------------------------
+# NURBS Curve Interpolation
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# https://blender.stackexchange.com/questions/34145/calculate-points-on-a-nurbs-curve-without-converting-to-mesh
+
+def interpolate_nurbs(nu, resolu, stride):
+    EPS = 1e-6
+    coord_index = istart = iend = 0
+
+    coord_array = [0.0] * (3 * nu.resolution_u * macro_segmentsu(nu))
+    sum_array = [0] * nu.point_count_u
+    basisu = [0.0] * macro_knotsu(nu)
+    knots = makeknots(nu)
+
+    resolu = resolu * macro_segmentsu(nu)
+    ustart = knots[nu.order_u - 1]
+    uend   = knots[nu.point_count_u + nu.order_u - 1] if nu.use_cyclic_u else \
+             knots[nu.point_count_u]
+    ustep  = (uend - ustart) / (resolu - (0 if nu.use_cyclic_u else 1))
+    cycl = nu.order_u - 1 if nu.use_cyclic_u else 0
+
+    u = ustart
+    while resolu:
+        resolu -= 1
+        istart, iend = basisNurb(u, nu.order_u, nu.point_count_u + cycl, knots, basisu, istart, iend)
+
+        #/* calc sum */
+        sumdiv = 0.0
+        sum_index = 0
+        pt_index = istart - 1
+        for i in range(istart, iend + 1):
+            if i >= nu.point_count_u:
+                pt_index = i - nu.point_count_u
+            else:
+                pt_index += 1
+
+            sum_array[sum_index] = basisu[i] * nu.points[pt_index].co[3]
+            sumdiv += sum_array[sum_index]
+            sum_index += 1
+
+        if (sumdiv != 0.0) and (sumdiv < 1.0 - EPS or sumdiv > 1.0 + EPS):
+            sum_index = 0
+            for i in range(istart, iend + 1):
+                sum_array[sum_index] /= sumdiv
+                sum_index += 1
+
+        coord_array[coord_index: coord_index + 3] = (0.0, 0.0, 0.0)
+
+        sum_index = 0
+        pt_index = istart - 1
+        for i in range(istart, iend + 1):
+            if i >= nu.point_count_u:
+                pt_index = i - nu.point_count_u
+            else:
+                pt_index += 1
+
+            if sum_array[sum_index] != 0.0:
+                for j in range(3):
+                    coord_array[coord_index + j] += sum_array[sum_index] * nu.points[pt_index].co[j]
+            sum_index += 1
+
+        coord_index += stride
+        u += ustep
+
+    return coord_array
+
+
+def macro_knotsu(nu):
+    return nu.order_u + nu.point_count_u + (nu.order_u - 1 if nu.use_cyclic_u else 0)
+
+def macro_segmentsu(nu):
+    return nu.point_count_u if nu.use_cyclic_u else nu.point_count_u - 1
+
+def makeknots(nu):
+    knots = [0.0] * (4 + macro_knotsu(nu))
+    flag = nu.use_endpoint_u + (nu.use_bezier_u << 1)
+    if nu.use_cyclic_u:
+        calcknots(knots, nu.point_count_u, nu.order_u, 0)
+        makecyclicknots(knots, nu.point_count_u, nu.order_u)
+    else:
+        calcknots(knots, nu.point_count_u, nu.order_u, flag)
+    return knots
+
+def calcknots(knots, pnts, order, flag):
+    pnts_order = pnts + order
+    if flag == 1:
+        k = 0.0
+        for a in range(1, pnts_order + 1):
+            knots[a - 1] = k
+            if a >= order and a <= pnts:
+                k += 1.0
+    elif flag == 2:
+        if order == 4:
+            k = 0.34
+            for a in range(pnts_order):
+                knots[a] = math.floor(k)
+                k += (1.0 / 3.0)
+        elif order == 3:
+            k = 0.6
+            for a in range(pnts_order):
+                if a >= order and a <= pnts:
+                    k += 0.5
+                    knots[a] = math.floor(k)
+    else:
+        for a in range(pnts_order):
+            knots[a] = a
+
+def makecyclicknots(knots, pnts, order):
+    order2 = order - 1
+
+    if order > 2:
+        b = pnts + order2
+        for a in range(1, order2):
+            if knots[b] != knots[b - a]:
+                break
+
+            if a == order2:
+                knots[pnts + order - 2] += 1.0
+
+    b = order
+    c = pnts + order + order2
+    for a in range(pnts + order2, c):
+        knots[a] = knots[a - 1] + (knots[b] - knots[b - 1])
+        b -= 1
+
+def basisNurb(t, order, pnts, knots, basis, start, end):
+    i1 = i2 = 0
+    orderpluspnts = order + pnts
+    opp2 = orderpluspnts - 1
+
+    # this is for float inaccuracy
+    if t < knots[0]:
+        t = knots[0]
+    elif t > knots[opp2]:
+        t = knots[opp2]
+
+    # this part is order '1'
+    o2 = order + 1
+    for i in range(opp2):
+        if knots[i] != knots[i + 1] and t >= knots[i] and t <= knots[i + 1]:
+            basis[i] = 1.0
+            i1 = i - o2
+            if i1 < 0:
+                i1 = 0
+            i2 = i
+            i += 1
+            while i < opp2:
+                basis[i] = 0.0
+                i += 1
+            break
+
+        else:
+            basis[i] = 0.0
+
+    basis[i] = 0.0
+
+    # this is order 2, 3, ...
+    for j in range(2, order + 1):
+
+        if i2 + j >= orderpluspnts:
+            i2 = opp2 - j
+
+        for i in range(i1, i2 + 1):
+            if basis[i] != 0.0:
+                d = ((t - knots[i]) * basis[i]) / (knots[i + j - 1] - knots[i])
+            else:
+                d = 0.0
+
+            if basis[i + 1] != 0.0:
+                e = ((knots[i + j] - t) * basis[i + 1]) / (knots[i + j] - knots[i + 1])
+            else:
+                e = 0.0
+
+            basis[i] = d + e
+
+    start = 1000
+    end = 0
+
+    for i in range(i1, i2 + 1):
+        if basis[i] > 0.0:
+            end = i
+            if start == 1000:
+                start = i
+
+    return start, end
+
+
 # -----------------------------------------------------------------------------
 # Handler Callback
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def add_callback(_handler, _callback):
+def add_callback(_handler, _callback:Callable):
     for fn in _handler:
         if fn.__name__ == _callback.__name__: return
     _handler.append(_callback)
 
 
 # -----------------------------------------------------------------------------
-def remove_callback(_handler, _callback):
+def remove_callback(_handler, _callback:Callable):
     for fn in _handler:
         if fn.__name__ == _callback.__name__:
             _handler.remove(fn)
@@ -500,21 +692,21 @@ def remove_callback(_handler, _callback):
 # Math
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def map_range(_value, _in_min, _in_max, _out_min, _out_max):
+def map_range(_value:float, _in_min:float, _in_max:float, _out_min:float, _out_max:float):
     return _out_min + (_value - _in_min) / (_in_max - _in_min) * (_out_max - _out_min)
 
 
 # -----------------------------------------------------------------------------
 # https://stackoverflow.com/questions/45142959/calculate-rotation-matrix-to-align-two-vectors-in-3d-space 
-def rotation_matrix(_v1, _v2):
+def rotation_matrix(_v1:Vector, _v2:Vector):
     """ 
     Find the rotation matrix that aligns vec1 to vec2
     :param vec1: A 3d 'source' vector
     :param vec2: A 3d 'destination' vector
     :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
     """
-    _v1 = [_v1.x, _v1.y, _v1.z]
-    _v2 = [_v2.x, _v2.y, _v2.z]
+    _v1 = [_v1[0], _v1[1], _v1[2]]
+    _v2 = [_v2[0], _v2[1], _v2[2]]
 
     a, b = (_v1 / np.linalg.norm(_v1)).reshape(3), (_v2 / np.linalg.norm(_v2)).reshape(3)
     v = np.cross(a, b)
@@ -608,7 +800,7 @@ def auto_gui_props(_data:PropertyGroup, _layout:UILayout):
 
 
 # -----------------------------------------------------------------------------
-def draw_box(_layout:UILayout, _text:str, _alignment='CENTER'):
+def draw_box(_text:str, _layout:UILayout, _alignment='CENTER'):
     box = _layout.box()
     row = box.row()
     row.alignment = _alignment
@@ -637,8 +829,11 @@ class GenericList:
         return item
 
 
-    def remove_selected(self):
-        self.items.remove(self.selected_item_idx)
+    def remove(self, _index:int=None):
+        if not _index:
+            _index = self.selected_item_idx
+
+        self.items.remove(_index)
         self.selected_item_idx = min(max(0, self.selected_item_idx - 1), len(self.items) - 1)
 
     
@@ -693,7 +888,7 @@ class B3D_OT_GenericList_Remove(Operator):
 
     def execute(self, _context:Context):
         global active_generic_list
-        active_generic_list.remove_selected()
+        active_generic_list.remove()
         return {'FINISHED'}
 
 

@@ -1,16 +1,45 @@
 import  blf
 import  bmesh
-from    bpy_extras  import view3d_utils
-from    bpy.types   import Context, SpaceView3D
+from    bpy_extras import view3d_utils
+from    bpy.types  import Context, SpaceView3D
 
-from ..         import b3d_utils
-from .dataset   import Attribute
-from .movement  import State
-from .          import props, dataset
+from ..        import b3d_utils
+from .dataset  import Attribute
+from .movement import State
+from .         import props, dataset
+
 
 # -----------------------------------------------------------------------------
 draw_handle_post_pixel = None
 draw_handle_post_view = None
+
+
+# -----------------------------------------------------------------------------
+def add_handle(_context:Context):
+    global draw_handle_post_pixel
+    global draw_handle_post_view
+
+    if draw_handle_post_pixel or draw_handle_post_view:
+        remove_handle()
+
+    draw_handle_post_pixel = SpaceView3D.draw_handler_add(
+        draw_callback_post_pixel,(_context,), 'WINDOW', 'POST_PIXEL')
+    draw_handle_post_view = SpaceView3D.draw_handler_add(
+        draw_callback_post_view,(_context,), 'WINDOW', 'POST_VIEW')
+
+
+# -----------------------------------------------------------------------------
+def remove_handle():
+    global draw_handle_post_pixel
+    global draw_handle_post_view
+
+    if draw_handle_post_pixel:
+        SpaceView3D.draw_handler_remove(draw_handle_post_pixel, 'WINDOW')
+        draw_handle_post_pixel = None
+
+    if draw_handle_post_view:
+        SpaceView3D.draw_handler_remove(draw_handle_post_view, 'WINDOW')
+        draw_handle_post_view = None
 
 
 # -----------------------------------------------------------------------------
@@ -119,30 +148,3 @@ def draw_callback_post_view(_context:Context):
 
                 b3d_utils.draw_aabb_lines_3d(bmin, bmax, default_color)
 
-
-# -----------------------------------------------------------------------------
-def add_handle(_context:Context):
-    global draw_handle_post_pixel
-    global draw_handle_post_view
-
-    if draw_handle_post_pixel or draw_handle_post_view:
-        remove_handle()
-
-    draw_handle_post_pixel = SpaceView3D.draw_handler_add(
-        draw_callback_post_pixel,(_context,), 'WINDOW', 'POST_PIXEL')
-    draw_handle_post_view = SpaceView3D.draw_handler_add(
-        draw_callback_post_view,(_context,), 'WINDOW', 'POST_VIEW')
-
-
-# -----------------------------------------------------------------------------
-def remove_handle():
-    global draw_handle_post_pixel
-    global draw_handle_post_view
-
-    if draw_handle_post_pixel:
-        SpaceView3D.draw_handler_remove(draw_handle_post_pixel, 'WINDOW')
-        draw_handle_post_pixel = None
-
-    if draw_handle_post_view:
-        SpaceView3D.draw_handler_remove(draw_handle_post_view, 'WINDOW')
-        draw_handle_post_view = None

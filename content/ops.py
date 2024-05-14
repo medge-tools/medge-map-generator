@@ -7,6 +7,17 @@ from .content          import populate, finalize
 
 
 # -----------------------------------------------------------------------------
+class MET_OT_InitModules(Operator):
+    bl_idname = 'medge_content.init_modules'
+    bl_label = 'Init Modules'
+
+    def execute(self, _context):
+        modules = get_modules_prop(_context)
+        modules.init()
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
 class MET_OT_UpdateActiveStates(Operator):
     bl_idname = 'medge_content.update_active_states'
     bl_label = 'Update Active States'

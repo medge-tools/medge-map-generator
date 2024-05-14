@@ -1,9 +1,9 @@
 import bpy
-from bpy.types              import Operator, Context
-from bpy_extras.io_utils    import ImportHelper, ExportHelper
-from bpy.props              import StringProperty
+from bpy.types           import Operator, Context
+from bpy_extras.io_utils import ImportHelper, ExportHelper
+from bpy.props           import StringProperty
 
-from .dataset import *
+from .dataset import DatasetIO, to_dataset, set_player_state, is_dataset, select_transitions, select_player_states
 from .props   import get_dataset_prop
 from .        import vis
 

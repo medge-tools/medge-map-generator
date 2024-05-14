@@ -1,10 +1,10 @@
-from    bpy.types   import Context, Panel
-from    .ops        import *
+from bpy.types import Context, Panel
 
-from ..b3d_utils import draw_box
-from ..main_gui  import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
-from .props      import get_dataset_prop
-from .ops        import is_vis_enabled
+from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from ..         import b3d_utils
+from .props     import get_dataset_prop
+from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectStates, MET_OT_SelectTransitions, 
+                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled)
 
 
 # -----------------------------------------------------------------------------
@@ -21,14 +21,14 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         obj = _context.active_object
 
         if not obj: 
-            draw_box(layout, 'Select object')
+            b3d_utils.draw_box('Select object', layout)
             return
 
         col = layout.column(align=True)
 
         if not (dataset := get_dataset_prop(obj)): 
             col.operator(MET_OT_ConvertToDataset.bl_idname)
-            draw_box(layout, 'Make sure it is a polyline')
+            b3d_utils.draw_box('Make sure it is a polyline', layout)
             return
         else:
             col.operator(MET_OT_ConvertToDataset.bl_idname, text='Update Attributes')

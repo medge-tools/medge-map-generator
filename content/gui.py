@@ -1,9 +1,10 @@
-from bpy.types  import Context, Panel
+from bpy.types import Context, Panel
 
-from ..main_gui        import *
-from ..b3d_utils       import draw_box 
-from .props            import get_modules_prop
-from .ops              import *
+from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from ..         import b3d_utils
+from .props     import get_modules_prop
+from .ops       import MET_OT_InitModules, MET_OT_UpdateActiveStates, MET_OT_Populate, MET_OT_FinalizeContent
+
 
 # -----------------------------------------------------------------------------
 class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
@@ -16,18 +17,20 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        modules = get_modules_prop(_context)
+        module_prop = get_modules_prop(_context)
 
         col = layout.column(align=True)
         col.separator()
         
         row = col.row(align=True)
-        row.template_list('MET_UL_Module', '#modules', modules, 'items', modules, 'selected_item_idx', rows=5)
+        row.template_list('MET_UL_ModuleList', '#modules', module_prop, 'items', module_prop, 'selected_item_idx', rows=5)
 
         col.separator()
+        col.operator(MET_OT_InitModules.bl_idname)
         col.operator(MET_OT_UpdateActiveStates.bl_idname)
+        col.prop(module_prop, 'filter_active')
         
-        module = modules.get_selected()
+        module = module_prop.get_selected()
 
         if not module: return
 
@@ -43,14 +46,13 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
             col.prop(module, 'object')
 
         col.separator(factor=2)
-        draw_box(col, 'Selected Dataset Object will be populated')
+        b3d_utils.draw_box('Selected Dataset Object will be populated', col)
 
         col.separator()
         col.operator(MET_OT_Populate.bl_idname)
         
         col.separator(factor=2)
-        draw_box(col, 'Select Collection')
+        b3d_utils.draw_box('Select Collection', col)
 
         col.separator()
         col.operator(MET_OT_FinalizeContent.bl_idname)
-

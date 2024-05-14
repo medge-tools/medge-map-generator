@@ -1,8 +1,8 @@
-from bpy.types      import PropertyGroup, Object, Mesh
-from bpy.props      import *
+from bpy.types import PropertyGroup, Object, Mesh
+from bpy.props import BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, StringProperty, PointerProperty
 
-from .movement      import StateProperty
-from .dataset       import is_dataset
+from .movement import StateProperty
+from .dataset  import is_dataset
 
 
 # -----------------------------------------------------------------------------
@@ -35,8 +35,8 @@ class MET_MESH_PG_Dataset(PropertyGroup):
     def get_ops_settings(self) -> MET_DS_PG_OpsSettings:
         return self.ops_settings
 
-    vis_settings:   PointerProperty(type=MET_DS_PG_VisSettings)
-    ops_settings:   PointerProperty(type=MET_DS_PG_OpsSettings)
+    vis_settings: PointerProperty(type=MET_DS_PG_VisSettings)
+    ops_settings: PointerProperty(type=MET_DS_PG_OpsSettings)
 
     
 # -----------------------------------------------------------------------------

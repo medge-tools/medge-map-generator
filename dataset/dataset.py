@@ -1,10 +1,9 @@
-import  bmesh
-from    mathutils   import Vector
-from    bpy.types   import Object
-from    bmesh.types import BMesh, BMLayerAccessVert
+import bmesh
+from   mathutils   import Vector
+from   bpy.types   import Object
+from   bmesh.types import BMesh, BMLayerAccessVert
 
-import ntpath
-import json
+import ntpath, json
 import numpy       as np
 from   enum        import Enum
 from   collections import UserList
@@ -44,22 +43,23 @@ class Attribute(int, Enum):
         raise ValueError(cls.__name__ + ' has no value matching "' + _s + '"')
 
 
-    STATE    = 0, 'player_state' , AttributeType.INT
-    LOCATION        = 1, 'location'     , AttributeType.NONE
-    TIMESTAMP       = 2, 'timestamp'    , AttributeType.FLOAT_VECTOR
-    CONNECTED       = 3, 'connected'    , AttributeType.INT
-    CHAIN_START     = 4, 'chain_start'  , AttributeType.INT
+    STATE           = 0, 'player_state', AttributeType.INT
+    LOCATION        = 1, 'location'    , AttributeType.NONE
+    TIMESTAMP       = 2, 'timestamp'   , AttributeType.FLOAT_VECTOR
+    CONNECTED       = 3, 'connected'   , AttributeType.INT
+    CHAIN_START     = 4, 'chain_start' , AttributeType.INT
     # If CHAIN_START is True then LENGTH is the length of the chain
     # Else LENGTH is the distance to CHAIN_START
-    LENGTH          = 5, 'length'       , AttributeType.INT
-    AABB_MIN        = 6, 'aabb_min'     , AttributeType.FLOAT_VECTOR
-    AABB_MAX        = 7, 'aabb_max'     , AttributeType.FLOAT_VECTOR
+    LENGTH          = 5, 'length'      , AttributeType.INT
+    AABB_MIN        = 6, 'aabb_min'    , AttributeType.FLOAT_VECTOR
+    AABB_MAX        = 7, 'aabb_max'    , AttributeType.FLOAT_VECTOR
 
 
 # -----------------------------------------------------------------------------
 class DatabaseEntry(UserList):
     def __init__(self) -> None:
         data = []
+
         for att in Attribute:
             match(att.type):
                 case AttributeType.NONE:
@@ -68,12 +68,14 @@ class DatabaseEntry(UserList):
                     data.append(0)
                 case AttributeType.FLOAT_VECTOR:
                     data.append(Vector())
+
         self.data = np.array(data, dtype=object)
 
 
     def __getitem__(self, _key:int|str):
         if isinstance(_key, int):
             return self.data[_key]
+        
         if isinstance(_key, str):
             return self.data[Attribute.from_string(_key).value]
     
@@ -166,12 +168,12 @@ class DatasetIO:
         create_polyline(dataset, name)
 
 
-    def write_to_file(self, _filepath: str) -> None:
+    def write_to_file(self, _filepath:str) -> None:
         pass
 
 
 # -----------------------------------------------------------------------------
-def to_dataset(_obj:Object, _dataset:Dataset = None):
+def to_dataset(_obj:Object, _dataset:Dataset=None):
     prev_mode = _obj.mode
     b3d_utils.set_object_mode(_obj, 'OBJECT')
     mesh = _obj.data
@@ -179,7 +181,7 @@ def to_dataset(_obj:Object, _dataset:Dataset = None):
     n             = len(mesh.vertices)
     player_states = [State.Walking.value] * n
     timestamps    = [0] * n * 3
-    connections     = [True] * n
+    connections   = [True] * n
     chain_starts  = [False] * n
     lengths       = [0] * n
     aabb_mins     = [0] * n * 3
@@ -377,15 +379,13 @@ def set_player_state(_obj:Object, _new_state:int):
     
     bm = b3d_utils.get_bmesh(_obj)
 
-    # Transform str to int
-
     state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
 
     for v in bm.verts:
         if v.select:
             v[state_layer] = _new_state
 
-    bmesh.update_edit_mesh(mesh)
+    bmesh.update_edit_mesh(_obj.data)
 
 
 # -----------------------------------------------------------------------------

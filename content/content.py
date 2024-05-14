@@ -4,8 +4,8 @@ from mathutils import Vector
 
 from math import pi
 
+from ..                import b3d_utils
 from ..dataset.dataset import is_dataset, dataset_sequences
-from ..b3d_utils       import duplicate_object, mesh_bounds, remove_object, set_active
 from .props            import MET_PG_Module, get_population_prop
 
 
@@ -14,7 +14,7 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
     if not is_dataset(_obj): return
 
     collection_name = 'POPULATED_' + _obj.name
-    population = []
+    population:list[tuple[Object, int]] = []
     next_location = None
 
     n_module = 0
@@ -35,7 +35,7 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
             # Calculate the start and end locations using the bounding box
             # We assume that the direction of modules are in the +y direction
             origin = module.location
-            bbmin, bbmax = mesh_bounds(module)
+            bbmin, bbmax = b3d_utils.mesh_bounds(module)
 
             x = (bbmin.x + bbmax.x) * .5
             start = Vector((x, bbmin.y, origin.z))
@@ -48,29 +48,22 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
 
             next_location += origin - start
 
-            m = duplicate_object(module, True, collection_name)
-            m.name = f'{n_module}_{m.name}'
-            m.location = next_location
-            population.append(m)
+            module = b3d_utils.duplicate_object(module, True, collection_name)
+            module.name = f'{n_module}_{module.name}'
+            module.location = next_location
+            population.append((module, state))
 
             next_location += end - origin
             n_module += 1
 
-    # Join the placed objects into one objects and curve them using the curve modifier
-    # population = join_objects(copies)
-    # mod = population.modifiers.new('Curve', 'CURVE')
+    # Align the population the curve. Some objects deform along the z-axis, some don't 
 
     # Convert the dataset object to a curve
-    curve = duplicate_object(_obj, False, collection_name)
+    curve_3d = b3d_utils.duplicate_object(_obj, False, collection_name)
     bpy.ops.object.convert(target='CURVE')
 
     # Keep modules parallel to the +z axis
-    curve.data.twist_mode = 'Z_UP'
-
-    # Align copies to curve using a curve modifier
-    # We only want them to deform along the z-axis:
-    # - Deform a copy of the object using the 3D curve and store the z value
-    # - Deform the object using the 2D curve and set the z value
+    curve_3d.data.twist_mode = 'Z_UP'
 
     def center(_obj:Object):
         center = Vector()
@@ -79,44 +72,59 @@ def populate(_obj:Object, _modules:list[MET_PG_Module], _context:Context):
             center += _obj.matrix_world @ v.co
         return center / len(vertices)
 
-    # Get the locations 3D
+    # We need the 3D locations if the objects should not deform along the z-axis
     locations_3d = []
 
-    for c in population:
-        c2 = duplicate_object(c, False)
-        mod = c2.modifiers.new('Curve', 'CURVE')
-        mod.object = curve
+    for module, state in population:
+        deform_z = _modules[state].deform_z
+
+        temp = module
+        if not deform_z:
+            temp = b3d_utils.duplicate_object(module, False)
+
+        mod = temp.modifiers.new('Curve', 'CURVE')
+        mod.object = curve_3d
         mod.deform_axis = 'POS_Y'
+
+        if deform_z: continue
+
         bpy.ops.object.modifier_apply(modifier='Curve')
-        locations_3d.append(center(c2))
-        remove_object(c2)
+        locations_3d.append(center(temp))
+        b3d_utils.remove_object(temp)
 
     # Project the curve to the xy-plane
-    curve.data.dimensions = '2D'
+    curve_2d = b3d_utils.duplicate_object(curve_3d)
+    curve_2d.data.dimensions = '2D'
 
-    for k, c in enumerate(population):
-        mod = c.modifiers.new('Curve', 'CURVE')
-        mod.object = curve
+    # Align every object to the 2D curve that should NOT deform along z
+    for k, (module, state) in enumerate(population):
+        deform_z = _modules[state].deform_z
+
+        if deform_z: continue
+
+        mod = module.modifiers.new('Curve', 'CURVE')
+        mod.object = curve_2d
         mod.deform_axis = 'POS_Y'
                 
         # Because of the curve modifier we have to change to x-value to move it along the z-axis
-        c.location.x = locations_3d[k].z - center(c).z
+        module.location.x = locations_3d[k].z - center(module).z
 
-        # The curve modifier rotates the object for some reason, changing the title on a 2D curve has no affect
+        # The curve modifier rotates the object for some reason, changing the tilt on a 2D curve has no affect
         # Instead we rotate it back
-        c.rotation_euler.y = pi * .5
+        module.rotation_euler.y = pi * .5
     
     # Update collection property
     collection = bpy.data.collections[collection_name]
     get_population_prop(collection).has_content = True
 
 
-def finalize(_collection:Collection):
+def finalize(_collection: Collection):
     for obj in _collection.objects:
         if obj.type == 'CURVE':
-            remove_object(obj)
+            b3d_utils.remove_object(obj)
             continue
-        set_active(obj)
+
+        b3d_utils.set_active_object(obj)
         bpy.ops.object.modifier_apply(modifier='Curve', single_user=True)
 
     

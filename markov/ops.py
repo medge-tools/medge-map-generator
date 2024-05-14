@@ -1,7 +1,6 @@
 from bpy.types  import Operator, Context
-from bpy.props  import *
 
-from .props import *
+from .props import get_markov_chains_prop
 from .      import stats
 
 # -----------------------------------------------------------------------------

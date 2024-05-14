@@ -1,5 +1,5 @@
-from bpy.types  import PropertyGroup, Collection, Context
-from bpy.props  import *
+from bpy.types import PropertyGroup, Collection, Context
+from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty, FloatProperty, CollectionProperty
 
 from ..b3d_utils        import GenericList
 from ..dataset.props    import get_dataset_prop

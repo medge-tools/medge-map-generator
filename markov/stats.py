@@ -1,7 +1,7 @@
 import bpy, blf, os
 from bpy.types import Context, SpaceView3D
 
-from .props         import get_markov_chains_prop
+from .props import get_markov_chains_prop
 
 
 # -----------------------------------------------------------------------------
