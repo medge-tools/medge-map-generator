@@ -23,24 +23,30 @@ from typing import Callable
 def new_object(_name:str, _data:ID, _collection:str=None, _parent:Object=None):
     obj = bpy.data.objects.new(_name, _data)
     link_object_to_scene(obj, _collection)
+
     if(_parent): obj.parent = _parent
+
     set_active_object(obj)
+
     return obj
 
 
 # -----------------------------------------------------------------------------
 def link_object_to_scene(_obj:Object, _collection:str=None):
-    if _obj == None: return
     """If the collection == None, then the object will be linked to the root collection"""
+    if _obj == None: return
     for uc in _obj.users_collection:
         uc.objects.unlink(_obj)
 
     if _collection is not None:
         c = bpy.context.blend_data.collections.get(_collection)
+
         if c == None:
             c = bpy.data.collections.new(_collection)
             bpy.context.scene.collection.children.link(c)
+
         c.objects.link(_obj)
+
     else:
         bpy.context.scene.collection.objects.link(_obj)
 
@@ -53,15 +59,19 @@ def remove_object(_obj:Object):
 # -----------------------------------------------------------------------------
 def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
     if _instance:
-        instance = new_object(_obj.name + '_INST', _obj.data, _collection)
+        instance = new_object('INST_' + _obj.name, _obj.data, _collection)
         set_active_object(instance)
+
         return instance
+    
     else:
         copy = _obj.copy()
         copy.data = _obj.data.copy()
-        copy.name = _obj.name + '_COPY'
+        copy.name = 'COPY_' + _obj.name
+
         link_object_to_scene(copy, _collection)
         set_active_object(copy)
+
         return copy
 
 
@@ -76,6 +86,7 @@ def join_objects(_objects:list[Object]) -> Object:
     bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
 
     return bpy.context.object
+
 
 # -----------------------------------------------------------------------------
 def set_object_mode(_obj:Object, _mode:str):
@@ -152,6 +163,7 @@ def set_parent(_child:Object, _parent:Object, _keep_world_location=True):
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
 def unparent(_obj:Object, _keep_world_location=True):
+    if not _obj.parent: return
     parented_wm = _obj.matrix_world.copy()
     _obj.parent = None
     if _keep_world_location:
@@ -1004,13 +1016,16 @@ def register_subpackage(_subpackage=''):
     registered_modules.extend(modules)
     registered_classes.extend(classes)
 
+    auto_load.modules = registered_modules.copy()
+    auto_load.ordered_classes = registered_classes.copy()
+
 
 # -----------------------------------------------------------------------------
 def unregister_subpackages():
-    global registered_modules
-    global registered_classes
+    #global registered_modules
+    #global registered_classes
 
-    auto_load.modules = registered_modules
-    auto_load.ordered_classes = registered_classes
+    #auto_load.modules = registered_modules
+    #auto_load.ordered_classes = registered_classes
 
     auto_load.unregister()

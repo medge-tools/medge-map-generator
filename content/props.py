@@ -9,7 +9,13 @@ from ..dataset.dataset  import Attribute, dataset_entries
 
 
 # -----------------------------------------------------------------------------
-class MET_PG_Module(PropertyGroup):
+class MET_OBJECT_PG_ModuleSettings(PropertyGroup):
+
+    deform:   BoolProperty(name='Deform',   description='Mesh will be deform by curve modifier in the xy-plane')
+    deform_z: BoolProperty(name='Deform Z', description='Mesh will also be deformed in the z-axis')
+
+# -----------------------------------------------------------------------------
+class MET_PG_ModuleState(PropertyGroup):
 
     def __get_name(self):
         return State(self.state).name
@@ -30,22 +36,21 @@ class MET_PG_Module(PropertyGroup):
     state:  IntProperty(name='PRIVATE')
     active: BoolProperty(name='PRIVATE')
 
-    deform_z:            BoolProperty(name='Deform Z')
-    only_at_chain_start: BoolProperty(name='Only At Chain Start')
     object:              PointerProperty(type=Object, name='Object')
+    only_at_chain_start: BoolProperty(name='Only At Chain Start')
     use_collection:      BoolProperty(name='Use Collection')
     collection:          PointerProperty(type=Collection, name='Collection')
 
 
 # -----------------------------------------------------------------------------
-class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
+class MET_SCENE_PG_ModuleStates(PropertyGroup, GenericList):
 
-    def get_selected(self) -> MET_PG_Module:
+    def get_selected(self) -> MET_PG_ModuleState:
         if self.items:
             return self.items[self.selected_item_idx]
         
         return None
-    
+
 
     def init(self):        
         self.items.clear()
@@ -65,13 +70,13 @@ class MET_SCENE_PG_Modules(PropertyGroup, GenericList):
             item.active = True
             
 
-    items: CollectionProperty(type=MET_PG_Module)    
+    items: CollectionProperty(type=MET_PG_ModuleState)    
 
 
 # -----------------------------------------------------------------------------
 class MET_UL_ModuleList(UIList):
 
-    def draw_item(self, context, layout, data, item:MET_PG_Module, icon, active_data, active_property, index, flt_flag):
+    def draw_item(self, context, layout, data, item:MET_PG_ModuleState, icon, active_data, active_property, index, flt_flag):
         if self.layout_type == 'GRID':
             layout.alignment = 'CENTER'
 
@@ -112,8 +117,13 @@ class MET_COLLECTION_PG_Population(PropertyGroup):
 # Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_modules_prop(_context:Context) -> MET_SCENE_PG_Modules:
-    return _context.scene.medge_modules
+def get_module_prop(_obj:Object) -> MET_OBJECT_PG_ModuleSettings:
+    return _obj.medge_module
+
+
+# -----------------------------------------------------------------------------
+def get_module_states_prop(_context:Context) -> MET_SCENE_PG_ModuleStates:
+    return _context.scene.medge_module_states
 
 
 # -----------------------------------------------------------------------------
@@ -129,9 +139,11 @@ def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_Population:
 # def register():
 #    Scene.medge_modules = PointerProperty(type=MET_SCENE_PG_Modules)
 #    Collection.medge_population = PointerProperty(type=MET_COLLECTION_PG_Population)
+#    Object.medge_module = PointerProperty(type=MET_OBJECT_PG_Module)
 
 
 # -----------------------------------------------------------------------------
 # def unregister():
+#     del Object.medge_module
 #     del Collection.medge_population
 #     del Scene.medge_modules

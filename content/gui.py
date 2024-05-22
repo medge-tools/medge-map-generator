@@ -2,8 +2,34 @@ from bpy.types import Context, Panel
 
 from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 from ..         import b3d_utils
-from .props     import get_modules_prop
+from .props     import get_module_states_prop, get_module_prop
 from .ops       import MET_OT_InitModules, MET_OT_UpdateActiveStates, MET_OT_Populate, MET_OT_FinalizeContent
+
+
+# -----------------------------------------------------------------------------
+class MET_PT_ModuleSettings(MapGenPanel_DefaultProps, Panel):
+    bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
+    bl_label = 'Module Settings'
+
+
+    def draw(self, _context:Context):
+        obj = _context.object
+
+        if not obj: return
+
+        layout = self.layout
+        layout.use_property_decorate = False
+        layout.use_property_split = True
+
+
+        col = layout.column(align=True)
+
+        module = get_module_prop(obj)
+
+        col.prop(module, 'deform')
+
+        if module.deform:
+            col.prop(module, 'deform_z')
 
 
 # -----------------------------------------------------------------------------
@@ -17,7 +43,7 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
         
-        module_prop = get_modules_prop(_context)
+        module_prop = get_module_states_prop(_context)
 
         col = layout.column(align=True)
         col.separator()
@@ -28,7 +54,6 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
         col.separator()
         col.operator(MET_OT_InitModules.bl_idname)
         col.operator(MET_OT_UpdateActiveStates.bl_idname)
-        col.prop(module_prop, 'filter_active')
         
         module = module_prop.get_selected()
 
@@ -36,7 +61,8 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
 
         col.separator(factor=2)
         col = layout.column(align=True)
-
+        
+        col.prop(module, 'only_at_chain_start')
         col.prop(module, 'use_collection')
         col.separator()
 
@@ -46,7 +72,7 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
             col.prop(module, 'object')
 
         col.separator(factor=2)
-        b3d_utils.draw_box('Selected Dataset Object will be populated', col)
+        b3d_utils.draw_box('Select Dataset Object', col)
 
         col.separator()
         col.operator(MET_OT_Populate.bl_idname)

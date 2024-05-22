@@ -15,8 +15,8 @@ from .movement import State
 
 # -----------------------------------------------------------------------------
 class AttributeType(str, Enum):
-    NONE = 'NONE'
-    INT = 'INT'
+    NONE         = 'NONE'
+    INT          = 'INT'
     FLOAT_VECTOR = 'FLOAT_VECTOR'
 
 # -----------------------------------------------------------------------------
@@ -155,7 +155,7 @@ class DatasetIO:
             x = float(item[Attribute.LOCATION.label]['x'])
             y = float(item[Attribute.LOCATION.label]['y'])
             z = float(item[Attribute.LOCATION.label]['z'])
-            location = Vector((x * -1, y, z))
+            location = Vector((y, x, z))
 
             entry = DatabaseEntry()
             entry[Attribute.STATE.value] = player_state
@@ -309,41 +309,38 @@ def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
 
 
 # -----------------------------------------------------------------------------
-def dataset_sequences(_obj:Object, _length2d=False) -> Generator[tuple[int, list[Vector], float], None, None]:
+def dataset_sequences(_obj:Object) -> Generator[tuple[int, list[Vector], float], None, None]:
     """Returns (state, locations, total length)"""
     entries = dataset_entries(_obj)
 
+    # Retrieve the first entry to start the first sequence
     entry0 = next(entries)
+
+    prev_loc = entry0[Attribute.LOCATION.value]
+
     curr_state = entry0[Attribute.STATE.value]
-    curr_chain = [entry0[Attribute.LOCATION.value]]
+    curr_locs = [prev_loc]
     curr_length = 0
 
-    prev_l = None
-
     for entry in entries:
-        s = entry[Attribute.STATE.value]
-        l = entry[Attribute.LOCATION.value]
+        state = entry[Attribute.STATE.value]
+        loc   = entry[Attribute.LOCATION.value]
+        start = entry[Attribute.CHAIN_START.value]
 
-        if prev_l:
-            if _length2d:
-                p1 = Vector((l.x, l.y, 0))
-                p2 = Vector((prev_l.x, prev_l.y, 0))
-                curr_length += (p1 - p2).length
-            else:
-                curr_length += (l - prev_l).length
+        curr_length += (loc - prev_loc).length
 
-        if s == curr_state:
-            curr_chain.append(l)
+        if state == curr_state and not start:
+            curr_locs.append(loc)
 
         else:
-            yield curr_state, curr_chain, curr_length
-            curr_state = s
-            curr_chain = [l]
+            yield curr_state, curr_locs, curr_length
+            curr_state = state
+            curr_locs = [loc]
             curr_length = 0
 
-        prev_l = l
+        prev_loc = loc
     
-    yield curr_state, curr_chain, curr_length
+    yield curr_state, curr_locs, curr_length
 
 
 # -----------------------------------------------------------------------------

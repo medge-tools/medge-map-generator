@@ -206,12 +206,12 @@ class Chain(UserList):
     
     def get_directions(self, _gen_chain:list['Chain']) -> tuple[Vector, Vector]:
         # Direction vectors 
-        my_dir = Vector((0, 1, 0))
+        my_dir = Vector((1, 0, 0))
         if len(self.data) >= 2:
             my_dir = self.data[1] - self.data[0]
 
         # Get the last two points from the generated chain
-        other_dir = Vector((0, 1, 0))
+        other_dir = Vector((1, 0, 0))
 
         c1:Chain = _gen_chain[-1]
         p1 = c1[-1]
