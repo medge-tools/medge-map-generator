@@ -3,7 +3,7 @@ from bpy.types import Context, Panel
 from ..         import b3d_utils
 from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 from .props     import get_module_states_prop, get_module_prop
-from .ops       import MET_OT_InitModules, MET_OT_UpdateActiveStates, MET_OT_Populate, MET_OT_FinalizeContent, MET_OT_Test
+from .ops       import MET_OT_InitModules, MET_OT_UpdateActiveStates, MET_OT_Populate, MET_OT_FinalizeContent, MET_OT_ExportT3D
 
 
 # -----------------------------------------------------------------------------
@@ -81,4 +81,4 @@ class MET_PT_Populate(MapGenPanel_DefaultProps, Panel):
 
         col.separator()
         col.operator(MET_OT_FinalizeContent.bl_idname)
-        col.operator(MET_OT_Test.bl_idname)
+        col.operator(MET_OT_ExportT3D.bl_idname)

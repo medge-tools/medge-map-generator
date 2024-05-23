@@ -297,6 +297,7 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
                     child.location  = p_wc1.copy()
                     child.location += local_offset
 
+                    # Rotate around parent
                     child.location.xy      = rotate_xy(p_wc1, child.location, angle)
                     child.rotation_euler.z = angle
 
@@ -325,56 +326,8 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
 
     print('Finished')
 
-    return
     
-   
-    # The xy position for a object differs if the curve is in 3D or 2D
-    # To compensate we calculate a chain offset.
-    # This calculation happens at the start of each chain 
-    chain_offset_x = 0
-    curr_state = -1
-
-    for j, (obj, state) in enumerate(population):
-        p_prop = get_module_prop(obj)
-
-        # Curve deform objects
-        if p_prop.deform:
-            p_mod = obj.modifiers.new('Curve', 'CURVE')
-            p_mod.deform_axis = 'POS_X'
-
-            if p_prop.deform_z:
-                p_mod.object = curve_3d
-
-            else:
-                p_mod.object = curve_2d
-
-                p_wc1:Vector = curve_wcenters[j]
-                p_wc2:Vector = eval_world_center(obj)
-                
-                obj.location.z = p_wc1.z - p_wc2.z
-                
-                # Calculate chain offset
-                if curr_state != state:
-                    curr_state = state
-
-                    p_wc1.z = p_wc2.z = 0
-                    chain_offset_x = (p_wc1 - p_wc2).length
-                
-                #mobj.location.x -= chain_offset
-                
-        # Manually place objects
-        else:
-            obj.location = curve_wcenters[j] #+ wcenter_origin_offsets[k]
-            obj.rotation_euler.z = directions[j].angle(Vector((1, 0, 0))) * -1
-
-
-    # Update collection property
-    collection = bpy.data.collections[collection_name]
-    get_population_prop(collection).has_content = True
-
-    print('Finished')
-
-
+# -----------------------------------------------------------------------------
 def finalize(_collection: Collection):
     for obj in _collection.objects:
         if obj.type == 'CURVE':
@@ -384,4 +337,13 @@ def finalize(_collection: Collection):
         b3d_utils.set_active_object(obj)
         bpy.ops.object.modifier_apply(modifier='Curve', single_user=True)
 
-    
+
+# -----------------------------------------------------------------------------
+def export(_collection: Collection):
+    b3d_utils.deselect_all_objects()
+
+    for obj in _collection.all_objects:
+        if obj.medge_actor.type == 'NONE': continue
+        b3d_utils.select_object(obj)
+
+    bpy.ops.medge_map_editor.t3d_export(selected_objects=True)

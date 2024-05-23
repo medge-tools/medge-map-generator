@@ -1,12 +1,12 @@
 bl_info = {
-    "name" : "Map Generator",
-    "author" : "Tariq Bakhtali (didibib)",
-    "description" : "",
-    "blender" : (3, 4, 0),
-    "version" : (1, 0, 0),
-    "location" : "",
-    "warning" : "",
-    "category" : "MEdge Tools"
+    'name' : 'Map Generator',
+    'author' : 'Tariq Bakhtali (didibib)',
+    'description' : '',
+    'blender' : (3, 4, 0),
+    'version' : (1, 0, 0),
+    'location' : '',
+    'warning' : '',
+    'category' : 'MEdge Tools'
 }
 
 
@@ -28,11 +28,11 @@ def register():
     register_subpackage('markov')
     register_subpackage('content')
 
-    Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
-    Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_MarkovChains)
-    Scene.medge_module_states = PointerProperty(type=MET_SCENE_PG_ModuleStates)
+    Mesh.medge_dataset          = PointerProperty(type=MET_MESH_PG_Dataset)
+    Scene.medge_markov_chains   = PointerProperty(type=MET_SCENE_PG_MarkovChains)
+    Scene.medge_module_states   = PointerProperty(type=MET_SCENE_PG_ModuleStates)
     Collection.medge_population = PointerProperty(type=MET_COLLECTION_PG_Population)
-    Object.medge_module = PointerProperty(type=MET_OBJECT_PG_ModuleSettings)
+    Object.medge_module         = PointerProperty(type=MET_OBJECT_PG_ModuleSettings)
 
 
 # -----------------------------------------------------------------------------

@@ -3,7 +3,7 @@ from bpy.types  import Operator, Context
 from ..b3d_utils       import get_active_collection
 from ..dataset.dataset import is_dataset
 from .props            import get_module_states_prop, get_population_prop
-from .content          import populate, finalize
+from .content          import populate, finalize, export
 
 
 # -----------------------------------------------------------------------------
@@ -79,14 +79,25 @@ class MET_OT_FinalizeContent(Operator):
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_Test(Operator):
-    bl_idname = 'medge_content.test'
-    bl_label = 'Test'
+class MET_OT_ExportT3D(Operator):
+    bl_idname = 'medge_content.export_t3d'
+    bl_label = 'Export T3D'
     bl_options = {'UNDO'}
 
 
+    @classmethod
+    def poll(cls, _context:Context):
+        collection = get_active_collection()
+        
+        if not collection: return False
+
+        prop = get_population_prop(collection)
+
+        return prop.has_content
+
+
     def execute(self, _context:Context):
-        from .content import eval_world_center
-        p = eval_world_center(_context.object)
-        print(str(p))
+        collection = get_active_collection()
+        export(collection)
+
         return {'FINISHED'}
