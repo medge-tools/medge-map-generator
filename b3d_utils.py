@@ -6,7 +6,7 @@ import  bpy
 import  bmesh
 import  gpu
 from    gpu_extras.batch import batch_for_shader
-from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID
+from    bpy.types   import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID, Collection, Curve, Spline
 from    bpy.props   import *
 from    bmesh.types import BMesh
 from    mathutils   import Vector, Matrix, Euler
@@ -17,10 +17,43 @@ from typing import Callable
 
 
 # -----------------------------------------------------------------------------
+# Collection
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def new_collection(_name:str, _parent:str|Collection=None):
+    """
+    Collection will be automatically created if it doesn't exists
+    If the _collection == None, then the object will be linked to the root collection
+    """
+    coll = bpy.context.blend_data.collections.get(_name)
+    
+    if coll: return coll
+    
+    coll = bpy.data.collections.new(_name)
+
+    if _parent:
+        p_coll = _parent
+
+        if isinstance(_parent, str):
+            p_coll:Collection = bpy.context.blend_data.collections.get(_parent)
+
+            if not p_coll:
+                p_coll = bpy.data.collections.new(_parent)
+                bpy.context.scene.collection.children.link(p_coll)
+
+        p_coll.children.link(coll)
+
+    else:
+        bpy.context.scene.collection.children.link(coll)
+
+    return coll
+
+
+# -----------------------------------------------------------------------------
 # Object
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def new_object(_name:str, _data:ID, _collection:str=None, _parent:Object=None):
+def new_object(_name:str, _data:ID, _collection:str|Collection=None, _parent:Object=None):
     obj = bpy.data.objects.new(_name, _data)
     link_object_to_scene(obj, _collection)
 
@@ -32,20 +65,23 @@ def new_object(_name:str, _data:ID, _collection:str=None, _parent:Object=None):
 
 
 # -----------------------------------------------------------------------------
-def link_object_to_scene(_obj:Object, _collection:str=None):
-    """If the collection == None, then the object will be linked to the root collection"""
-    if _obj == None: return
+def link_object_to_scene(_obj:Object, _collection:str|Collection=None):
+    """
+    Collection will be automatically created if it doesn't exists
+    If the _collection == None, then the object will be linked to the root collection
+    """
+    if not _obj: return
+
     for uc in _obj.users_collection:
         uc.objects.unlink(_obj)
 
-    if _collection is not None:
-        c = bpy.context.blend_data.collections.get(_collection)
+    if _collection:
+        coll = _collection
 
-        if c == None:
-            c = bpy.data.collections.new(_collection)
-            bpy.context.scene.collection.children.link(c)
+        if isinstance(_collection, str):
+            coll = new_collection(_collection)
 
-        c.objects.link(_obj)
+        coll.objects.link(_obj)
 
     else:
         bpy.context.scene.collection.objects.link(_obj)
@@ -115,7 +151,6 @@ def select_all_objects():
 def deselect_all_objects():
     for obj in bpy.context.selected_objects:
         obj.select_set(False)
-
 
 
 # -----------------------------------------------------------------------------
@@ -479,20 +514,15 @@ def create_cylinder(_radius=2,
 
 # -----------------------------------------------------------------------------
 #https://blender.stackexchange.com/questions/127603/how-to-specify-nurbs-path-vertices-in-python
-def create_curve(_num_points=3, 
-                 _step=1, 
-                 _dir:tuple[float, float, float]=(1, 0, 0)) -> bpy.types.Curve:
+def create_curve(_num_points=3) -> tuple[Curve, Spline]:
     curve = bpy.data.curves.new('CURVE', 'CURVE')
-    path = curve.splines.new('NURBS')
     curve.dimensions = '3D'
+
+    path = curve.splines.new('NURBS')
     path.points.add(_num_points - 1)
-
-    for k in range(_num_points):
-        p = Vector(_dir) * _step * k
-        path.points[k].co = (*p, 1)
-
     path.use_endpoint_u = True
-    return curve
+    
+    return curve, path
 
 
 # -----------------------------------------------------------------------------
@@ -973,6 +1003,7 @@ from . import auto_load
 registered_modules = []
 registered_classes = []
 
+
 # -----------------------------------------------------------------------------
 def register_subpackage(_subpackage=''):
     """
@@ -999,6 +1030,7 @@ def register_subpackage(_subpackage=''):
     
     package = Path(__file__).parent
     path = package 
+
     if _subpackage:
         path /= _subpackage
 
@@ -1016,16 +1048,13 @@ def register_subpackage(_subpackage=''):
     registered_modules.extend(modules)
     registered_classes.extend(classes)
 
-    auto_load.modules = registered_modules.copy()
-    auto_load.ordered_classes = registered_classes.copy()
-
 
 # -----------------------------------------------------------------------------
 def unregister_subpackages():
-    #global registered_modules
-    #global registered_classes
+    global registered_modules
+    global registered_classes
 
-    #auto_load.modules = registered_modules
-    #auto_load.ordered_classes = registered_classes
+    auto_load.modules = registered_modules
+    auto_load.ordered_classes = registered_classes
 
     auto_load.unregister()

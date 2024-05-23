@@ -103,7 +103,7 @@ class State(IntEnum):
 
 # -----------------------------------------------------------------------------
 def StateProperty(_name='State', _update=None):
-    def __get_state_items(self, context):
+    def __get_state_items(self, _context):
         return [(data.name, data.name, '') for data in State]
     
 

@@ -1,14 +1,14 @@
 import bpy
-from bpy.types import Object, Context, Collection, Mesh, MeshEdges
+from bpy.types import Object, Collection
 from mathutils import Vector
 
 import math
-import copy
 from collections import UserList
 
-from ..                import b3d_utils
-from ..dataset.dataset import is_dataset, dataset_sequences
-from .props            import MET_PG_ModuleState, get_population_prop, get_module_prop
+from ..                 import b3d_utils
+from ..dataset.movement import State
+from ..dataset.dataset  import is_dataset, dataset_sequences
+from .props             import MET_PG_ModuleState, get_population_prop, get_module_prop
 
 
 # -----------------------------------------------------------------------------
@@ -61,25 +61,6 @@ def rotate_xy(_origin:Vector, _point:Vector, _angle:float):
 
 
 # -----------------------------------------------------------------------------
-def translate_object_along_curve_to_location(_obj:Object, _target:Vector, _step:int):
-    """
-    This will move the object along the curve to the start of the chain
-    We deform in the +x-axis, so we move in -x direction
-
-    This should only be done for the first object in the chain
-    The resulting offset should be applied the rest of the chain
-    """
-    origin, bb_start, _ = get_bounds_data(_obj)
-    min_distance = (origin - bb_start).length
-
-    curr_location = eval_world_center(_obj)
-
-    while (curr_location - _target).length > min_distance:
-        _obj.location -= _step
-        curr_location  = eval_world_center(_obj)
-
-
-# -----------------------------------------------------------------------------
 class PopObject:
 
     def __init__(self, _parent:Object, _children:list[Object], _state:int):
@@ -90,10 +71,7 @@ class PopObject:
 
 # -----------------------------------------------------------------------------
 class PopChain(UserList):
-
-    def __init__(self, _start_location:Vector) -> None:
-        super().__init__()
-        self.start_location = _start_location
+    pass
 
 
 # -----------------------------------------------------------------------------
@@ -121,10 +99,10 @@ class Population(UserList):
         self.continuous.extend([(outer_idx, inner_idx) for inner_idx in range(0, size)])
 
 
-    def get_look_at_next_angle(self, _outer_idx:int, _inner_idx:int):
+    def get_look_at_angle(self, _outer_idx:int, _inner_idx:int):
         """
-        Calculate the angle first, before making modifications to the object
-        The angle calculations depend on the locations while deformed by 3D curve
+        Calculates the angle to rotate the object to face the next object.
+        It assumes the object is facing the +x direction
         """
         offset = self.data_offset[_outer_idx]
         idx    = offset + _inner_idx
@@ -148,10 +126,14 @@ class Population(UserList):
         start.z = 0
         end.z   = 0
 
-        direction = (start - end).normalized()
+        direction = (end - start).normalized()
+
+        a = -1
+        if direction.y > 0:
+            a = 1
 
         # We assume that modules face the +x direction
-        return direction.angle(Vector((1, 0, 0))) * -1
+        return direction.angle(Vector((1, 0, 0))) * a
         
 
 # -----------------------------------------------------------------------------
@@ -161,89 +143,95 @@ class Population(UserList):
 def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
     if not is_dataset(_dataset): return
 
-    # To select sharp edges we need to be in object mode
     b3d_utils.set_object_mode(_dataset, 'OBJECT')
 
-    collection_name = 'POPULATED_' + _dataset.name
-    population:list[PopChain] = Population()
+    main_collection     = b3d_utils.new_collection('POPULATED_' + _dataset.name)
 
-    next_location = None
-    start_location = None
+    curve_3d_mod_name = 'Curve_3D'
+    curve_2d_mod_name = 'Curve_2D'
 
-    idx = 0
+    population:list[list[PopObject]] = Population()
 
-    # Convert the dataset object to a curve
-    curve_3d = b3d_utils.duplicate_object(_dataset, False, collection_name)
-    bpy.ops.object.convert(target='CURVE')
-    # Keep the +z-axis of modules parallel to the world +z axis
-    curve_3d.data.twist_mode = 'Z_UP'
-
-
-    def align_module(_obj:Object, _location:Vector):
-        nonlocal collection_name, curve_3d, idx
-        
-        # Duplicated module and place
-        copy = b3d_utils.duplicate_object(_obj, False, collection_name)
-
-        b3d_utils.unparent(copy)
-        copy.location = _location
-
-        # Add curve modifier
-        mod = copy.modifiers.new('Curve', 'CURVE')
-        mod.object = curve_3d
-        mod.deform_axis = 'POS_X'
-
-        # Append
-        copy.name = f'{idx}_{_obj.name}'
-        idx += 1
-
-        return copy
-
+    m_idx = 0
 
     print()
     print('Duplicating and aligning modules...')
-    for state, locations, total_length in dataset_sequences(_dataset):
+    for k, (state, locations, total_length) in enumerate(dataset_sequences(_dataset)):
         
-        pop_chain = PopChain(locations[0].copy())
+        pop_chain = PopChain()
+
+        # Create collection
+        current_collection  = b3d_utils.new_collection(f'{k}_{State(state).name}', main_collection)
+        modules_collection  = b3d_utils.new_collection(f'{k}_MODULES_' + _dataset.name, current_collection)
+        curve_3d_collection = b3d_utils.new_collection(f'{k}_CURVES_3D_' + _dataset.name, current_collection)
+        curve_2d_collection = b3d_utils.new_collection(f'{k}_CURVES_2D_' + _dataset.name, current_collection)
+
+        # Create curves
+        curve_data, path = b3d_utils.create_curve(len(locations))
+
+        for p1, p2 in zip(path.points, locations):
+            p1.co = (*p2, 1)
+
+        curve_3d = b3d_utils.new_object(f'{k}_CURVE_3D', curve_data, curve_3d_collection)
+        
+        # Duplicate the curve and project it to the xy-plane
+        # This curve is used when a object is not to be deformed in the z-axis
+        curve_2d = b3d_utils.duplicate_object(curve_3d, False, curve_2d_collection)
+        curve_2d.data.dimensions = '2D'
+        curve_2d.name = f'{k}_CURVE_2D'
 
 
-        def next_chain():
-            nonlocal next_location, start_location, total_length
-            nonlocal population, pop_chain
+        def align_module(_obj:Object, _location:Vector):
+            nonlocal modules_collection, m_idx
+            nonlocal curve_3d, curve_2d
 
-            next_location.x = start_location.x + total_length
-            start_location.x = next_location.x
+            # Duplicated module and place
+            copy = b3d_utils.duplicate_object(_obj, False, modules_collection)
 
-            population.append(pop_chain)
+            b3d_utils.unparent(copy)
+
+            copy.location = _location
+
+            # Add curve modifier
+            mod = copy.modifiers.new(curve_3d_mod_name, 'CURVE')
+            mod.object = curve_3d
+            mod.deform_axis = 'POS_X'
+            mod.show_viewport = True
+
+            # Add curve modifier
+            mod = copy.modifiers.new(curve_2d_mod_name, 'CURVE')
+            mod.object = curve_2d
+            mod.deform_axis = 'POS_X'
+            mod.show_viewport = False
+
+            # Append
+            copy.name = f'{m_idx}_{_obj.name}'
+            m_idx += 1
+
+            return copy
 
 
-        if not next_location:
-            next_location = locations[0].copy()
-            start_location = next_location.copy()
-
-        curr_length = 0        
+        next_location = Vector()
         mstate = _module_states[state]
+        curr_length = 0        
 
         while True:
             # Get module
             obj = mstate.random_object()
             
             # If there are no modules assigned, move the next_location to the end of the chain
-            if not obj: 
-                next_chain()
-                break
+            if not obj: break
             
             origin, bb_start, bb_end = get_bounds_data(obj)
 
             curr_length += (bb_end - bb_start).length
 
             if curr_length > total_length:
-                next_chain()
-                break
+                population.append(pop_chain); break
 
             new_location = next_location + origin - bb_start
 
-            parent = align_module(obj, new_location)
+            parent   = align_module(obj, new_location)
             children = []
 
             for child in obj.children:
@@ -251,65 +239,60 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
                 c = align_module(child, new_location + offset)
                 children.append(c)
             
-            offset = new_location.x - start_location.x
-
-            pop_chain.append(PopObject(parent, children, state, offset))
+            pop_chain.append(PopObject(parent, children, state))
             
             if mstate.only_at_chain_start: 
-                next_chain()
-                break
+                population.append(pop_chain); break
 
             next_location += bb_end - bb_start
 
-
     print('Update objects according to module settings...')
-    # Duplicate the curve and project it to the xy-plane
-    # This curve is used when a object is not to be deformed in the z-axis
-    curve_2d = b3d_utils.duplicate_object(curve_3d, False, collection_name)
-    curve_2d.data.dimensions = '2D'
+
+    def toggle_curve_modifiers(_obj:Object, _show_3d:bool, _show_2d:bool):
+        mod = _obj.modifiers[curve_3d_mod_name]
+        mod.show_viewport = _show_3d
+        
+        mod = _obj.modifiers[curve_2d_mod_name]
+        mod.show_viewport = _show_2d
+
 
     # Update objects according to module settings
     for j, pop_chain in enumerate(population):
         for k, pop_obj in enumerate(pop_chain):
             parent = pop_obj.parent
-
             p_prop = get_module_prop(parent)
-            p_mod  = parent.modifiers[0]
 
             # Parent world center while deformed by 3D curve
+            toggle_curve_modifiers(parent, True, False)
             p_wc1 = eval_world_center(parent)
+
             # Parent world center while deformed by 2D curve
-            p_mod.object = curve_2d
+            toggle_curve_modifiers(parent, False, True)
             p_wc2 = eval_world_center(parent)
 
             parent_offset = p_wc1 - p_wc2
 
             angle = None
 
-            # Deform children first, because we might need the parent in it's original location
+            # Deform children first, because we might need the parent in it's current location
             for child in pop_obj.children:
-                c_prop = get_module_prop(child)
-                c_mod  = child.modifiers[0]
-
+                c_prop       = get_module_prop(child)
                 local_offset = child.location - parent.location
 
                 if c_prop.deform:
                     if c_prop.deform_z:
-                        c_mod.object = curve_3d
+                        toggle_curve_modifiers(child, True, False)
 
                     else:
-                        c_mod.object = curve_2d
-
-                        child.location.z  = parent_offset.z + local_offset.z
-                        child.location.x -= pop_obj.distance_to_start
+                        toggle_curve_modifiers(child, False, True)
+                        child.location.z = parent_offset.z + local_offset.z
 
                 else:
-                    # Calculate the angle first, before making modifications to the object
-                    # The angle calculations depend on the locations while deformed by 3D curve
                     if not angle:
-                        angle = population.get_look_at_next_angle(j, k)
+                        toggle_curve_modifiers(child, True, False)
+                        angle = population.get_look_at_angle(j, k)
 
-                    c_mod.object = None
+                    toggle_curve_modifiers(child, False, False)
 
                     child.location  = p_wc1.copy()
                     child.location += local_offset
@@ -320,29 +303,25 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
             # Deform parent
             if p_prop.deform:
                 if p_prop.deform_z:
-                    p_mod.object = curve_3d
+                    toggle_curve_modifiers(parent, True, False)
 
                 else:
-                    p_mod.object = curve_2d
-                    
-                    parent.location.z  = parent_offset.z
-                    parent.location.x -= pop_obj.distance_to_start
+                    toggle_curve_modifiers(parent, False, True)
+                    parent.location.z = parent_offset.z
 
             else:
-                # Calculate the angle first, before making modifications to the object
-                # The angle calculations depend on the locations while deformed by 3D curve
                 if not angle:
-                    angle = population.get_look_at_next_angle(j, k)
+                    toggle_curve_modifiers(parent, True, False)
+                    angle = population.get_look_at_angle(j, k)
 
-                p_mod.object = None
+                toggle_curve_modifiers(parent, False, False)
 
-                parent.location = p_wc1.copy()
+                parent.location         = p_wc1.copy()
                 parent.rotation_euler.z = angle
 
 
     # Update collection property
-    collection = bpy.data.collections[collection_name]
-    get_population_prop(collection).has_content = True
+    get_population_prop(main_collection).has_content = True
 
     print('Finished')
 

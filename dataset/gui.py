@@ -21,7 +21,7 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         obj = _context.active_object
 
         if not obj: 
-            b3d_utils.draw_box('Select object', layout)
+            b3d_utils.draw_box('Select Object', layout)
             return
 
         col = layout.column(align=True)

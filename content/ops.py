@@ -86,6 +86,7 @@ class MET_OT_Test(Operator):
 
 
     def execute(self, _context:Context):
-        collection = get_active_collection()
-        finalize(collection)
+        from .content import eval_world_center
+        p = eval_world_center(_context.object)
+        print(str(p))
         return {'FINISHED'}

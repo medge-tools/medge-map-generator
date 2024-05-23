@@ -72,7 +72,7 @@ class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
 
         if not item: return
         if not item.has_transition_matrix(): 
-            b3d_utils.draw_box('Selected Markov Chain has no transition matrix', layout)
+            b3d_utils.draw_box('Selected Collection has no transition matrix', layout)
             return
 
         col.separator()

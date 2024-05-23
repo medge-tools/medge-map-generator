@@ -328,11 +328,9 @@ def dataset_sequences(_obj:Object) -> Generator[tuple[int, list[Vector], float],
         start = entry[Attribute.CHAIN_START.value]
 
         curr_length += (loc - prev_loc).length
-
-        if state == curr_state and not start:
-            curr_locs.append(loc)
-
-        else:
+        curr_locs.append(loc)
+        
+        if state != curr_state or start:
             yield curr_state, curr_locs, curr_length
             curr_state = state
             curr_locs = [loc]
