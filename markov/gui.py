@@ -33,7 +33,12 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         col.prop(active_mc, 'collection')
 
         col.separator(factor=2)
-        col.operator(MET_OT_CreateTransitionMatrix.bl_idname)
+
+        t = MET_OT_CreateTransitionMatrix.bl_label
+        if active_mc.has_transition_matrix():
+            t = 'Update Transition Matrix'
+
+        col.operator(MET_OT_CreateTransitionMatrix.bl_idname, text=t)
 
         col.separator(factor=2)
         if active_mc.has_transition_matrix():

@@ -4,7 +4,7 @@ from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
 from ..         import b3d_utils
 from .props     import get_dataset_prop
 from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectStates, MET_OT_SelectTransitions, 
-                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled)
+                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled, MET_OT_ResolveOverlap)
 
 
 # -----------------------------------------------------------------------------
@@ -56,6 +56,7 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         
         col.separator()
         col.operator(MET_OT_SelectTransitions.bl_idname)
+        col.operator(MET_OT_ResolveOverlap.bl_idname)
 
 
 # -----------------------------------------------------------------------------

@@ -1,10 +1,12 @@
 from bpy.types import Object
 
 import numpy as np
+from copy import deepcopy
 
-from ..dataset.dataset  import Attribute, Dataset, is_dataset, dataset_entries
+from ..                 import b3d_utils
+from ..dataset.dataset  import is_dataset, dataset_sequences
 from ..dataset.movement import State
-from .chains            import ChainPool, GeneratedChain, GenChainSettings
+from .chains            import Chain, ChainPool, GeneratedChain, GenChainSettings
 
 
 # -----------------------------------------------------------------------------
@@ -18,7 +20,6 @@ class MarkovChain:
         self.transition_matrix = None
         self.chain_pools = None
 
-        self.dataset = None
         self.nstates = 0
 
         self.statistics = []
@@ -26,54 +27,58 @@ class MarkovChain:
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
     def create_transition_matrix(self, _objects:list[Object], _name='') -> bool:
-        self.reset()
         self.name = _name
 
-        D = Dataset()
-        N = 0
+        self.nstates = 0
+        transitions:list[list] = []
 
         for obj in _objects:
             if not obj.visible_get(): continue
             if not is_dataset(obj): continue
 
-            for entry in dataset_entries(obj):
-                D.append(entry)
+            states = []
 
+            for state, _, _, _ in dataset_sequences(obj):
+                self.nstates = max(self.nstates, state)
+                states.append(state)
 
-        if len(D) == 0: return False
+            transitions.append(states.copy())
 
-        N = max(D[:, Attribute.STATE.value]) + 1
-        TM = np.zeros((N, N), dtype=float)
-        CP = [ChainPool() for _ in range(N)]
+            # for entry in dataset_entries(obj):
+            #     state = entry[Attribute.STATE.value]
 
-        # Populate ChainPools
-        sps = D.seqs_per_state()
-        for state, seqs in sps.items():
-            for s in seqs:
-                CP[state].append(state, s)
+            #     N = max(N, state)
+
+            #     if entry[Attribute.CONNECTED.value]:
+            #         states.append(state)
+            #     else:
+            #         CS.append(states.copy())
+            #         states = []
+        
+        if len(transitions) == 0: return False
+
+        self.nstates += 1
+        self.transition_matrix = np.zeros((self.nstates, self.nstates), dtype=float)
+        self.chain_pools = [ChainPool() for _ in range(self.nstates)]
+
+        for obj in _objects:
+            if not obj.visible_get(): continue
+            if not is_dataset(obj): continue
+
+            # Populate ChainPools
+            for state, locations, _, _ in dataset_sequences(obj):
+                self.chain_pools[state].append(state, locations)
 
         # Populate transition matrix
-        transitions = zip(D, D[1:])
-        for (entry1, entry2) in transitions:
-            if not entry1[Attribute.CONNECTED.value]: continue
-
-            i = entry1[Attribute.STATE.value]
-            j = entry2[Attribute.STATE.value]
-
-            TM[i][j] += 1.0
+        for sequence in transitions:
+            for s1, s2 in zip(sequence, sequence[1:]):
+                self.transition_matrix[s1][s2] += 1.0
 
         # Normalize 
-        for row in TM:
-            s = sum(row)
-            if s > 0: 
-                factor = 1.0/s
+        for row in self.transition_matrix:
+            if (s := sum(row)) > 0: 
+                factor = 1.0 / s
                 row[:] = [float(v) * factor for v in row]
-
-        # Finalize
-        self.nstates = N
-        self.transition_matrix = TM
-        self.chain_pools = CP
-        self.dataset = D
 
         return True
 
@@ -98,7 +103,7 @@ class MarkovChain:
         prev_chain = self.chain_pools[start_state].random_chain()
         
         gen_chain = GeneratedChain(None, _settings)
-        gen_chain.append(prev_chain)
+        gen_chain.append(deepcopy(prev_chain))
         
         for k in range(len(gen_chain), _settings.length, 1):
             print(f'---Iteration: {k}------------------------------------------------------------')
@@ -108,12 +113,12 @@ class MarkovChain:
             next_state = np.random.choice(self.nstates, p=probabilities)
 
             # Choose random chain
-            cl = self.chain_pools[next_state]
-            next_chain = cl.random_chain()
+            cp:ChainPool = self.chain_pools[next_state]
+            next_chain = cp.random_chain()
 
             # Align the new chain to the generated chain
             next_chain.align(gen_chain, _settings.align_orientation)
-            gen_chain.append(next_chain)
+            gen_chain.append(deepcopy(next_chain))
 
             # Resolve any collisions
             gen_chain.resolve_collisions()
@@ -127,6 +132,13 @@ class MarkovChain:
 
         for chain in gen_chain:
             chain.resize(invscale)
+
+        
+        for cp in self.chain_pools:
+            for chain in cp:
+                chain.height = _settings.collision_height
+                chain.radius = _settings.collision_radius
+                chain.resize(invscale)
 
         # Create Polyline from LiveChain
         name = f'{self.name}_{_settings}'
@@ -167,3 +179,8 @@ class MarkovChain:
         data = np.insert(data, 1, seperator, axis=0)
         
         self.statistics = data
+
+
+    def debug_chain(self, chain:Chain):
+        mesh = b3d_utils.new_mesh(chain, [], [], 'Test')
+        obj = b3d_utils.new_object('Test', mesh, 'TEST')

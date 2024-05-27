@@ -88,6 +88,38 @@ class DatabaseEntry(UserList):
 
 
 # -----------------------------------------------------------------------------
+def db_entry_sequences(first_entry:DatabaseEntry, rest_of_data:any) -> Generator[tuple[int, list[Vector], float, bool], None, None]:
+    """Yields ( state, list of locations, total length, connected )"""
+    prev_loc = first_entry[Attribute.LOCATION.value]
+
+    curr_state  = first_entry[Attribute.STATE.value]
+    curr_conn   = first_entry[Attribute.CONNECTED.value]
+    curr_locs   = [prev_loc]
+    curr_length = 0
+
+    for entry in rest_of_data:
+        state      = entry[Attribute.STATE.value]
+        loc        = entry[Attribute.LOCATION.value]
+        start      = entry[Attribute.CHAIN_START.value]
+        curr_conn  = entry[Attribute.CONNECTED.value]
+
+        curr_length += (loc - prev_loc).length
+        
+        if curr_conn:
+            curr_locs.append(loc)
+        
+        if state != curr_state or start:
+            yield curr_state, curr_locs, curr_length, curr_conn
+            curr_state  = state
+            curr_length = 0
+            curr_locs   = []
+
+        prev_loc = loc
+    
+    yield curr_state, curr_locs, curr_length, curr_conn
+
+
+# -----------------------------------------------------------------------------
 class Dataset:
     def __init__(self):
         self.data = np.empty((0, len(Attribute)), dtype=object)
@@ -111,32 +143,9 @@ class Dataset:
         self.data = np.concatenate((self.data, _other.data), axis=0)
 
 
-    def seqs_per_state(self):
-        # Init dictionary
-        sequences: dict[int, list[list[Vector]]] = {}
-
-        for entry in self.data:
-            sequences.setdefault(entry[Attribute.STATE.value], [])    
-        
-        entry0 = self.data[0]
-        curr_state = entry0[Attribute.STATE.value]
-        curr_chain = [entry0[Attribute.LOCATION.value]]
-        
-        sequences[curr_state].append(curr_chain)
-
-        for entry in self.data[1:]:
-            s = entry[Attribute.STATE.value]
-            l = entry[Attribute.LOCATION.value]
-
-            if s == curr_state:
-                curr_chain.append(l)
-            else:
-                curr_chain = [l]
-                curr_state = s
-                sequences[s].append(curr_chain)
-
-        return sequences
-
+    def sequences(self):
+        """Yields ( state, list of locations, total length, connected )"""
+        return db_entry_sequences(self.data[0], self.data[1:])
 
 # -----------------------------------------------------------------------------
 class DatasetIO:
@@ -309,36 +318,12 @@ def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
 
 
 # -----------------------------------------------------------------------------
-def dataset_sequences(_obj:Object) -> Generator[tuple[int, list[Vector], float], None, None]:
-    """Returns (state, locations, total length)"""
+def dataset_sequences(_obj:Object):
+    """Yields ( state, list of locations, total length, connected )"""
     entries = dataset_entries(_obj)
-
-    # Retrieve the first entry to start the first sequence
     entry0 = next(entries)
 
-    prev_loc = entry0[Attribute.LOCATION.value]
-
-    curr_state = entry0[Attribute.STATE.value]
-    curr_locs = [prev_loc]
-    curr_length = 0
-
-    for entry in entries:
-        state = entry[Attribute.STATE.value]
-        loc   = entry[Attribute.LOCATION.value]
-        start = entry[Attribute.CHAIN_START.value]
-
-        curr_length += (loc - prev_loc).length
-        curr_locs.append(loc)
-        
-        if state != curr_state or start:
-            yield curr_state, curr_locs, curr_length
-            curr_state = state
-            curr_locs = [loc]
-            curr_length = 0
-
-        prev_loc = loc
-    
-    yield curr_state, curr_locs, curr_length
+    return db_entry_sequences(entry0, entries)
 
 
 # -----------------------------------------------------------------------------

@@ -3,9 +3,10 @@ from bpy.types           import Operator, Context
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.props           import StringProperty
 
-from .dataset import DatasetIO, to_dataset, set_player_state, is_dataset, select_transitions, select_player_states
-from .props   import get_dataset_prop
-from .        import vis
+from .dataset  import DatasetIO, to_dataset, set_player_state, is_dataset, select_transitions, select_player_states, resolve_overlap
+from .movement import State
+from .props    import get_dataset_prop
+from .         import vis
 
 
 # -----------------------------------------------------------------------------
@@ -84,8 +85,8 @@ class MET_OT_EnableDatasetVis(Operator):
 
 # -----------------------------------------------------------------------------
 class MET_OT_DisableDatasetVis(Operator):
-    bl_idname   = 'medge_dataset.disable_dataset_vis'
-    bl_label    = 'Disable Dataset Vis'
+    bl_idname = 'medge_dataset.disable_dataset_vis'
+    bl_label  = 'Disable Dataset Vis'
 
 
     @classmethod
@@ -177,6 +178,26 @@ class MET_OT_SelectStates(Operator):
         settings = get_dataset_prop(obj).get_ops_settings()
         select_player_states(obj, settings.filter)
         return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class MET_OT_ResolveOverlap(Operator):
+    bl_idname = 'medge_dataset.resolve_overlap'
+    bl_label  = 'Resolve Overlap'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        obj = _context.object
+        return obj.mode == 'EDIT'
+    
+
+    def execute(self, _context:Context):
+        obj = _context.object
+        resolve_overlap(obj)
+        return {'FINISHED'}
+
+
 
 
 # -----------------------------------------------------------------------------

@@ -748,10 +748,10 @@ def rotation_matrix(_v1:Vector, _v2:Vector):
     :param vec2: A 3d 'destination' vector
     :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
     """
-    _v1 = [_v1[0], _v1[1], _v1[2]]
-    _v2 = [_v2[0], _v2[1], _v2[2]]
+    v1 = [_v1[0], _v1[1], _v1[2]]
+    v2 = [_v2[0], _v2[1], _v2[2]]
 
-    a, b = (_v1 / np.linalg.norm(_v1)).reshape(3), (_v2 / np.linalg.norm(_v2)).reshape(3)
+    a, b = (v1 / np.linalg.norm(v1)).reshape(3), (v2 / np.linalg.norm(v2)).reshape(3)
     v = np.cross(a, b)
     
     if not any(v):
@@ -761,6 +761,7 @@ def rotation_matrix(_v1:Vector, _v2:Vector):
     s = np.linalg.norm(v)
     kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
     r = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - d) / (s ** 2))
+    
     R = Matrix(((r[0][0], r[0][1], r[0][2]),
                 (r[1][0], r[1][1], r[1][2]), 
                 (r[2][0], r[2][1], r[2][2])))

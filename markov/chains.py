@@ -185,7 +185,7 @@ class Chain(UserList):
 
         if _align_direction:
             # Get rotation matrix around z-axis from direction vectors
-            a = my_dir * Vector((1, 1, 0))
+            a = my_dir    * Vector((1, 1, 0))
             b = other_dir * Vector((1, 1, 0))
             A = rotation_matrix(a, b)
             R = R @ A
@@ -265,8 +265,8 @@ class Chain(UserList):
 
 # -----------------------------------------------------------------------------
 class ChainPool(UserList):
-    def append(self, state, sequence:list[Vector]):
-        self.data.append(Chain(state, sequence))
+    def append(self, _state, _locations:list[Vector]):
+        self.data.append(Chain(_state, _locations))
 
 
     def random_chain(self) -> Chain:
@@ -319,6 +319,9 @@ class GeneratedChain(UserList):
         best_rotation_offset = []
 
         def test_configuration(_start_idx:int, _mirror_permutation:str) -> bool:
+            """
+            Returns true if it finds a configuration with 0 collisions
+            """
             nonlocal smallest_depth
             nonlocal best_mirror_perm
             nonlocal best_rotation_offset
@@ -384,6 +387,7 @@ class GeneratedChain(UserList):
 
     def check_collisions(self, _data:list[Chain]) -> float:
         total_depth = 0
+        
         for k in range(len(_data) - 1, -1, -1):
             for j in range(len(_data)):
                 if k == j: break
@@ -401,6 +405,7 @@ class GeneratedChain(UserList):
     def try_configuration(self, _start_idx:int, _mirror_permutation:str, _rotation_offset:int) -> float:
         temp:list[Chain] = deepcopy(self.data)
         self.apply_configuration(temp, _start_idx, _mirror_permutation, _rotation_offset)
+
         return self.check_collisions(temp)
     
 
@@ -408,6 +413,7 @@ class GeneratedChain(UserList):
         # Mirror data 
         p = 0
         end = min(_start_idx + len(_mirror_permutation), len(_data))
+
         for k in range(_start_idx, end, 1):
             if _mirror_permutation[p] == '1':
                 _data[k].mirror_xy()

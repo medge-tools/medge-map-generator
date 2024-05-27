@@ -140,12 +140,12 @@ class Population(UserList):
 # Populate Dataset Object
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
-    if not is_dataset(_dataset): return
+def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
+    if not is_dataset(_dataset_obj): return
 
-    b3d_utils.set_object_mode(_dataset, 'OBJECT')
+    b3d_utils.set_object_mode(_dataset_obj, 'OBJECT')
 
-    main_collection     = b3d_utils.new_collection('POPULATED_' + _dataset.name)
+    main_collection     = b3d_utils.new_collection('POPULATED_' + _dataset_obj.name)
 
     curve_3d_mod_name = 'Curve_3D'
     curve_2d_mod_name = 'Curve_2D'
@@ -156,15 +156,15 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
 
     print()
     print('Duplicating and aligning modules...')
-    for k, (state, locations, total_length) in enumerate(dataset_sequences(_dataset)):
+    for k, (state, locations, total_length, _) in enumerate(dataset_sequences(_dataset_obj)):
         
         pop_chain = PopChain()
 
-        # Create collection
-        current_collection  = b3d_utils.new_collection(f'{k}_{State(state).name}', main_collection)
-        modules_collection  = b3d_utils.new_collection(f'{k}_MODULES_' + _dataset.name, current_collection)
-        curve_3d_collection = b3d_utils.new_collection(f'{k}_CURVES_3D_' + _dataset.name, current_collection)
-        curve_2d_collection = b3d_utils.new_collection(f'{k}_CURVES_2D_' + _dataset.name, current_collection)
+        # Create collections
+        current_collection  = b3d_utils.new_collection(f'{k}_{State(state).name}_' + _dataset_obj.name, main_collection)
+        modules_collection  = b3d_utils.new_collection(f'{k}_MODULES_' + _dataset_obj.name, current_collection)
+        curve_3d_collection = b3d_utils.new_collection(f'{k}_CURVES_3D_' + _dataset_obj.name, current_collection)
+        curve_2d_collection = b3d_utils.new_collection(f'{k}_CURVES_2D_' + _dataset_obj.name, current_collection)
 
         # Create curves
         curve_data, path = b3d_utils.create_curve(len(locations))
@@ -218,10 +218,10 @@ def populate(_dataset:Object, _module_states:list[MET_PG_ModuleState]):
         while True:
             # Get module
             obj = mstate.random_object()
-            
+
             # If there are no modules assigned, move the next_location to the end of the chain
             if not obj: break
-            
+
             origin, bb_start, bb_end = get_bounds_data(obj)
 
             curr_length += (bb_end - bb_start).length
