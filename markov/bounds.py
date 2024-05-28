@@ -1,5 +1,6 @@
 from mathutils import Vector
 
+from .. import b3d_utils
 
 # -----------------------------------------------------------------------------
 class Hit:
@@ -128,6 +129,7 @@ class Capsule:
 
         ab = self.tip - self.base
         t = ab.dot(_point - self.base) / ab.dot(ab)
+
         return self.base + min(max(t, 0), 1) * ab
 
 
@@ -135,6 +137,7 @@ class Capsule:
         closest_point = self.closest_point_on_segment(_point)
         pen_normal = _point - closest_point
         pen_depth = self.radius + _radius - pen_normal.length
+
         return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth, closest_point, _point)
 
 
@@ -154,4 +157,31 @@ class Capsule:
             best_self = self.tip
 
         best_other = _other.closest_point_on_segment(best_self)
+
         return self.sphere_collision(best_other, _other.radius)
+    
+
+    def to_mesh(self):
+        verts = [
+            self.base + Vector((0, 0, -self.radius)),
+            self.tip  + Vector((0, 0, self.radius)),
+
+            self.base + Vector((self.radius, 0, 0)),
+            self.base + Vector((-self.radius, 0, 0)),
+            self.base + Vector((0, self.radius, 0)),
+            self.base + Vector((0, -self.radius, 0)),
+            
+            self.tip + Vector((self.radius, 0, 0)),
+            self.tip + Vector((-self.radius, 0, 0)),
+            self.tip + Vector((0, self.radius, 0)),
+            self.tip + Vector((0, -self.radius, 0)),
+        ]
+
+        edges = [
+            (0, 1),
+            (0, 2), (0, 3), (0, 4), (0, 5),
+            (1, 6), (1, 7), (1, 8), (1, 9)
+        ]
+
+        mesh = b3d_utils.new_mesh(verts, edges, [], 'Capsule')
+        b3d_utils.new_object('Capsule', mesh, 'Capsules')

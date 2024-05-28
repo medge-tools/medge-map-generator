@@ -52,13 +52,14 @@ class MET_PG_MarkovChain(PropertyGroup):
             return
 
         settings = GenChainSettings()
-        settings.length            = self.length 
-        settings.seed              = self.seed 
-        settings.collision_radius  = self.collision_radius
-        settings.collision_height  = self.collision_height
-        settings.angle_step        = self.angle_step
-        settings.align_orientation = self.align_orientation
-        settings.random_angle      = self.random_angle
+        settings.length             = self.length 
+        settings.seed               = self.seed 
+        settings.collision_radius   = self.collision_radius
+        settings.collision_height   = self.collision_height
+        settings.angle_step         = self.angle_step
+        settings.align_orientation  = self.align_orientation
+        settings.resolve_collisions = self.resolve_collisions
+        settings.random_angle       = self.random_angle
 
         mc = markov_chain_models[self.name]
         mc.generate_chain(settings)
@@ -100,6 +101,7 @@ class MET_PG_MarkovChain(PropertyGroup):
     angle_range:IntProperty(name='Angle Range', default=180, min=0, max=180)
     angle_step: IntProperty(name='Angle Step', default=10, min=0, max=360)
     align_orientation: BoolProperty(name='Align Orientation')
+    resolve_collisions: BoolProperty(name='Resolve Collisions', default=True)
     random_angle: BoolProperty(name='Random Angle')
 
 

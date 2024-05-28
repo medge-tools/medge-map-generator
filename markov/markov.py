@@ -85,7 +85,7 @@ class MarkovChain:
 
     def generate_chain(self, _settings:GenChainSettings) -> GeneratedChain:
         # Scale the chain to combat floating point errors when calculating collisions
-        scale = 1000000
+        scale = 2 #1000000
 
         # Scale and update properties
         for cp in self.chain_pools:
@@ -105,6 +105,7 @@ class MarkovChain:
         gen_chain = GeneratedChain(None, _settings)
         gen_chain.append(deepcopy(prev_chain))
         
+        print()
         for k in range(len(gen_chain), _settings.length, 1):
             print(f'---Iteration: {k}------------------------------------------------------------')
 
@@ -121,18 +122,21 @@ class MarkovChain:
             gen_chain.append(deepcopy(next_chain))
 
             # Resolve any collisions
-            gen_chain.resolve_collisions()
+            if _settings.resolve_collisions:    
+                gen_chain.resolve_collisions()
 
             # Prepare for next iteration
             prev_state = next_state
             prev_chain = next_chain
+    
+        
+        gen_chain.resolve_collisions()
 
         # Scale the chain back to original size
         invscale = 1 / scale
 
         for chain in gen_chain:
             chain.resize(invscale)
-
         
         for cp in self.chain_pools:
             for chain in cp:
@@ -141,7 +145,7 @@ class MarkovChain:
                 chain.resize(invscale)
 
         # Create Polyline from LiveChain
-        name = f'{self.name}_{_settings}'
+        name = f'{self.name} : {_settings}'
         gen_chain.to_polyline(name)
 
         return gen_chain
@@ -180,7 +184,3 @@ class MarkovChain:
         
         self.statistics = data
 
-
-    def debug_chain(self, chain:Chain):
-        mesh = b3d_utils.new_mesh(chain, [], [], 'Test')
-        obj = b3d_utils.new_object('Test', mesh, 'TEST')
