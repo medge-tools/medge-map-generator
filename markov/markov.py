@@ -128,9 +128,6 @@ class MarkovChain:
             # Prepare for next iteration
             prev_state = next_state
             prev_chain = next_chain
-    
-        
-        gen_chain.resolve_collisions()
 
         # Scale the chain back to original size
         invscale = 1 / scale
