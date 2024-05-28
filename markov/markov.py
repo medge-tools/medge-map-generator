@@ -85,7 +85,7 @@ class MarkovChain:
 
     def generate_chain(self, _settings:GenChainSettings) -> GeneratedChain:
         # Scale the chain to combat floating point errors when calculating collisions
-        scale = 2 #1000000
+        scale = 1000000
 
         # Scale and update properties
         for cp in self.chain_pools:
