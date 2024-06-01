@@ -46,11 +46,10 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.prop(active_mc, 'seed')
             col.prop(active_mc, 'collision_height')
             col.prop(active_mc, 'collision_radius')
-            col.prop(active_mc, 'angle_range')
-            col.prop(active_mc, 'angle_step')
+            col.prop(active_mc, 'max_depth')
             col.prop(active_mc, 'align_orientation')
             col.prop(active_mc, 'resolve_collisions')
-            col.prop(active_mc, 'random_angle')
+            col.prop(active_mc, 'random_angles')
 
             col.separator()
             col.operator(MET_OT_GenerateChain.bl_idname)

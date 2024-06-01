@@ -80,8 +80,9 @@ class MarkovChain:
         # Scale and update properties
         for cp in self.chain_pools:
             for chain in cp:
-                chain.height = _settings.collision_height * scale
+                # Update these properties in this order!!! Because of setters
                 chain.radius = _settings.collision_radius * scale
+                chain.height = _settings.collision_height * scale
                 chain.resize(scale)
 
         # Prepare chain generation
@@ -89,13 +90,14 @@ class MarkovChain:
 
         start_state = State.Walking.value
         
+        print()
+        print(f'---Iteration: {0}------------------------------------------------------------')
         prev_state = start_state
         prev_chain = self.chain_pools[start_state].random_chain()
         
         gen_chain = GeneratedChain(None, _settings)
         gen_chain.append(deepcopy(prev_chain))
         
-        print()
         for k in range(len(gen_chain), _settings.length, 1):
             print(f'---Iteration: {k}------------------------------------------------------------')
 
@@ -108,27 +110,32 @@ class MarkovChain:
             next_chain = cp.random_chain()
 
             # Align the new chain to the generated chain
+            # a = np.random.choice(4)
+            # rotation_offsets = [0, 90, -90, 180]
+
             next_chain.align(gen_chain, _settings.align_orientation)
             gen_chain.append(deepcopy(next_chain))
 
             # Resolve any collisions
             if _settings.resolve_collisions:    
-                gen_chain.resolve_collisions()
+                gen_chain.resolve_collisions(k)
 
             # Prepare for next iteration
             prev_state = next_state
             prev_chain = next_chain
 
-        # Scale the chain back to original size
+        # Scale everything back to original size
         invscale = 1 / scale
 
         for chain in gen_chain:
+            chain.radius = _settings.collision_radius
+            chain.height = _settings.collision_height
             chain.resize(invscale)
-        
+            
         for cp in self.chain_pools:
             for chain in cp:
-                chain.height = _settings.collision_height
                 chain.radius = _settings.collision_radius
+                chain.height = _settings.collision_height
                 chain.resize(invscale)
 
         # Create Polyline from LiveChain

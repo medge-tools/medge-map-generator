@@ -56,10 +56,10 @@ class MET_PG_MarkovChain(PropertyGroup):
         settings.seed               = self.seed 
         settings.collision_radius   = self.collision_radius
         settings.collision_height   = self.collision_height
-        settings.angle_step         = self.angle_step
+        settings.max_depth          = self.max_depth
         settings.align_orientation  = self.align_orientation
         settings.resolve_collisions = self.resolve_collisions
-        settings.random_angle       = self.random_angle
+        settings.random_angles      = self.random_angles
 
         mc = markov_chain_models[self.name]
         mc.generate_chain(settings)
@@ -87,22 +87,21 @@ class MET_PG_MarkovChain(PropertyGroup):
         mc.update_statistics(f, t)
 
 
-    name: StringProperty(name='Name', get=__get_name)
+    name:       StringProperty(name='Name', get=__get_name)
     collection: PointerProperty(type=Collection, name='Collection')
 
     display_statistics: BoolProperty(name='Display Statistics')
-    from_state: StateProperty('From', update_statistics)
-    to_state: StateProperty('To', update_statistics)
+    from_state:         StateProperty('From', update_statistics)
+    to_state:       StateProperty('To', update_statistics)
     
-    length: IntProperty(name='Length', default=100, min=0)
-    seed: IntProperty(name='Seed', default=2024, min=0)
-    collision_height: FloatProperty(name='Collision Height', default=1.92, min=1)
-    collision_radius: FloatProperty(name='Collision Radius', default=.5, min=0)
-    angle_range:IntProperty(name='Angle Range', default=180, min=0, max=180)
-    angle_step: IntProperty(name='Angle Step', default=10, min=0, max=360)
-    align_orientation: BoolProperty(name='Align Orientation')
+    length:             IntProperty(name='Length', default=100, min=0)
+    seed:               IntProperty(name='Seed', default=2024, min=0)
+    collision_height:   FloatProperty(name='Collision Height', default=1.92, min=1)
+    collision_radius:   FloatProperty(name='Collision Radius', default=.5, min=0)
+    max_depth:          IntProperty(name='Max Depth', default=3)
+    align_orientation:  BoolProperty(name='Align Orientation')
     resolve_collisions: BoolProperty(name='Resolve Collisions', default=True)
-    random_angle: BoolProperty(name='Random Angle')
+    random_angles:      BoolProperty(name='Random Angles')
 
 
 # -----------------------------------------------------------------------------

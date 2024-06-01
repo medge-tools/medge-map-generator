@@ -1,7 +1,8 @@
 from bpy.types import Object
 from mathutils import Vector, Matrix
 
-import itertools, random
+import itertools
+import random
 import numpy     as np
 from copy        import deepcopy
 from sys         import float_info
@@ -27,12 +28,15 @@ class Chain(UserList):
         self.state = _state
         self._height_ = _height
         self._radius_ = _radius
+        self.total_length = 0
+        
+        self.capsules:list[Capsule] = None
+        self.aabb:AABB=AABB()
         
         if _to_origin:
             self.to_origin()
 
-        self.capsules:list[Capsule] = None
-        self.aabb:AABB=AABB()
+        self.calc_total_length()
         self.update()
 
     # Height
@@ -66,14 +70,28 @@ class Chain(UserList):
             p -= offset
 
 
+    def calc_total_length(self):
+        self.total_length = 0
+
+        p1 = self.data[0]
+
+        for k in range(1, len(self.data), 1):
+            p2 = self.data[k]
+            self.total_length += (p2 - p1).length
+            p1 = p2.copy()
+
+
     def resize(self, _scale:float):
         for p in self.data:
             p *= _scale
+
+        self.total_length *= _scale
 
         self.update()
 
 
     def update(self):
+        # Order is important!!!
         self.update_capsules()
         self.update_aabb()
 
@@ -95,12 +113,14 @@ class Chain(UserList):
             add_capsule(p)
             return
 
-        p1 = self.data[0]
+        total_length_left = self.total_length
+
+        p1 = self.data[0].copy()
         idx = 1
-        p2 = self.data[idx]
+        p2 = self.data[idx].copy()
 
         dir = p2 - p1
-        length = dir.length
+        edge_length_left = dir.length
         dir.normalize()
     
         diameter = self.radius * 2
@@ -109,51 +129,38 @@ class Chain(UserList):
         while True:
 
             # Place capsules on current edge while they do not overextend
-            while diameter <= length:
+            while diameter <= edge_length_left:
                 offset = dir * self.radius
                 P = p1 + offset
 
                 add_capsule(P)
 
-                length -= diameter
+                edge_length_left -= diameter
+                total_length_left -= diameter
 
                 p1 = P + offset
 
-            # When at the last edge
-            if idx == len(self.data) - 1:
-                # Fit the last capsule
-                P = p1 + dir * length * .5
-                add_capsule(P)
+            # If this is the last edge
+            if idx == len(self.data) - 1: return
                 
-                return
-                
-            # Check if we can fit a capsule that will overlap with the next edge
-            if self.radius <= length:
-                
-                offset = dir * self.radius
-                P = p1 + offset
+            # See if we can fit a capsule that will overlap with the next edge
+            if diameter <= total_length_left:
+                if self.radius <= edge_length_left:
+                    offset = dir * self.radius
+                    P = p1 + offset
 
-                add_capsule(P)
+                    add_capsule(P)
+
+                    total_length_left -= self.radius
 
             # Find starting point on next edge
-            rest = length
-
             p1 = p2
             idx += 1
-            p2 = self.data[idx]
+            p2 = self.data[idx].copy()
 
             dir = p2 - p1
-            length = dir.length
+            edge_length_left = dir.length
             dir.normalize()
-
-            s = self.radius - rest
-            offset = dir * s
-            P = p1 + offset
-
-            add_capsule(P)
-
-            length -= s
-            p1 = P + dir * self.radius
 
 
     def update_aabb(self):
@@ -171,8 +178,21 @@ class Chain(UserList):
             bmax.y = max(bmax.y, p.y)
             bmax.z = max(bmax.z, p.z) 
 
-        bmin.y -= self.radius
-        bmax.y += self.radius
+        for c in self.capsules:
+            points = [
+                c.base - Vector((c.radius, 0, 0)),
+                c.base - Vector((0, c.radius, 0)),
+                c.base + Vector((c.radius, 0, 0)),
+                c.base + Vector((0, c.radius, 0)),
+            ]
+
+            for p in points:
+                bmin.x = min(bmin.x, p.x)
+                bmin.y = min(bmin.y, p.y)
+
+                bmax.x = max(bmax.x, p.x)
+                bmax.y = max(bmax.y, p.y)
+
         bmax.z += self.height
 
         self.aabb.bmin = bmin
@@ -191,7 +211,15 @@ class Chain(UserList):
         if _align_direction:
             # Get rotation matrix around z-axis from direction vectors
             a = my_dir    * Vector((1, 1, 0))
+
+            if a.length == 0:
+                a = Vector((1, 0, 0))
+
             b = other_dir * Vector((1, 1, 0))
+            
+            if b.length == 0:
+                b = Vector((1, 0, 0))
+
             A = rotation_matrix(a, b)
             R = R @ A
 
@@ -212,18 +240,26 @@ class Chain(UserList):
     def get_directions(self, _gen_chain:list['Chain']) -> tuple[Vector, Vector]:
         # Direction vectors 
         my_dir = Vector((1, 0, 0))
-        if len(self.data) >= 2:
-            my_dir = self.data[1] - self.data[0]
+        start = self.data[0]
+
+        for k in range(0, len(self.data), -1):
+            d = self.data[k] - start
+
+            if dir.length > 0:
+                my_dir = d
+                break
 
         # Get the last two points from the generated chain
         other_dir = Vector((1, 0, 0))
 
         c1:Chain = _gen_chain[-1]
         p1 = c1[-1]
-        
+        p2 = None
+
         if len(c1) >= 2:
             p2 = c1[-2]
             other_dir = p1 - p2
+
         else:            
             if len(_gen_chain) >= 2:
                 c2 = _gen_chain[-2]
@@ -236,8 +272,12 @@ class Chain(UserList):
     def collides(self, _other:'Chain', _force=False, _quick=False) -> list[Hit]:
         if not _force and not self.aabb.contains(_other.aabb): return None
         hits = []
-        for k, my_cap in enumerate(self.capsules):
-            for j, other_cap in enumerate(_other.capsules):
+        
+        for j, my_cap in enumerate(self.capsules):
+            # The first capsule seems to always overlap with the last capsule of the previous chain
+            if j == 0: continue
+
+            for k, other_cap in reversed(list(enumerate(_other.capsules))):
                 if (hit := my_cap.collides(other_cap)): 
                     hits.append(hit)
                     if _quick: return hits
@@ -287,12 +327,11 @@ class GenChainSettings:
     length             = 1
     seed               = 0
     collision_height   = 1.92
-    collision_radius   = 1.0
-    angle_range        = 180
-    angle_step         = 10
+    collision_radius   = .5
+    max_depth          = 3
     align_orientation  = True
     resolve_collisions = True
-    random_angle       = False
+    random_angles      = False
     
 
     def __str__(self):
@@ -301,11 +340,11 @@ class GenChainSettings:
 {self.seed}_\
 {self.collision_height}_\
 {self.collision_radius}_\
-{self.angle_range}_\
-{self.angle_step}_\
+{self.max_depth}_\
 {str(self.align_orientation)[0]}_\
-{str(self.resolve_collisions)[0]}_\
-{str(self.random_angle)[0]}'
+{str(self.resolve_collisions)[0]}\
+{str(self.random_angles)[0]}\
+'
 
 
 # -----------------------------------------------------------------------------
@@ -315,95 +354,75 @@ class GeneratedChain(UserList):
         self.obj:Object = None
         self.settings:GenChainSettings = _settings
 
-        self.angles = []
-
-        for a in range(0, _settings.angle_range + 1, _settings.angle_step):
-            self.angles.append(a)
-            self.angles.append(-a)
+        self.angles = [0, 45, -45, 90, -90, 135, -135, 180]
 
 
-    def resolve_collisions(self):
+    def resolve_collisions(self, _iteration:int):
         smallest_pen_depth = float_info.max
 
-        max_depth = len(self.data)
-
         best_mirror_perm = None
-        best_rotation_offset = []
+        best_angle_perm = None
+        max_depth = 0
 
         def test_configuration(_start_idx:int, _mirror_permutation:str) -> bool:
             """
             Returns true if it finds a configuration with 0 collisions
             """
-            nonlocal smallest_pen_depth, max_depth
-            nonlocal best_mirror_perm, best_rotation_offset
+            nonlocal smallest_pen_depth, best_mirror_perm, best_angle_perm
+            nonlocal max_depth
             
-            if self.settings.random_angle:
-                random.shuffle(self.angles)
+            r = len(self.data) - _start_idx
 
-            for angle in self.angles:
-                total_pen_depth = self.try_configuration(_start_idx, _mirror_permutation, angle)
+            for angle_permutation in itertools.product(self.angles, repeat=r):
+                total_pen_depth = self.try_configuration(_start_idx, _mirror_permutation, angle_permutation)
 
-                index_depth = len(self.data) - _start_idx
-                print(f'Max depth: {max_depth}, Current depth: {index_depth}, Tested configuration: (permutation: {_mirror_permutation}, angle: {angle}), with total penetration: {total_pen_depth}')
+                print(f'Iteration: {_iteration}, Max depth: {max_depth}, Current depth: {_start_idx}, Tested config: (mirror perm: {_mirror_permutation}, angle perm: {angle_permutation}), total penetration: {total_pen_depth}')
                 
-                if total_pen_depth > 0:
+                if total_pen_depth < smallest_pen_depth: 
+                    smallest_pen_depth = total_pen_depth
+                    best_mirror_perm   = _mirror_permutation
+                    best_angle_perm    = angle_permutation
 
-                    if total_pen_depth < smallest_pen_depth: 
-                        smallest_pen_depth = total_pen_depth
-                        best_mirror_perm = _mirror_permutation
-                        best_rotation_offset = angle
-
-                else:            
-                    print(f'0 Collisions with permutation: {_mirror_permutation} and angle: {angle}')
-                    self.apply_configuration(self.data, k, _mirror_permutation, angle)
-
+                if total_pen_depth == 0:
+                    print(f'0 Collisions with permutation: {_mirror_permutation} and angle: {angle_permutation}')
                     return True
                 
             return False
 
-        # Max depth
-        found_collision = False
-
-        for k, ch1 in reversed(list(enumerate(self.data))):
-            for j, ch2 in enumerate(self.data):
-                if k == j: break
-                if not ch1.collides(ch2, _quick=True): continue
-
-                found_collision = True
-
-                if j < max_depth:
-                    max_depth = j
-
-        if not found_collision: return
-        
-        print(f'Max depth: {max_depth}')
 
         # Resolve any collisions by testing permutations
         # A permutation is a string consisting of '0' and '1'
         # '1' means mirror, '0' means do nothing
-        for k in range(len(self.data) - 1, max_depth - 1, -1):
+        start = len(self.data) - 1
+        max_depth = max(len(self.data) - self.settings.max_depth - 1, 0)
+
+        for k in range(start, max_depth, -1):
             r = len(self.data) - k
 
             mirror_perms = [''.join(seq) for seq in itertools.product('01', repeat=r) if r == 1 or seq[0] != '0']
 
             for mp in mirror_perms:
-                if test_configuration(k, mp): return
-        
-        # We have not found a configuration with 0 collisions, so apply the best configuration
-        print(f'Best configuration: (permutation: {best_mirror_perm}, angle: {best_rotation_offset}), with total depth: {smallest_pen_depth}')
+                if test_configuration(k, mp):
+                    start_idx = len(self.data) - len(best_mirror_perm)
+                    self.apply_configuration(self.data, start_idx, best_mirror_perm, best_angle_perm)
+                    
+                    return
+
+        # Apply the best configuration
+        print(f'Best configuration: (mirror perm: {best_mirror_perm}, angle perm: {best_angle_perm}), with total depth: {smallest_pen_depth}')
         start_idx = len(self.data) - len(best_mirror_perm)
-        self.apply_configuration(self.data, start_idx, best_mirror_perm, best_rotation_offset)
+        self.apply_configuration(self.data, start_idx, best_mirror_perm, best_angle_perm)
         
 
     def check_collisions(self, _data:list[Chain]) -> float:
         total_depth = 0
         
-        for k in range(len(_data) - 1, -1, -1):
-            for j in range(len(_data)):
-                if k == j: break
+        for j in range(len(_data) - 1, -1, -1):
+            for k in range(len(_data)):
+                if j == k: break
 
-                ch1 = _data[k]
-                ch2 = _data[j]
+                ch1 = _data[j]
+                ch2 = _data[k]
 
                 if (hits := ch1.collides(ch2)):
                     for h in hits:
@@ -412,26 +431,34 @@ class GeneratedChain(UserList):
         return total_depth 
 
 
-    def try_configuration(self, _start_idx:int, _mirror_permutation:str, _rotation_offset:int) -> float:
+    def try_configuration(self, _start_idx:int, _mirror_permutation:str, _angle_permutation:int) -> float:
         temp:list[Chain] = deepcopy(self.data)
-        self.apply_configuration(temp, _start_idx, _mirror_permutation, _rotation_offset)
+        self.apply_configuration(temp, _start_idx, _mirror_permutation, _angle_permutation)
 
         return self.check_collisions(temp)
     
 
-    def apply_configuration(self, _data:list[Chain], _start_idx:int, _mirror_permutation:str, _rotation_offset:int):
+    def apply_configuration(self, _data:list[Chain], _start_idx:int, _mirror_permutation:str, _angle_permutation:list[int]):
+        assert(len(_mirror_permutation) == len(_angle_permutation))
+
         # Mirror data 
+        end = len(_data)
         p = 0
-        end = min(_start_idx + len(_mirror_permutation), len(_data))
 
         for k in range(_start_idx, end, 1):
             if _mirror_permutation[p] == '1':
                 _data[k].mirror_xy()
+
             p += 1
 
         # Align mirrored data
-        for k in range(_start_idx + 1, len(_data)):
-            _data[k].align(_data[:k], self.settings.align_orientation, _rotation_offset)
+        p = 0
+
+        for k in range(_start_idx, end, 1):
+            angle = _angle_permutation[p]
+            _data[k].align(_data[:k], self.settings.align_orientation, angle)
+
+            p += 1
 
 
     def from_dataset(self, _dataset_object:Object):
