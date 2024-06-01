@@ -43,18 +43,7 @@ class MarkovChain:
                 states.append(state)
 
             transitions.append(states.copy())
-
-            # for entry in dataset_entries(obj):
-            #     state = entry[Attribute.STATE.value]
-
-            #     N = max(N, state)
-
-            #     if entry[Attribute.CONNECTED.value]:
-            #         states.append(state)
-            #     else:
-            #         CS.append(states.copy())
-            #         states = []
-        
+            
         if len(transitions) == 0: return False
 
         self.nstates += 1
@@ -70,6 +59,7 @@ class MarkovChain:
                 self.chain_pools[state].append(state, locations)
 
         # Populate transition matrix
+        # Instead of going through each vertex, we group 
         for sequence in transitions:
             for s1, s2 in zip(sequence, sequence[1:]):
                 self.transition_matrix[s1][s2] += 1.0

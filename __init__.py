@@ -18,7 +18,7 @@ from .b3d_utils     import register_subpackage, unregister_subpackages
 
 from .dataset.props import MET_MESH_PG_Dataset
 from .markov.props  import MET_SCENE_PG_MarkovChains
-from .content.props import MET_SCENE_PG_ModuleStates, MET_COLLECTION_PG_Population, MET_OBJECT_PG_ModuleSettings
+from .content.props import MET_SCENE_PG_ModuleStates, MET_COLLECTION_PG_Population, MET_OBJECT_PG_Module
 
 
 # -----------------------------------------------------------------------------
@@ -32,7 +32,7 @@ def register():
     Scene.medge_markov_chains   = PointerProperty(type=MET_SCENE_PG_MarkovChains)
     Scene.medge_module_states   = PointerProperty(type=MET_SCENE_PG_ModuleStates)
     Collection.medge_population = PointerProperty(type=MET_COLLECTION_PG_Population)
-    Object.medge_module         = PointerProperty(type=MET_OBJECT_PG_ModuleSettings)
+    Object.medge_module         = PointerProperty(type=MET_OBJECT_PG_Module)
 
 
 # -----------------------------------------------------------------------------

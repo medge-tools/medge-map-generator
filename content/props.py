@@ -9,10 +9,11 @@ from ..dataset.dataset  import Attribute, dataset_entries
 
 
 # -----------------------------------------------------------------------------
-class MET_OBJECT_PG_ModuleSettings(PropertyGroup):
+class MET_OBJECT_PG_Module(PropertyGroup):
 
-    deform:   BoolProperty(name='Deform',   description='Mesh will be deform by curve modifier in the xy-plane')
-    deform_z: BoolProperty(name='Deform Z', description='Mesh will also be deformed in the z-axis')
+    can_overextend: BoolProperty(name='Can Overextend', default=True)
+    curve_deform:   BoolProperty(name='Curve Deform',   description='Mesh will be deform by curve modifier in the xy-plane')
+    curve_deform_z: BoolProperty(name='Curve Deform Z', description='Mesh will also be deformed in the z-axis')
 
 # -----------------------------------------------------------------------------
 class MET_PG_ModuleState(PropertyGroup):
@@ -117,7 +118,7 @@ class MET_COLLECTION_PG_Population(PropertyGroup):
 # Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_module_prop(_obj:Object) -> MET_OBJECT_PG_ModuleSettings:
+def get_module_prop(_obj:Object) -> MET_OBJECT_PG_Module:
     return _obj.medge_module
 
 

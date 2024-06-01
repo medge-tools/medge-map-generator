@@ -3,7 +3,7 @@ from bpy.types  import Operator, Context
 from ..b3d_utils       import get_active_collection
 from ..dataset.dataset import is_dataset
 from .props            import get_module_states_prop, get_population_prop
-from .content          import populate, finalize, export
+from .content          import populate, prepare_for_export, export
 
 
 # -----------------------------------------------------------------------------
@@ -58,9 +58,9 @@ class MET_OT_Populate(Operator):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_FinalizeContent(Operator):
-    bl_idname = 'medge_content.finalize_content'
-    bl_label = 'Finalize Content'
+class MET_OT_PreppareForExport(Operator):
+    bl_idname = 'medge_content.prepare_for_export'
+    bl_label = 'Prepare For Export'
     bl_options = {'UNDO'}
 
 
@@ -74,7 +74,7 @@ class MET_OT_FinalizeContent(Operator):
 
     def execute(self, _context:Context):
         collection = get_active_collection()
-        finalize(collection)
+        prepare_for_export(collection)
         return {'FINISHED'}
     
 

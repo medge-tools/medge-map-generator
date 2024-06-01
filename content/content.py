@@ -146,6 +146,7 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
     b3d_utils.set_object_mode(_dataset_obj, 'OBJECT')
 
     main_collection     = b3d_utils.new_collection('POPULATED_' + _dataset_obj.name)
+    b3d_utils.new_collection('PrepareForExport', main_collection)
 
     curve_3d_mod_name = 'Curve_3D'
     curve_2d_mod_name = 'Curve_2D'
@@ -163,8 +164,6 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
         # Create collections
         current_collection  = b3d_utils.new_collection(f'{k}_{State(state).name}_' + _dataset_obj.name, main_collection)
         modules_collection  = b3d_utils.new_collection(f'{k}_MODULES_' + _dataset_obj.name, current_collection)
-        curve_3d_collection = b3d_utils.new_collection(f'{k}_CURVES_3D_' + _dataset_obj.name, current_collection)
-        curve_2d_collection = b3d_utils.new_collection(f'{k}_CURVES_2D_' + _dataset_obj.name, current_collection)
 
         # Create curves
         curve_data, path = b3d_utils.create_curve(len(locations))
@@ -172,11 +171,11 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
         for p1, p2 in zip(path.points, locations):
             p1.co = (*p2, 1)
 
-        curve_3d = b3d_utils.new_object(f'{k}_CURVE_3D', curve_data, curve_3d_collection)
+        curve_3d = b3d_utils.new_object(f'{k}_CURVE_3D', curve_data, current_collection)
         
         # Duplicate the curve and project it to the xy-plane
         # This curve is used when a object is not to be deformed in the z-axis
-        curve_2d = b3d_utils.duplicate_object(curve_3d, False, curve_2d_collection)
+        curve_2d = b3d_utils.duplicate_object(curve_3d, False, current_collection)
         curve_2d.data.dimensions = '2D'
         curve_2d.name = f'{k}_CURVE_2D'
 
@@ -185,30 +184,23 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
             nonlocal modules_collection, m_idx
             nonlocal curve_3d, curve_2d
 
-            # Duplicated module and place
-            copy = b3d_utils.duplicate_object(_obj, False, modules_collection)
-
-            b3d_utils.unparent(copy)
-
-            copy.location = _location
+            _obj.location = _location
 
             # Add curve modifier
-            mod = copy.modifiers.new(curve_3d_mod_name, 'CURVE')
+            mod = _obj.modifiers.new(curve_3d_mod_name, 'CURVE')
             mod.object = curve_3d
             mod.deform_axis = 'POS_X'
             mod.show_viewport = True
 
             # Add curve modifier
-            mod = copy.modifiers.new(curve_2d_mod_name, 'CURVE')
+            mod = _obj.modifiers.new(curve_2d_mod_name, 'CURVE')
             mod.object = curve_2d
             mod.deform_axis = 'POS_X'
             mod.show_viewport = False
 
             # Append
-            copy.name = f'{m_idx}_{_obj.name}'
+            _obj.name = f'{m_idx}_{_obj.name}'
             m_idx += 1
-
-            return copy
 
 
         next_location = Vector()
@@ -222,31 +214,49 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
             # If there are no modules assigned, move the next_location to the end of the chain
             if not obj: break
 
+            settings = get_module_prop(obj)
+
             origin, bb_start, bb_end = get_bounds_data(obj)
 
             curr_length += (bb_end - bb_start).length
 
-            if curr_length > total_length:
-                population.append(pop_chain); break
+            if not settings.can_overextend:
+                if curr_length > total_length:
+                    population.append(pop_chain)
+                    break
 
             new_location = next_location + origin - bb_start
 
-            parent   = align_module(obj, new_location)
+            # Duplicated module and place
+            parent = b3d_utils.duplicate_object(obj, False, modules_collection)
+
+            align_module(parent, new_location)
+
             children = []
 
             for child in obj.children:
+                copy = b3d_utils.duplicate_object_with_children(child, False, modules_collection)
+                b3d_utils.unparent(copy)
+
                 offset = child.location - obj.location
-                c = align_module(child, new_location + offset)
-                children.append(c)
+                align_module(copy, new_location + offset)
+
+                children.append(copy)
             
             pop_chain.append(PopObject(parent, children, state))
             
             if mstate.only_at_chain_start: 
-                population.append(pop_chain); break
+                population.append(pop_chain)
+                break
+
+            if curr_length > total_length:
+                population.append(pop_chain)
+                break
 
             next_location += bb_end - bb_start
 
     print('Update objects according to module settings...')
+
 
     def toggle_curve_modifiers(_obj:Object, _show_3d:bool, _show_2d:bool):
         mod = _obj.modifiers[curve_3d_mod_name]
@@ -279,8 +289,8 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
                 c_prop       = get_module_prop(child)
                 local_offset = child.location - parent.location
 
-                if c_prop.deform:
-                    if c_prop.deform_z:
+                if c_prop.curve_deform:
+                    if c_prop.curve_deform_z:
                         toggle_curve_modifiers(child, True, False)
 
                     else:
@@ -298,12 +308,12 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
                     child.location += local_offset
 
                     # Rotate around parent
-                    child.location.xy      = rotate_xy(p_wc1, child.location, angle)
-                    child.rotation_euler.z = angle
+                    child.location.xy       = rotate_xy(p_wc1, child.location, angle)
+                    child.rotation_euler.z += angle
 
             # Deform parent
-            if p_prop.deform:
-                if p_prop.deform_z:
+            if p_prop.curve_deform:
+                if p_prop.curve_deform_z:
                     toggle_curve_modifiers(parent, True, False)
 
                 else:
@@ -317,8 +327,8 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
 
                 toggle_curve_modifiers(parent, False, False)
 
-                parent.location         = p_wc1.copy()
-                parent.rotation_euler.z = angle
+                parent.location          = p_wc1.copy()
+                parent.rotation_euler.z += angle
 
 
     # Update collection property
@@ -328,22 +338,51 @@ def populate(_dataset_obj:Object, _module_states:list[MET_PG_ModuleState]):
 
     
 # -----------------------------------------------------------------------------
-def finalize(_collection: Collection):
-    for obj in _collection.objects:
-        if obj.type == 'CURVE':
-            b3d_utils.remove_object(obj)
-            continue
+def prepare_for_export(_collection:Collection):
+    new_collection = b3d_utils.new_collection('PrepareForExport', _collection)
 
-        b3d_utils.set_active_object(obj)
-        bpy.ops.object.modifier_apply(modifier='Curve', single_user=True)
+    # Add player start
+    bpy.ops.medge_map_editor.add_actor(type='PLAYER_START')
+    ps = bpy.context.object
+
+    b3d_utils.link_object_to_scene(ps, new_collection)
+    
+    ps.location = Vector((0, 0, 2))
+
+    # Add directional light
+    bpy.ops.object.light_add(type='SUN', align='WORLD', location=(0, 0, 3), scale=(1, 1, 1))
+    light = bpy.context.object
+
+    b3d_utils.link_object_to_scene(light, new_collection)
+
+    # Add skybox top
+    bpy.ops.medge_map_editor.add_skydome()
+    sd = bpy.context.object
+    scale = 7000
+
+    b3d_utils.link_object_to_scene(sd, new_collection)
+
+    sd.location = (0, 0, 0)
+    sd.scale = (scale, scale, scale)
+
+    # Add skybox bottom
+    bpy.ops.medge_map_editor.add_skydome()
+    sd = bpy.context.object
+    b3d_utils.link_object_to_scene(sd, new_collection)
+
+    sd.location = (0, 0, 0)
+    sd.scale = (scale, scale, scale)
+    sd.rotation_euler.x = math.pi
 
 
 # -----------------------------------------------------------------------------
-def export(_collection: Collection):
+def export(_collection:Collection):
     b3d_utils.deselect_all_objects()
 
     for obj in _collection.all_objects:
-        if obj.medge_actor.type == 'NONE': continue
+        if obj.type != 'LIGHT':
+            if obj.medge_actor.type == 'NONE': continue
+        
         b3d_utils.select_object(obj)
 
-    bpy.ops.medge_map_editor.t3d_export(selected_objects=True)
+    bpy.ops.medge_map_editor.t3d_export('INVOKE_DEFAULT', selected_objects=True)

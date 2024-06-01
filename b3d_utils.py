@@ -110,6 +110,17 @@ def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
         set_active_object(copy)
 
         return copy
+    
+
+# -----------------------------------------------------------------------------
+def duplicate_object_with_children(_obj:Object, _instance=False, _collection=None) -> Object:
+    root = duplicate_object(_obj, _instance, _collection)
+
+    for child in _obj.children:
+        copy = duplicate_object(child, _instance, _collection)
+        reparent(copy, root)
+
+    return root
 
 
 # -----------------------------------------------------------------------------
@@ -190,20 +201,29 @@ def apply_all_transforms(_obj:Object):
 
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
+def unparent(_obj:Object, _keep_world_location=True):
+    if not _obj.parent: return
+
+    parented_wm = _obj.matrix_world.copy()
+    _obj.parent = None
+    
+    if _keep_world_location:
+        _obj.matrix_world = parented_wm
+
+
+# -----------------------------------------------------------------------------
+# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
 def set_parent(_child:Object, _parent:Object, _keep_world_location=True):
     _child.parent = _parent
+
     if _keep_world_location:
         _child.matrix_parent_inverse = _parent.matrix_world.inverted()
 
 
 # -----------------------------------------------------------------------------
-# https://blender.stackexchange.com/questions/9200/how-to-make-object-a-a-parent-of-object-b-via-blenders-python-api
-def unparent(_obj:Object, _keep_world_location=True):
-    if not _obj.parent: return
-    parented_wm = _obj.matrix_world.copy()
-    _obj.parent = None
-    if _keep_world_location:
-        _obj.matrix_world = parented_wm
+def reparent(_child:Object, _parent:Object, _keep_world_location=True):
+    unparent(_child, _keep_world_location)
+    set_parent(_child, _parent, _keep_world_location)
 
 
 # -----------------------------------------------------------------------------
