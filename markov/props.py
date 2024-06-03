@@ -57,9 +57,13 @@ class MET_PG_MarkovChain(PropertyGroup):
         settings.collision_radius   = self.collision_radius
         settings.collision_height   = self.collision_height
         settings.max_depth          = self.max_depth
+        settings.max_angle          = self.max_angle
+        settings.angle_step         = self.angle_step
         settings.align_orientation  = self.align_orientation
         settings.resolve_collisions = self.resolve_collisions
         settings.random_angles      = self.random_angles
+        settings.random_mirror      = self.random_mirror
+        settings.debug_capsules     = self.debug_capsules
 
         mc = markov_chain_models[self.name]
         mc.generate_chain(settings)
@@ -92,16 +96,20 @@ class MET_PG_MarkovChain(PropertyGroup):
 
     display_statistics: BoolProperty(name='Display Statistics')
     from_state:         StateProperty('From', update_statistics)
-    to_state:       StateProperty('To', update_statistics)
+    to_state:           StateProperty('To', update_statistics)
     
     length:             IntProperty(name='Length', default=100, min=0)
     seed:               IntProperty(name='Seed', default=2024, min=0)
     collision_height:   FloatProperty(name='Collision Height', default=1.92, min=1)
     collision_radius:   FloatProperty(name='Collision Radius', default=.5, min=0)
     max_depth:          IntProperty(name='Max Depth', default=3)
+    max_angle:          IntProperty(name='Max Angle', default=180, max=180)
+    angle_step:         IntProperty(name='Angle Step', default=45, max=180)
     align_orientation:  BoolProperty(name='Align Orientation')
     resolve_collisions: BoolProperty(name='Resolve Collisions', default=True)
     random_angles:      BoolProperty(name='Random Angles')
+    random_mirror:      BoolProperty(name='Random Mirror')
+    debug_capsules:     BoolProperty(name='Debug Capsules')
 
 
 # -----------------------------------------------------------------------------

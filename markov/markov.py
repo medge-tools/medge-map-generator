@@ -109,16 +109,19 @@ class MarkovChain:
             cp:ChainPool = self.chain_pools[next_state]
             next_chain = cp.random_chain()
 
-            # Align the new chain to the generated chain
-            # a = np.random.choice(4)
-            # rotation_offsets = [0, 90, -90, 180]
+            # Apply random mirror
+            if _settings.random_mirror:
+                r = np.random.random()
+                if r >= 0.5:
+                    next_chain.mirror_xy()
 
+            # Align the new chain to the generated chain
             next_chain.align(gen_chain, _settings.align_orientation)
             gen_chain.append(deepcopy(next_chain))
 
             # Resolve any collisions
             if _settings.resolve_collisions:    
-                gen_chain.resolve_collisions(k)
+                gen_chain.resolve_collisions(k, State(next_state).name)
 
             # Prepare for next iteration
             prev_state = next_state
@@ -137,6 +140,12 @@ class MarkovChain:
                 chain.radius = _settings.collision_radius
                 chain.height = _settings.collision_height
                 chain.resize(invscale)
+
+        # Debug capsules
+        if _settings.debug_capsules:
+            for chain in gen_chain:
+                for cap in chain.capsules:
+                    cap.to_mesh()
 
         # Create Polyline from LiveChain
         name = f'{self.name} : {_settings}'

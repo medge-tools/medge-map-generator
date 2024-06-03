@@ -83,6 +83,4 @@ class MET_OT_GenerateChain(Operator):
         item = chains.get_selected()
         item.generate_chain()
         return {'FINISHED'}        
-    
-
-    
+      

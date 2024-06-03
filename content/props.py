@@ -19,7 +19,19 @@ class MET_OBJECT_PG_Module(PropertyGroup):
 class MET_PG_ModuleState(PropertyGroup):
 
     def __get_name(self):
-        return State(self.state).name
+        name = State(self.state).name
+        
+        if self.use_collection:
+            if self.collection:
+                if not self.collection.all_objects:
+                    name = '[EMPTY]_' + name
+            else:
+                name = '[EMPTY]_' + name
+        else:
+            if not self.object:
+                name = '[EMPTY]_' + name
+
+        return name
 
 
     def random_object(self) -> Object | None:

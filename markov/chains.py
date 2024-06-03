@@ -210,7 +210,7 @@ class Chain(UserList):
 
         if _align_direction:
             # Get rotation matrix around z-axis from direction vectors
-            a = my_dir    * Vector((1, 1, 0))
+            a = my_dir * Vector((1, 1, 0))
 
             if a.length == 0:
                 a = Vector((1, 0, 0))
@@ -242,10 +242,10 @@ class Chain(UserList):
         my_dir = Vector((1, 0, 0))
         start = self.data[0]
 
-        for k in range(0, len(self.data), -1):
+        for k in range(1, len(self.data), 1):
             d = self.data[k] - start
 
-            if dir.length > 0:
+            if d.length > 0:
                 my_dir = d
                 break
 
@@ -269,17 +269,19 @@ class Chain(UserList):
         return my_dir, other_dir
 
 
-    def collides(self, _other:'Chain', _force=False, _quick=False) -> list[Hit]:
-        if not _force and not self.aabb.contains(_other.aabb): return None
+    def collides(self, _other:'Chain', _quick=False) -> list[Hit]:
+        if not self.aabb.contains(_other.aabb): return None
+        
         hits = []
         
         for j, my_cap in enumerate(self.capsules):
             # The first capsule seems to always overlap with the last capsule of the previous chain
             if j == 0: continue
-
-            for k, other_cap in reversed(list(enumerate(_other.capsules))):
+        
+            for other_cap in reversed(_other.capsules):
                 if (hit := my_cap.collides(other_cap)): 
                     hits.append(hit)
+        
                     if _quick: return hits
         
         return hits
@@ -329,9 +331,13 @@ class GenChainSettings:
     collision_height   = 1.92
     collision_radius   = .5
     max_depth          = 3
+    max_angle          = 180
+    angle_step         = 45
     align_orientation  = True
     resolve_collisions = True
     random_angles      = False
+    random_mirror      = False
+    debug_capsules     = False
     
 
     def __str__(self):
@@ -341,9 +347,12 @@ class GenChainSettings:
 {self.collision_height}_\
 {self.collision_radius}_\
 {self.max_depth}_\
+{self.max_angle}_\
+{self.angle_step}_\
 {str(self.align_orientation)[0]}_\
-{str(self.resolve_collisions)[0]}\
-{str(self.random_angles)[0]}\
+{str(self.resolve_collisions)[0]}_\
+{str(self.random_angles)[0]}_\
+{str(self.debug_capsules)[0]}\
 '
 
 
@@ -351,13 +360,19 @@ class GenChainSettings:
 class GeneratedChain(UserList):
     def __init__(self, _data=None, _settings:GenChainSettings=None):
         super().__init__(_data)
+
         self.obj:Object = None
         self.settings:GenChainSettings = _settings
 
-        self.angles = [0, 45, -45, 90, -90, 135, -135, 180]
+        self.angles = [0]
+
+        for k in range(_settings.angle_step, _settings.max_angle + 1, _settings.angle_step):
+            if k != 180:
+                self.angles.append(-k)
+            self.angles.append( k)
 
 
-    def resolve_collisions(self, _iteration:int):
+    def resolve_collisions(self, _print_iteration:int, _print_state:str):
         smallest_pen_depth = float_info.max
 
         best_mirror_perm = None
@@ -373,10 +388,13 @@ class GeneratedChain(UserList):
             
             r = len(self.data) - _start_idx
 
+            if self.settings.random_angles:
+                np.random.shuffle(self.angles)
+
             for angle_permutation in itertools.product(self.angles, repeat=r):
                 total_pen_depth = self.try_configuration(_start_idx, _mirror_permutation, angle_permutation)
 
-                print(f'Iteration: {_iteration}, Max depth: {max_depth}, Current depth: {_start_idx}, Tested config: (mirror perm: {_mirror_permutation}, angle perm: {angle_permutation}), total penetration: {total_pen_depth}')
+                print(f'Iteration: {_print_iteration}, State: {_print_state}, Max depth: {max_depth}, Current depth: {_start_idx}, Tested config: (mirror perm: {_mirror_permutation}, angle perm: {angle_permutation}), total penetration: {total_pen_depth}')
                 
                 if total_pen_depth < smallest_pen_depth: 
                     smallest_pen_depth = total_pen_depth
