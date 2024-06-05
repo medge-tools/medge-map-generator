@@ -1,6 +1,6 @@
 from bpy.types import Context, Panel
 
-from ..main_gui import MapGenPanel_DefaultProps, MET_PT_MapGenMainPanel
+from ..gui_defaults import MapGenPanel_DefaultProps
 from ..         import b3d_utils
 from .props     import get_dataset_prop
 from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectStates, MET_OT_SelectTransitions, 
@@ -9,9 +9,8 @@ from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectS
 
 # -----------------------------------------------------------------------------
 class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
-    bl_parent_id = MET_PT_MapGenMainPanel.bl_idname
     bl_idname = 'MET_PT_DatasetMainPanel'
-    bl_label = 'Dataset'
+    bl_label = 'Map Gen: Dataset'
     
     def draw(self, _context: Context):
         layout = self.layout

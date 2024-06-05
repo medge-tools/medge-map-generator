@@ -265,7 +265,7 @@ def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
         edges.append( (i, i + 1) )
     
     mesh = b3d_utils.new_mesh(verts, edges, [], _name)
-    obj = b3d_utils.new_object(_name, mesh)  
+    obj = b3d_utils.new_object(mesh, _name)  
 
     # Add dataset to obj
     to_dataset(obj, _dataset)

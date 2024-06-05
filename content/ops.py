@@ -1,103 +1,103 @@
-from bpy.types  import Operator, Context
+# from bpy.types  import Operator, Context
 
-from ..b3d_utils       import get_active_collection
-from ..dataset.dataset import is_dataset
-from .props            import get_module_states_prop, get_population_prop
-from .content          import populate, prepare_for_export, export
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_InitModules(Operator):
-    bl_idname = 'medge_content.init_modules'
-    bl_label = 'Init Modules'
+# from ..b3d_utils       import get_active_collection
+# from ..dataset.dataset import is_dataset
+# from .props            import get_module_states_prop, get_population_prop
+# from .content          import populate, prepare_for_export, export
 
 
-    def execute(self, _context):
-        modules = get_module_states_prop(_context)
-        modules.init()
-        return {'FINISHED'}
+# # -----------------------------------------------------------------------------
+# class MET_OT_InitModules(Operator):
+#     bl_idname = 'medge_content.init_modules'
+#     bl_label = 'Init Modules'
 
 
-# -----------------------------------------------------------------------------
-class MET_OT_UpdateActiveStates(Operator):
-    bl_idname = 'medge_content.update_active_states'
-    bl_label = 'Update Active States'
+#     def execute(self, _context):
+#         modules = get_module_states_prop(_context)
+#         modules.init()
+#         return {'FINISHED'}
 
 
-    @classmethod
-    def poll(cls, _context:Context):
-        obj = _context.object
-        if not obj: return False
-        return is_dataset(obj)
+# # -----------------------------------------------------------------------------
+# class MET_OT_UpdateActiveStates(Operator):
+#     bl_idname = 'medge_content.update_active_states'
+#     bl_label = 'Update Active States'
 
 
-    def execute(self, _context:Context):
-        modules = get_module_states_prop(_context)
-        modules.update_active_states(_context.object)
-        return {'FINISHED'}
+#     @classmethod
+#     def poll(cls, _context:Context):
+#         obj = _context.object
+#         if not obj: return False
+#         return is_dataset(obj)
+
+
+#     def execute(self, _context:Context):
+#         modules = get_module_states_prop(_context)
+#         modules.update_active_states(_context.object)
+#         return {'FINISHED'}
     
 
-# -----------------------------------------------------------------------------
-class MET_OT_Populate(Operator):
-    bl_idname = 'medge_content.populate'
-    bl_label = 'Populate'
-    bl_options = {'UNDO'}
+# # -----------------------------------------------------------------------------
+# class MET_OT_Populate(Operator):
+#     bl_idname = 'medge_content.populate'
+#     bl_label = 'Populate'
+#     bl_options = {'UNDO'}
 
 
-    @classmethod
-    def poll(cls, _context:Context):
-        obj = _context.object
-        if not obj: return False
-        return is_dataset(obj)
+#     @classmethod
+#     def poll(cls, _context:Context):
+#         obj = _context.object
+#         if not obj: return False
+#         return is_dataset(obj)
 
 
-    def execute(self, _context:Context):
-        modules = get_module_states_prop(_context).items
-        populate(_context.object, modules)
-        return {'FINISHED'}
+#     def execute(self, _context:Context):
+#         modules = get_module_states_prop(_context).items
+#         populate(_context.object, modules)
+#         return {'FINISHED'}
 
 
-# -----------------------------------------------------------------------------
-class MET_OT_PreppareForExport(Operator):
-    bl_idname = 'medge_content.prepare_for_export'
-    bl_label = 'Prepare For Export'
-    bl_options = {'UNDO'}
+# # -----------------------------------------------------------------------------
+# class MET_OT_PrepareForExport(Operator):
+#     bl_idname = 'medge_content.prepare_for_export'
+#     bl_label = 'Prepare For Export'
+#     bl_options = {'UNDO'}
 
 
-    @classmethod
-    def poll(cls, _context:Context):
-        collection = get_active_collection()
-        if not collection: return False
-        prop = get_population_prop(collection)
-        return prop.has_content
+#     @classmethod
+#     def poll(cls, _context:Context):
+#         collection = get_active_collection()
+#         if not collection: return False
+#         prop = get_population_prop(collection)
+#         return prop.has_content
 
 
-    def execute(self, _context:Context):
-        collection = get_active_collection()
-        prepare_for_export(collection)
-        return {'FINISHED'}
+#     def execute(self, _context:Context):
+#         collection = get_active_collection()
+#         prepare_for_export(collection)
+#         return {'FINISHED'}
     
 
-# -----------------------------------------------------------------------------
-class MET_OT_ExportT3D(Operator):
-    bl_idname = 'medge_content.export_t3d'
-    bl_label = 'Export T3D'
-    bl_options = {'UNDO'}
+# # -----------------------------------------------------------------------------
+# class MET_OT_ExportT3D(Operator):
+#     bl_idname = 'medge_content.export_t3d'
+#     bl_label = 'Export T3D'
+#     bl_options = {'UNDO'}
 
 
-    @classmethod
-    def poll(cls, _context:Context):
-        collection = get_active_collection()
+#     @classmethod
+#     def poll(cls, _context:Context):
+#         collection = get_active_collection()
         
-        if not collection: return False
+#         if not collection: return False
 
-        prop = get_population_prop(collection)
+#         prop = get_population_prop(collection)
 
-        return prop.has_content
+#         return prop.has_content
 
 
-    def execute(self, _context:Context):
-        collection = get_active_collection()
-        export(collection)
+#     def execute(self, _context:Context):
+#         collection = get_active_collection()
+#         export(collection)
 
-        return {'FINISHED'}
+#         return {'FINISHED'}

@@ -94,32 +94,61 @@ class AABB:
 # -----------------------------------------------------------------------------
 # https://wickedengine.net/capsule-collision-detection/
 class Capsule:
-    def __init__(self, _base:Vector, _tip:Vector, _radius:float = .5):
-        n = _tip - _base
-        offset = n.normalized() * _radius
+    def __init__(self, _location:Vector, _height:float, _radius:float):
+        self.base = _location
+        self.base.z += _radius
 
-        self.base = _base + offset
-        self.tip = _tip - offset
-        self.radius = _radius
+        self.tip = _location
+        self.tip.z = _height - _radius
+
+        self._location_ = _location
+        self._radius_ = _radius
+        self._height_ = _height
     
     @property
     def is_sphere(self):
         return self.base == self.tip
 
     @property
+    def location(self):
+        return self._location_
+    
+    @location.setter
+    def location(self, _value:Vector):
+        self._location_ = _value
+        self.update()
+
+    @property
     def height(self):
-        return (self.tip - self.base).length 
+        return self._height_
     
     @height.setter
     def height(self, _value:float):
-        offset = Vector((0, 0, _value - self.radius))
-        self.tip = self.base + offset 
+        self._height_ = _value
+        self.update()
+        
+    @property
+    def radius(self):
+        return self._radius_
+    
+    @radius.setter
+    def radius(self, _value:float):
+        self._radius_ = _value
+        self.update()
+
+
+    def update(self):
+        self.base = self._location_
+        self.base.z += self._radius_
+
+        self.tip = self._location_
+        self.tip.z = self._height_ - self._radius_
 
 
     def collides(self, _other:'Capsule') -> Hit:
         if self.is_sphere:
             best_other = _other.closest_point_on_segment(self.base)
-            return self.sphere_collision(best_other, _other.radius)
+            return self.sphere_collision(best_other, _other._radius_)
         
         return self.capsule_collision(_other)
 
@@ -136,7 +165,7 @@ class Capsule:
     def sphere_collision(self, _point:Vector, _radius:float) -> Hit:
         closest_point = self.closest_point_on_segment(_point)
         pen_normal = _point - closest_point
-        pen_depth = self.radius + _radius - pen_normal.length
+        pen_depth = self._radius_ + _radius - pen_normal.length
 
         return Hit(pen_depth > 0, pen_normal.normalized() * pen_depth, closest_point, _point)
 
@@ -158,23 +187,23 @@ class Capsule:
 
         best_other = _other.closest_point_on_segment(best_self)
 
-        return self.sphere_collision(best_other, _other.radius)
+        return self.sphere_collision(best_other, _other._radius_)
     
 
     def to_mesh(self):
         verts = [
-            self.base + Vector((0, 0, -self.radius)),
-            self.tip  + Vector((0, 0, self.radius)),
+            self.base + Vector((0, 0, -self._radius_)),
+            self.tip  + Vector((0, 0, self._radius_)),
 
-            self.base + Vector((self.radius, 0, 0)),
-            self.base + Vector((-self.radius, 0, 0)),
-            self.base + Vector((0, self.radius, 0)),
-            self.base + Vector((0, -self.radius, 0)),
+            self.base + Vector((self._radius_, 0, 0)),
+            self.base + Vector((-self._radius_, 0, 0)),
+            self.base + Vector((0, self._radius_, 0)),
+            self.base + Vector((0, -self._radius_, 0)),
             
-            self.tip + Vector((self.radius, 0, 0)),
-            self.tip + Vector((-self.radius, 0, 0)),
-            self.tip + Vector((0, self.radius, 0)),
-            self.tip + Vector((0, -self.radius, 0)),
+            self.tip + Vector((self._radius_, 0, 0)),
+            self.tip + Vector((-self._radius_, 0, 0)),
+            self.tip + Vector((0, self._radius_, 0)),
+            self.tip + Vector((0, -self._radius_, 0)),
         ]
 
         edges = [
@@ -184,4 +213,4 @@ class Capsule:
         ]
 
         mesh = b3d_utils.new_mesh(verts, edges, [], 'Capsule')
-        b3d_utils.new_object('Capsule', mesh, 'Capsules')
+        b3d_utils.new_object(mesh, 'Capsule', 'Capsules')

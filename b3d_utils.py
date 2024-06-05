@@ -6,7 +6,7 @@ import bpy
 import bmesh
 import gpu
 from   gpu_extras.batch import batch_for_shader
-from   bpy.types        import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID, Collection, Curve, Spline
+from   bpy.types        import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID, Collection, Curve, Spline, Driver, DriverVariable
 from   bpy.props        import *
 from   bmesh.types      import BMesh
 from   mathutils        import Vector, Matrix, Euler
@@ -14,6 +14,7 @@ from   mathutils        import Vector, Matrix, Euler
 import math
 import numpy as np
 from typing import Callable
+import textwrap
 
 
 # -----------------------------------------------------------------------------
@@ -53,7 +54,7 @@ def new_collection(_name:str, _parent:str|Collection=None):
 # Object
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def new_object(_name:str, _data:ID, _collection:str|Collection=None, _parent:Object=None):
+def new_object(_data:ID, _name:str, _collection:str|Collection=None, _parent:Object=None):
     obj = bpy.data.objects.new(_name, _data)
     link_object_to_scene(obj, _collection)
 
@@ -90,13 +91,14 @@ def link_object_to_scene(_obj:Object, _collection:str|Collection=None, _clear_us
 
 # -----------------------------------------------------------------------------
 def remove_object(_obj:Object):
+    if not _obj: return
     bpy.data.objects.remove(_obj)
 
 
 # -----------------------------------------------------------------------------
 def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
     if _instance:
-        instance = new_object('INST_' + _obj.name, _obj.data, _collection)
+        instance = new_object(_obj.data, 'INST_' + _obj.name, _collection)
         set_active_object(instance)
 
         return instance
@@ -317,7 +319,7 @@ def convert_to_mesh_in_place(_obj:Object):
 # -----------------------------------------------------------------------------
 def convert_to_new_mesh(_obj:Object) -> Object:
     mesh = bpy.data.meshes.new_from_object(_obj)
-    new_obj = new_object(_obj.name, mesh)
+    new_obj = new_object(mesh, _obj.name)
     new_obj.matrix_world = _obj.matrix_world 
     return new_obj
 
@@ -547,6 +549,403 @@ def create_curve(_num_points=3) -> tuple[Curve, Spline]:
 
 
 # -----------------------------------------------------------------------------
+# Handler Callback
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def add_callback(_handler, _callback:Callable):
+    for fn in _handler:
+        if fn.__name__ == _callback.__name__: return
+    _handler.append(_callback)
+
+
+# -----------------------------------------------------------------------------
+def remove_callback(_handler, _callback:Callable):
+    for fn in _handler:
+        if fn.__name__ == _callback.__name__:
+            _handler.remove(fn)
+
+
+# -----------------------------------------------------------------------------
+# Math
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def map_range(_value:float, _in_min:float, _in_max:float, _out_min:float, _out_max:float):
+    return _out_min + (_value - _in_min) / (_in_max - _in_min) * (_out_max - _out_min)
+
+
+# -----------------------------------------------------------------------------
+# https://stackoverflow.com/questions/45142959/calculate-rotation-matrix-to-align-two-vectors-in-3d-space 
+def rotation_matrix(_v1:Vector, _v2:Vector):
+    """ 
+    Find the rotation matrix that aligns vec1 to vec2
+    :param vec1: A 3d 'source' vector
+    :param vec2: A 3d 'destination' vector
+    :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
+    """
+    v1 = [_v1[0], _v1[1], _v1[2]]
+    v2 = [_v2[0], _v2[1], _v2[2]]
+
+    a, b = (v1 / np.linalg.norm(v1)).reshape(3), (v2 / np.linalg.norm(v2)).reshape(3)
+    v = np.cross(a, b)
+    
+    if not any(v):
+        return Matrix.Identity(3)
+
+    d = np.dot(a, b)
+    s = np.linalg.norm(v)
+    kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+    r = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - d) / (s ** 2))
+    
+    R = Matrix(((r[0][0], r[0][1], r[0][2]),
+                (r[1][0], r[1][1], r[1][2]), 
+                (r[2][0], r[2][1], r[2][2])))
+
+    return R
+
+
+# -----------------------------------------------------------------------------
+# Graphics
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# https://blender.stackexchange.com/questions/61699/how-to-draw-geometry-in-3d-view-window-with-bgl
+
+shader_coords = []
+shader_indices = []
+
+def begin_batch():
+    global shader_coords
+    global shader_indices
+    shader_coords = []
+    shader_indices = []
+
+
+# -----------------------------------------------------------------------------
+def batch_add_coords(_coords:list[Vector]):
+    global shader_coords
+    shader_coords.extend(_coords)
+
+
+# -----------------------------------------------------------------------------
+def batch_add_indices(_inds:list[int]):
+    global shader_indices
+    shader_indices.extend(_inds)
+
+
+# -----------------------------------------------------------------------------
+def draw_batch_3d(_color:tuple, _width=1.0, _type='LINES'):
+    global shader_coords
+    global shader_indices
+    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
+    gpu.state.line_width_set(_width)
+    batch = batch_for_shader(shader, _type, {'pos': shader_coords}, indices=shader_indices)
+    shader.bind()
+    shader.uniform_float('color', _color)
+    batch.draw(shader)
+
+
+# -----------------------------------------------------------------------------
+def draw_aabb_lines_3d(_bmin:Vector, _bmax:Vector, _color:tuple, _width=1):
+    v0 = _bmin
+    v1 = (_bmax.x, _bmin.y, _bmin.z)
+    v2 = (_bmin.x, _bmax.y, _bmin.z)
+    v3 = (_bmin.x, _bmin.y, _bmax.z)
+
+    v4 = _bmax
+    v5 = (_bmin.x, _bmax.y, _bmax.z)
+    v6 = (_bmax.x, _bmin.y, _bmax.z)
+    v7 = (_bmax.x, _bmax.y, _bmin.z)
+
+    begin_batch()
+    batch_add_coords([v0, v1, v2, v3, v4, v5, v6, v7])
+    batch_add_indices([
+        (0, 1), (0, 2), (0, 3),
+        (4, 5), (4, 6), (4, 7),
+        (1, 7), (1, 6), 
+        (2, 7), (2, 5),
+        (3, 5), (3, 6)
+    ])
+
+    draw_batch_3d(_color, _width, 'LINES')
+
+
+# -----------------------------------------------------------------------------
+# Data
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# https://blender.stackexchange.com/questions/39127/how-to-put-together-a-driver-with-python
+def add_driver(_target:ID, _prop:str, _index:int, _source:ID, id_type:str, _var_type:str, _data_path:str, _var_name='var', _expression='var'):
+    driver = _target.driver_add(_prop, _index).driver
+    
+    var = driver.variables.new()
+    
+    var.name = _var_name
+    var.type = _var_type
+
+    var.targets[0].id_type    = id_type
+    var.targets[0].id         = _source
+    var.targets[0].data_path  = _data_path
+
+    driver.expression = _expression
+
+
+# -----------------------------------------------------------------------------
+# Layout
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def auto_gui_props(_data:PropertyGroup, _layout:UILayout):
+    for key in _data.__annotations__.keys():
+        _layout.prop(_data, key)
+
+
+# -----------------------------------------------------------------------------
+def draw_box(_text:str, _layout:UILayout, _alignment='CENTER'):
+    box = _layout.box()
+    row = box.row()
+    row.alignment = _alignment
+    row.label(text=_text)
+
+
+# -----------------------------------------------------------------------------
+# https://b3d.interplanety.org/en/multiline-text-in-blender-interface-panels/
+def multiline_text(_context:Context, _layout:UILayout, _text:str):
+    chars = int(_context.region.width / 7)   # 7 pix on 1 character
+    wrapper = textwrap.TextWrapper(width=chars)
+    text_lines = wrapper.wrap(text=_text)
+
+    for text_line in text_lines:
+        _layout.label(text=text_line)
+
+
+# -----------------------------------------------------------------------------
+# Generic List
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+class B3D_UL_GenericList(UIList):
+    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
+        if self.layout_type == 'GRID':
+            layout.alignment = 'CENTER'
+        layout.label(text=item.name)
+
+
+# -----------------------------------------------------------------------------
+class GenericList:
+    """
+    This class can't be used as is. Inherit from this class and add an CollectionProperty named 'items'
+    """
+    def add(self):
+        item = self.items.add()
+        self.selected_item_idx = len(self.items) - 1
+        return item
+
+
+    def remove(self, _index:int=None):
+        if not _index:
+            _index = self.selected_item_idx
+
+        self.items.remove(_index)
+        self.selected_item_idx = min(max(0, self.selected_item_idx - 1), len(self.items) - 1)
+
+    
+    def clear(self):
+        self.items.clear()
+        self.selected_item_idx = 0
+
+
+    def move(self, _direction:int):
+        new_idx = self.selected_item_idx
+        new_idx += _direction
+        self.items.move(new_idx, self.selected_item_idx)
+        self.selected_item_idx = max(0, min(new_idx, len(self.items) - 1))
+
+
+    def get_selected(self):
+        if self.items:
+            return self.items[self.selected_item_idx]
+        return None
+
+
+    selected_item_idx: IntProperty(name='PRIVATE')
+
+
+# -----------------------------------------------------------------------------
+generic_lists:dict[str, GenericList] = dict()
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Add(Operator):
+    bl_idname = 'b3d_utils.generic_list_add'
+    bl_label = 'Add'
+
+    list_name: StringProperty()
+    
+    def execute(self, _context:Context):
+        global generic_lists
+        generic_lists[self.list_name].add()
+
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Remove(Operator):
+    bl_idname = 'b3d_utils.generic_list_remove'
+    bl_label = 'Remove'
+    bl_options = {'UNDO'}
+
+    list_name: StringProperty()
+
+    def execute(self, _context:Context):
+        global generic_lists
+        generic_lists[self.list_name].remove()
+
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Clear(Operator):
+    bl_idname = 'b3d_utils.generic_list_clear'
+    bl_label = 'Clear'
+    bl_options = {'UNDO'}
+
+    list_name: StringProperty()
+
+    def execute(self, _context:Context):
+        global generic_lists
+        generic_lists[self.list_name].clear()
+
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+class B3D_OT_GenericList_Move(Operator):
+    bl_idname = 'b3d_utils.generic_list_move'
+    bl_label = 'Move'
+    
+    list_name: StringProperty()
+
+    direction : EnumProperty(items=(
+        ('UP', 'Up', ''),
+        ('DOWN', 'Down', ''),
+    ))
+
+
+    def execute(self, _context:Context):
+        dir = (-1 if self.direction == 'UP' else 1)
+
+        global generic_lists
+        generic_lists[self.list_name].move(dir)
+
+        return {'FINISHED'}
+
+
+# -----------------------------------------------------------------------------
+def draw_generic_list_ops(_layout:UILayout, _list_name:str, _filter:set):
+    if 'ADD' in _filter:
+        _layout.operator(B3D_OT_GenericList_Add.bl_idname, icon='ADD', text='').list_name = _list_name
+
+    if 'REMOVE' in _filter:
+        _layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE', text='').list_name = _list_name
+    
+    if 'MOVE' in _filter:
+        op = _layout.operator(B3D_OT_GenericList_Move.bl_idname, icon='TRIA_UP', text='')
+        op.list_name = _list_name
+        op.direction = 'UP'
+        
+        op = _layout.operator(B3D_OT_GenericList_Move.bl_idname, icon='TRIA_DOWN', text='')
+        op.list_name = _list_name
+        op.direction = 'DOWN'
+
+    if 'CLEAR' in _filter:
+        _layout.operator(B3D_OT_GenericList_Clear.bl_idname, icon='TRASH', text='')
+
+
+# -----------------------------------------------------------------------------
+def draw_generic_list(_layout:UILayout, _list:GenericList, _name:str, _rows=4, _generic_ops_filter:set={'ADD', 'REMOVE', 'MOVE', 'CLEAR'}):
+    row = _layout.row(align=True)
+    row.template_list('B3D_UL_GenericList', _name, _list, 'items', _list, 'selected_item_idx', rows=_rows)
+
+    global generic_lists
+    generic_lists[_name] = _list
+
+    col = row.column(align=True)
+    draw_generic_list_ops(col, _name, _generic_ops_filter)
+
+
+# -----------------------------------------------------------------------------
+# Registration
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+""" 
+Registration depends on auto_load.py:
+https://gist.github.com/JacquesLucke/11fecc6ea86ef36ea72f76ca547e795b 
+
+Use these functions when the order of registration is important
+"""
+import importlib
+from . import auto_load
+
+
+# -----------------------------------------------------------------------------
+registered_modules = []
+registered_classes = []
+
+
+# -----------------------------------------------------------------------------
+def register_subpackage(_subpackage=''):
+    """
+    Use empty string ('') to register root 
+    """
+    def get_all_submodules(directory, package_name):
+        return list(iter_submodules(directory, package_name))
+
+    def iter_submodules(path, package_name):
+        for name in sorted(iter_submodule_names(path)):
+            name = '.' + name
+            if _subpackage:
+                name = '.' + _subpackage + name
+            yield importlib.import_module(name, package_name)
+
+    def iter_submodule_names(path):
+        import pkgutil
+        for _, module_name, is_package in pkgutil.iter_modules([str(path)]):
+            if not is_package:
+                yield module_name
+
+
+    from pathlib import Path
+    
+    package = Path(__file__).parent
+    path = package 
+
+    if _subpackage:
+        path /= _subpackage
+
+    modules = get_all_submodules(path, package.name)
+    classes = auto_load.get_ordered_classes_to_register(modules)
+
+    auto_load.modules = modules.copy()
+    auto_load.ordered_classes = classes.copy()
+
+    auto_load.register()
+
+    global registered_modules
+    global registered_classes
+
+    registered_modules.extend(modules)
+    registered_classes.extend(classes)
+
+
+# -----------------------------------------------------------------------------
+def unregister_subpackages():
+    global registered_modules
+    global registered_classes
+
+    auto_load.modules = registered_modules.copy()
+    auto_load.ordered_classes = registered_classes.copy()
+
+    auto_load.unregister()
+
+
+# -----------------------------------------------------------------------------
 # NURBS Curve Interpolation
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -732,351 +1131,3 @@ def basisNurb(t, order, pnts, knots, basis, start, end):
                 start = i
 
     return start, end
-
-
-# -----------------------------------------------------------------------------
-# Handler Callback
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def add_callback(_handler, _callback:Callable):
-    for fn in _handler:
-        if fn.__name__ == _callback.__name__: return
-    _handler.append(_callback)
-
-
-# -----------------------------------------------------------------------------
-def remove_callback(_handler, _callback:Callable):
-    for fn in _handler:
-        if fn.__name__ == _callback.__name__:
-            _handler.remove(fn)
-
-
-# -----------------------------------------------------------------------------
-# Math
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def map_range(_value:float, _in_min:float, _in_max:float, _out_min:float, _out_max:float):
-    return _out_min + (_value - _in_min) / (_in_max - _in_min) * (_out_max - _out_min)
-
-
-# -----------------------------------------------------------------------------
-# https://stackoverflow.com/questions/45142959/calculate-rotation-matrix-to-align-two-vectors-in-3d-space 
-def rotation_matrix(_v1:Vector, _v2:Vector):
-    """ 
-    Find the rotation matrix that aligns vec1 to vec2
-    :param vec1: A 3d 'source' vector
-    :param vec2: A 3d 'destination' vector
-    :return A transform matrix (3x3) which when applied to vec1, aligns it with vec2.
-    """
-    v1 = [_v1[0], _v1[1], _v1[2]]
-    v2 = [_v2[0], _v2[1], _v2[2]]
-
-    a, b = (v1 / np.linalg.norm(v1)).reshape(3), (v2 / np.linalg.norm(v2)).reshape(3)
-    v = np.cross(a, b)
-    
-    if not any(v):
-        return Matrix.Identity(3)
-
-    d = np.dot(a, b)
-    s = np.linalg.norm(v)
-    kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
-    r = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - d) / (s ** 2))
-    
-    R = Matrix(((r[0][0], r[0][1], r[0][2]),
-                (r[1][0], r[1][1], r[1][2]), 
-                (r[2][0], r[2][1], r[2][2])))
-
-    return R
-
-
-# -----------------------------------------------------------------------------
-# Graphics
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# https://blender.stackexchange.com/questions/61699/how-to-draw-geometry-in-3d-view-window-with-bgl
-
-shader_coords = []
-shader_indices = []
-
-def begin_batch():
-    global shader_coords
-    global shader_indices
-    shader_coords = []
-    shader_indices = []
-
-
-# -----------------------------------------------------------------------------
-def batch_add_coords(_coords:list[Vector]):
-    global shader_coords
-    shader_coords.extend(_coords)
-
-
-# -----------------------------------------------------------------------------
-def batch_add_indices(_inds:list[int]):
-    global shader_indices
-    shader_indices.extend(_inds)
-
-
-# -----------------------------------------------------------------------------
-def draw_batch_3d(_color:tuple, _width=1.0, _type='LINES'):
-    global shader_coords
-    global shader_indices
-    shader = gpu.shader.from_builtin('3D_UNIFORM_COLOR')
-    gpu.state.line_width_set(_width)
-    batch = batch_for_shader(shader, _type, {'pos': shader_coords}, indices=shader_indices)
-    shader.bind()
-    shader.uniform_float('color', _color)
-    batch.draw(shader)
-
-
-# -----------------------------------------------------------------------------
-def draw_aabb_lines_3d(_bmin:Vector, _bmax:Vector, _color:tuple, _width=1):
-    v0 = _bmin
-    v1 = (_bmax.x, _bmin.y, _bmin.z)
-    v2 = (_bmin.x, _bmax.y, _bmin.z)
-    v3 = (_bmin.x, _bmin.y, _bmax.z)
-
-    v4 = _bmax
-    v5 = (_bmin.x, _bmax.y, _bmax.z)
-    v6 = (_bmax.x, _bmin.y, _bmax.z)
-    v7 = (_bmax.x, _bmax.y, _bmin.z)
-
-    begin_batch()
-    batch_add_coords([v0, v1, v2, v3, v4, v5, v6, v7])
-    batch_add_indices([
-        (0, 1), (0, 2), (0, 3),
-        (4, 5), (4, 6), (4, 7),
-        (1, 7), (1, 6), 
-        (2, 7), (2, 5),
-        (3, 5), (3, 6)
-    ])
-
-    draw_batch_3d(_color, _width, 'LINES')
-
-
-# -----------------------------------------------------------------------------
-# Layout
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-def auto_gui_props(_data:PropertyGroup, _layout:UILayout):
-    for key in _data.__annotations__.keys():
-        _layout.prop(_data, key)
-
-
-# -----------------------------------------------------------------------------
-def draw_box(_text:str, _layout:UILayout, _alignment='CENTER'):
-    box = _layout.box()
-    row = box.row()
-    row.alignment = _alignment
-    row.label(text=_text)
-
-
-# -----------------------------------------------------------------------------
-# Classes
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-class B3D_UL_GenericList(UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_property, index, flt_flag):
-        if self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
-        layout.label(text=item.name)
-
-
-# -----------------------------------------------------------------------------
-class GenericList:
-    """
-    This class can't be used as is. Inherit from this class and add an CollectionProperty named 'items'
-    """
-    def add(self):
-        item = self.items.add()
-        self.selected_item_idx = len(self.items) - 1
-        return item
-
-
-    def remove(self, _index:int=None):
-        if not _index:
-            _index = self.selected_item_idx
-
-        self.items.remove(_index)
-        self.selected_item_idx = min(max(0, self.selected_item_idx - 1), len(self.items) - 1)
-
-    
-    def clear(self):
-        self.items.clear()
-        self.selected_item_idx = 0
-
-
-    def move(self, _direction:int):
-        new_idx = self.selected_item_idx
-        new_idx += _direction
-        self.items.move(new_idx, self.selected_item_idx)
-        self.selected_item_idx = max(0, min(new_idx, len(self.items) - 1))
-
-
-    def get_selected(self):
-        if self.items:
-            return self.items[self.selected_item_idx]
-        return None
-
-
-    selected_item_idx: IntProperty(name='PRIVATE')
-
-
-# -----------------------------------------------------------------------------
-active_generic_list: GenericList
-
-def begin_generic_list_ops(_list:GenericList):
-    global active_generic_list
-    active_generic_list = _list
-
-
-# -----------------------------------------------------------------------------
-class B3D_OT_GenericList_Add(Operator):
-    bl_idname = 'b3d_utils.generic_list_add'
-    bl_label = 'Add'
-    
-    list: GenericList
-
-    def execute(self, _context:Context):
-        global active_generic_list
-        active_generic_list.add()
-        return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-class B3D_OT_GenericList_Remove(Operator):
-    bl_idname = 'b3d_utils.generic_list_remove'
-    bl_label = 'Remove'
-    bl_options = {'UNDO'}
-    
-
-    def execute(self, _context:Context):
-        global active_generic_list
-        active_generic_list.remove()
-        return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-class B3D_OT_GenericList_Clear(Operator):
-    bl_idname = 'b3d_utils.generic_list_clear'
-    bl_label = 'Clear'
-    bl_options = {'UNDO'}
-
-
-    def execute(self, _context:Context):
-        global active_generic_list
-        active_generic_list.clear()
-        return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-class B3D_OT_GenericList_Move(Operator):
-    bl_idname = 'b3d_utils.generic_list_move'
-    bl_label = 'Move'
-    
-    direction : EnumProperty(items=(
-        ('UP', 'Up', ''),
-        ('DOWN', 'Down', ''),
-    ))
-
-
-    def execute(self, _context:Context):
-        dir = (-1 if self.direction == 'UP' else 1)
-        global active_generic_list
-        active_generic_list.move(dir)
-        return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-def draw_generic_list_ops(_layout:UILayout, _list:GenericList):
-    begin_generic_list_ops(_list)
-
-    _layout.operator(B3D_OT_GenericList_Add.bl_idname   , icon='ADD'      , text='')
-    _layout.operator(B3D_OT_GenericList_Remove.bl_idname, icon='REMOVE'   , text='')
-    _layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_UP'  , text='').direction = 'UP'
-    _layout.operator(B3D_OT_GenericList_Move.bl_idname  , icon='TRIA_DOWN', text='').direction = 'DOWN'
-    _layout.operator(B3D_OT_GenericList_Clear.bl_idname , icon='TRASH'    , text='')
-
-
-# -----------------------------------------------------------------------------
-def draw_generic_list(_layout:UILayout, _list:GenericList, _name:str, _rows=4, _with_generic_ops=True):
-    row = _layout.row(align=True)
-    row.template_list('B3D_UL_GenericList', _name, _list, 'items', _list, 'selected_item_idx', rows=_rows)
-    if not _with_generic_ops: return
-    col = row.column(align=True)
-    draw_generic_list_ops(col, _list)
-
-
-# -----------------------------------------------------------------------------
-# Registration
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-""" 
-Registration depends on auto_load.py:
-https://gist.github.com/JacquesLucke/11fecc6ea86ef36ea72f76ca547e795b 
-
-Use these functions when the order of registration is important
-"""
-import importlib
-from . import auto_load
-
-
-# -----------------------------------------------------------------------------
-registered_modules = []
-registered_classes = []
-
-
-# -----------------------------------------------------------------------------
-def register_subpackage(_subpackage=''):
-    """
-    Use empty string ('') to register root 
-    """
-    def get_all_submodules(directory, package_name):
-        return list(iter_submodules(directory, package_name))
-
-    def iter_submodules(path, package_name):
-        for name in sorted(iter_submodule_names(path)):
-            name = '.' + name
-            if _subpackage:
-                name = '.' + _subpackage + name
-            yield importlib.import_module(name, package_name)
-
-    def iter_submodule_names(path):
-        import pkgutil
-        for _, module_name, is_package in pkgutil.iter_modules([str(path)]):
-            if not is_package:
-                yield module_name
-
-
-    from pathlib import Path
-    
-    package = Path(__file__).parent
-    path = package 
-
-    if _subpackage:
-        path /= _subpackage
-
-    modules = get_all_submodules(path, package.name)
-    classes = auto_load.get_ordered_classes_to_register(modules)
-
-    auto_load.modules = modules.copy()
-    auto_load.ordered_classes = classes.copy()
-
-    auto_load.register()
-
-    global registered_modules
-    global registered_classes
-
-    registered_modules.extend(modules)
-    registered_classes.extend(classes)
-
-
-# -----------------------------------------------------------------------------
-def unregister_subpackages():
-    global registered_modules
-    global registered_classes
-
-    auto_load.modules = registered_modules.copy()
-    auto_load.ordered_classes = registered_classes.copy()
-
-    auto_load.unregister()
