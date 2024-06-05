@@ -29,7 +29,6 @@ class MarkovChain:
 
         # Collect all states
         for obj in _objects:
-            if not obj.visible_get(): continue
             if not is_dataset(obj): continue
 
             states = []

@@ -27,7 +27,7 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
         markov = get_markov_chains_prop(_context)
 
         # ---------------------------------------------------------------------
-        col.label(text='Datasets')
+        col.label(text='Dataset Collections')
         col.separator()
         b3d_utils.draw_generic_list(col, markov, '#markov_chain_list')
 
@@ -89,12 +89,12 @@ class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
         row.operator(MET_OT_EnableMarkovStats.bl_idname, text='Enable')
         row.operator(MET_OT_DisableMarkovStats.bl_idname, text='Disable')
 
-        chains = get_markov_chains_prop(_context)
-        item = chains.get_selected()
+        markov = get_markov_chains_prop(_context)
+        item = markov.get_selected()
 
         if not item: return
         if not item.has_transition_matrix(): 
-            b3d_utils.draw_box('Selected Collection has no transition matrix', layout)
+            b3d_utils.draw_box('Selected Dataset Collection has no transition matrix', layout)
             return
 
         col.separator()
@@ -118,32 +118,8 @@ class MET_PT_GenerateMap(MapGenPanel_DefaultProps, Panel):
 
         col = layout.column(align=True)
         
-        # ---------------------------------------------------------------------
-        col.label(text='Datasets')
-        col.separator()
-
-        markov_chains = get_markov_chains_prop(_context)
-
-        b3d_utils.draw_generic_list(col, markov_chains, '#markov_chain_list')
-
-        active_mc = markov_chains.get_selected()
-
-        if not active_mc: return
-
-        gen_chains = active_mc.generated_chains
-
-        # ---------------------------------------------------------------------
-        col.separator(factor=2)
-        col.label(text='Generated Chains')
-        col.separator()
-        b3d_utils.draw_generic_list(col, gen_chains, '#generated_chain_list', 3, {'REMOVE', 'MOVE', 'CLEAR'})
-
-        active_chain = gen_chains.get_selected()
-
-        if not active_chain: return
         
         # ---------------------------------------------------------------------
-        col.separator(factor=2)
         col.label(text='Module Groups')
         col.separator()
 
@@ -170,7 +146,6 @@ class MET_PT_GenerateMap(MapGenPanel_DefaultProps, Panel):
         else:
             col.prop(module, 'object')
 
-
         # ---------------------------------------------------------------------
         col.separator(factor=2)
         col.label(text='Settings')
@@ -184,22 +159,48 @@ class MET_PT_GenerateMap(MapGenPanel_DefaultProps, Panel):
         col.prop(module_groups, 'resolve_collisions')
 
         if module_groups.resolve_collisions:
+            col.separator()
             col.prop(module_groups, 'capsule_height')
-            col.prop(module_groups, 'capsule_radius')
+            col.prop(module_groups, 'capsule_radius', text='Radius')
+            col.prop(module_groups, 'capsule_spacing', text='Spacings')
+            col.separator()
             col.prop(module_groups, 'max_depth')
             col.prop(module_groups, 'max_angle')
             col.prop(module_groups, 'angle_step')
             col.prop(module_groups, 'random_angles')
             col.prop(module_groups, 'debug_capsules')
 
+        
+        # ---------------------------------------------------------------------
         col.separator(factor=2)
-        b3d_utils.draw_box('Select Generated Chain', col)
+        col.label(text='Dataset Collections')
+        col.separator()
+
+        markov_chains = get_markov_chains_prop(_context)
+
+        b3d_utils.draw_generic_list(col, markov_chains, '#markov_chain_list')
+
+        active_mc = markov_chains.get_selected()
+
+        if not active_mc: return
+
+        gen_chains = active_mc.generated_chains
+
+        # ---------------------------------------------------------------------
+        col.separator(factor=2)
+        col.label(text='Generated Chains')
+        col.separator()
+        b3d_utils.draw_generic_list(col, gen_chains, '#generated_chain_list', 3, {'REMOVE', 'MOVE', 'CLEAR'})
+
+        active_chain = gen_chains.get_selected()
+
+        if not active_chain: return
 
         col.separator()
         col.operator(MET_OT_GenerateMap.bl_idname)
         
         col.separator(factor=2)
-        b3d_utils.draw_box('Select Populated Collection', col)
+        b3d_utils.draw_box('Select Generated Map Collection', col)
 
         col.separator()
         col.operator(MET_OT_PrepareForExport.bl_idname)

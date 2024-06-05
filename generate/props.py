@@ -169,7 +169,7 @@ class MET_PG_ModuleGroup(PropertyGroup):
             if not self.object:
                 name = '[EMPTY]_' + name
 
-        return name
+        return f'{self.state}_{name}'
 
 
     def __on_object_poll(self, _obj:Object):
@@ -251,7 +251,10 @@ class MET_SCENE_PG_ModuleGroupList(PropertyGroup, GenericList):
             array_mod.use_relative_offset = False
             array_mod.use_constant_offset = True
 
-            b3d_utils.add_driver(array_mod, 'constant_offset_displace', 0, bpy.context.scene, 'SCENE', 'SINGLE_PROP', 'medge_module_groups.capsule_radius')
+            driver = b3d_utils.add_driver(array_mod, 'constant_offset_displace', 0)
+            b3d_utils.add_driver_variable(driver, bpy.context.scene, 'SCENE', 'SINGLE_PROP', 'medge_module_groups.capsule_radius', 'var1')
+            b3d_utils.add_driver_variable(driver, bpy.context.scene, 'SCENE', 'SINGLE_PROP', 'medge_module_groups.capsule_spacing', 'var2')
+            driver.expression = 'var1 + var2'
 
             curve_mod = copy.modifiers.get('Curve')
 
@@ -277,10 +280,10 @@ class MET_SCENE_PG_ModuleGroupList(PropertyGroup, GenericList):
 
         h = self.capsule_height
         r = self.capsule_radius
-        tip_base = h - r
+        tip = h - r
 
         verts = [
-            # Height
+            # First edge is the height
             Vector((0, 0, 0)),
             Vector((0, 0, h)),
             # Two horizontal edges at the base of each half sphere
@@ -289,10 +292,10 @@ class MET_SCENE_PG_ModuleGroupList(PropertyGroup, GenericList):
             Vector(( 0, -r, r)),
             Vector(( 0,  r, r)),
 
-            Vector((-r,  0, tip_base)),
-            Vector(( r,  0, tip_base)),
-            Vector(( 0, -r, tip_base)),
-            Vector(( 0,  r, tip_base)),
+            Vector((-r,  0, tip)),
+            Vector(( r,  0, tip)),
+            Vector(( 0, -r, tip)),
+            Vector(( 0,  r, tip)),
         ]
         
         edges = [
@@ -315,21 +318,22 @@ class MET_SCENE_PG_ModuleGroupList(PropertyGroup, GenericList):
         
 
     items:              CollectionProperty(type=MET_PG_ModuleGroup)   
-    capsule_data:       PointerProperty(type=Object, name='PRIVATE')
     
     seed:               IntProperty(name='Seed', default=2024, min=0)
+
     align_orientation:  BoolProperty(name='Align Orientation')
     resolve_collisions: BoolProperty(name='Resolve Collisions', default=True)
 
+    capsule_data:       PointerProperty(type=Object, name='PRIVATE')
     capsule_height:     FloatProperty(name='Capsule Height', default=1.92, min=1, update=update_capsule_data)
     capsule_radius:     FloatProperty(name='Capsule Radius', default=.5, min=0.1, update=update_capsule_data)
+    capsule_spacing:    FloatProperty(name='Capsule Spacing', default=.5, min=0)
 
     max_depth:          IntProperty(name='Max Depth', default=3)
     max_angle:          IntProperty(name='Max Angle', default=180, max=180)
     angle_step:         IntProperty(name='Angle Step', default=45, max=180)
 
     random_angles:      BoolProperty(name='Random Angles')
-    debug_capsules:     BoolProperty(name='Debug Capsules') 
 
 
 # -----------------------------------------------------------------------------
@@ -368,7 +372,7 @@ class MET_UL_ModuleList(UIList):
 
 
 # -----------------------------------------------------------------------------
-class MET_COLLECTION_PG_Population(PropertyGroup):
+class MET_COLLECTION_PG_GeneratedMap(PropertyGroup):
 
     has_content: BoolProperty(name='PRIVATE', default=False)
 
@@ -387,8 +391,8 @@ def get_module_groups_prop(_context:Context) -> MET_SCENE_PG_ModuleGroupList:
 
 
 # -----------------------------------------------------------------------------
-def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_Population:
-    return _collection.medge_population
+def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_GeneratedMap:
+    return _collection.medge_generated_map
 
 
 # -----------------------------------------------------------------------------
@@ -402,15 +406,15 @@ def get_module_prop(_obj:Object) -> MET_OBJECT_PG_Module:
 # -----------------------------------------------------------------------------
 # BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 def register():
-   Object.medge_module         = PointerProperty(type=MET_OBJECT_PG_Module)
-   Scene.medge_markov_chains   = PointerProperty(type=MET_SCENE_PG_MarkovChainList)
-   Scene.medge_module_groups   = PointerProperty(type=MET_SCENE_PG_ModuleGroupList)
-   Collection.medge_population = PointerProperty(type=MET_COLLECTION_PG_Population)
+   Object.medge_module            = PointerProperty(type=MET_OBJECT_PG_Module)
+   Scene.medge_markov_chains      = PointerProperty(type=MET_SCENE_PG_MarkovChainList)
+   Scene.medge_module_groups      = PointerProperty(type=MET_SCENE_PG_ModuleGroupList)
+   Collection.medge_generated_map = PointerProperty(type=MET_COLLECTION_PG_GeneratedMap)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    del Collection.medge_population
+    del Collection.medge_generated_map
     del Scene.medge_module_groups
     del Scene.medge_markov_chains
     del Object.medge_module

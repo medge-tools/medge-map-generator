@@ -81,8 +81,8 @@ class MET_OT_CreateTransitionMatrix(Operator):
 
 
     def execute(self, _context:Context):
-        chains = get_markov_chains_prop(_context)
-        item = chains.get_selected()
+        markov_chains = get_markov_chains_prop(_context)
+        item = markov_chains.get_selected()
         item.create_transition_matrix()
 
         return {'FINISHED'}

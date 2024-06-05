@@ -95,15 +95,14 @@ class AABB:
 # https://wickedengine.net/capsule-collision-detection/
 class Capsule:
     def __init__(self, _location:Vector, _height:float, _radius:float):
-        self.base = _location
-        self.base.z += _radius
-
-        self.tip = _location
-        self.tip.z = _height - _radius
+        self.base = Vector()
+        self.tip = Vector() 
 
         self._location_ = _location
         self._radius_ = _radius
         self._height_ = _height
+        
+        self.update()
     
     @property
     def is_sphere(self):
@@ -138,11 +137,11 @@ class Capsule:
 
 
     def update(self):
-        self.base = self._location_
+        self.base.xyz = self._location_.xyz
         self.base.z += self._radius_
 
-        self.tip = self._location_
-        self.tip.z = self._height_ - self._radius_
+        self.tip.xyz = self._location_.xyz
+        self.tip.z += self._height_ - self._radius_
 
 
     def collides(self, _other:'Capsule') -> Hit:
@@ -191,25 +190,29 @@ class Capsule:
     
 
     def to_mesh(self):
+        height = self.location + Vector((0, 0, self.height))
         verts = [
-            self.base + Vector((0, 0, -self._radius_)),
-            self.tip  + Vector((0, 0, self._radius_)),
+            self.base, #0
+            self.tip,  #1
 
-            self.base + Vector((self._radius_, 0, 0)),
-            self.base + Vector((-self._radius_, 0, 0)),
-            self.base + Vector((0, self._radius_, 0)),
-            self.base + Vector((0, -self._radius_, 0)),
-            
-            self.tip + Vector((self._radius_, 0, 0)),
-            self.tip + Vector((-self._radius_, 0, 0)),
-            self.tip + Vector((0, self._radius_, 0)),
-            self.tip + Vector((0, -self._radius_, 0)),
+            self.location,                                          #2
+            self.location + Vector(( self.radius, 0, self.radius)), #3
+            self.location + Vector((-self.radius, 0, self.radius)), #4
+            self.location + Vector((0,  self.radius, self.radius)), #5
+            self.location + Vector((0, -self.radius, self.radius)), #6
+
+            height,                                           #7
+            height + Vector(( self.radius, 0, -self.radius)), #8
+            height + Vector((-self.radius, 0, -self.radius)), #9
+            height + Vector((0,  self.radius, -self.radius)), #10
+            height + Vector((0, -self.radius, -self.radius)), #11
         ]
 
         edges = [
             (0, 1),
-            (0, 2), (0, 3), (0, 4), (0, 5),
-            (1, 6), (1, 7), (1, 8), (1, 9)
+            (2, 3), (2, 4), (2, 5), (2, 6),
+            (7, 8), (7, 9), (7, 10), (7, 11),
+            (3, 8), (4, 9), (5, 10), (6, 11)
         ]
 
         mesh = b3d_utils.new_mesh(verts, edges, [], 'Capsule')

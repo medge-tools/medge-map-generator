@@ -5,7 +5,6 @@ from mathutils import Vector, Matrix
 import itertools
 import numpy     as     np
 from math        import radians, pi
-from copy        import deepcopy
 from dataclasses import dataclass
 from collections import UserList
 
@@ -17,35 +16,33 @@ from .bounds            import AABB, Capsule, Hit
 
 
 # -----------------------------------------------------------------------------
-# Map Generation
+# Map Generation Settings
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 @dataclass
 class MapGenSettings:
     seed               = 0
+    align_orientation  = True
+    resolve_collisions = True
     collision_height   = 1.92
     collision_radius   = .5
+    max_depth          = 3
     max_angle          = 180
     angle_step         = 45
-    align_orientation  = True
     random_angles      = False
-    resolve_collisions = True
-    max_depth          = 3
-    debug_capsules     = False
     
 
     def __str__(self):
         return f"\
 {self.seed}_\
-{self.collision_height}_\
-{self.collision_radius}_\
+{str(self.align_orientation)[0]}_\
+{str(self.resolve_collisions)[0]}_\
+{self.collision_height:.2f}_\
+{self.collision_radius:.2f}_\
+{self.max_depth}_\
 {self.max_angle}_\
 {self.angle_step}_\
-{str(self.align_orientation)[0]}_\
 {str(self.random_angles)[0]}_\
-{str(self.resolve_collisions)[0]}_\
-{self.max_depth}_\
-{str(self.debug_capsules)[0]}\
 "
 
 
@@ -67,8 +64,9 @@ class CurveModule:
 
         assert(len(self.points) >= 2)
 
+        # These get initialized in update()
         self.capsules:list[Capsule] = None
-        self.aabb:AABB=AABB()
+        self.aabb:AABB=None
         
         self.update()
 
@@ -103,23 +101,35 @@ class CurveModule:
         
         prop = get_module_prop(self.curve)
         
-        depsgraph = bpy.context.evaluated_depsgraph_get()
-        capsule = prop.capsule.evaluated_get(depsgraph)
+        if not (capsule := prop.capsule): return
+        if capsule.parent != self.curve: return
 
+        stride = len(capsule.data.vertices)
+
+        # Because the curve has an array and curve modifier, we need to evaluate
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        capsule = capsule.evaluated_get(depsgraph)
+
+        mw = capsule.matrix_world
         vertices = capsule.data.vertices
 
-        for k in range(0, len(vertices), 4):
+        for k in range(0, len(vertices), stride):
             # See props.py > MET_SCENE_PG_ModuleGroupList > init_capsule_data 
-            v1 = vertices[k]
-            v2 = vertices[k + 1]
-            #v3 = vertices[k + 2]
-            v4 = vertices[k + 3]
+            v1 = mw @ vertices[k].co
+            v2 = mw @ vertices[k + 1].co
+            v3 = mw @ vertices[k + 2].co
+            v4 = mw @ vertices[k + 3].co
 
-            cap = Capsule(v1, (v4 - v1).length, (v2 - v1).length)
+            height = (v2 - v1).length
+            radius = ((v4 - v3) * .5).length
+
+            cap = Capsule(v1, height, radius)
             self.capsules.append(cap)
 
 
     def update_aabb(self):
+        if not self.capsules: return
+
         fmin = float('-inf')
         fmax = float('inf')
         bmin = Vector((fmax, fmax, fmax))
@@ -149,37 +159,43 @@ class CurveModule:
                 bmax.x = max(bmax.x, p.x)
                 bmax.y = max(bmax.y, p.y)
 
-        bmax.z += self.height
+        bmax.z += self.capsules[0].height
 
+        self.aabb = AABB()
         self.aabb.bmin = bmin
         self.aabb.bmax = bmax
 
 
     def align(self, _gen_map:'GeneratedMap|list[CurveModule]', _align_direction=False, _rotation_offset=0):
-        my_dir = self.points[1].co - self.points[0].co
+        if len(_gen_map) == 0:
+            self.curve.location.xyz = Vector()
+            self.update()
+            return
 
-        cm:'CurveModule' = _gen_map[-1]
-        other_dir = cm.points[-1].co - cm.points[-2].co
+        # My direction
+        my_mw = self.curve.matrix_world
+        my_dir = my_mw @ self.points[1].co - my_mw @ self.points[0].co
+
+        # Other direction
+        cm = _gen_map[-1]
+        other_wm = cm.curve.matrix_world
+        other_dir = ( end := other_wm @ cm.points[-1].co ) - other_wm @ cm.points[-2].co
 
         # Add rotation offset
         R = Matrix.Rotation(radians(_rotation_offset), 3, 'Z')
 
         if _align_direction:
             # Get rotation matrix around z-axis from direction vectors
-            a = my_dir    * Vector((1, 1, 0))
-            b = other_dir * Vector((1, 1, 0))
+            a = my_dir.xyz    * Vector((1, 1, 0))
+            b = other_dir.xyz * Vector((1, 1, 0))
 
             A = rotation_matrix(a, b)
             R = R @ A
 
-        W = self.curve.matrix_world
-        self.curve.matrix_world = W @ R
+        self.curve.matrix_world = my_mw @ R.to_4x4()
 
         # Move chain to the end of the other chain
-        end  = deepcopy(_gen_map[-1][-1])
-        end += other_dir
-
-        self.curve.location = end
+        self.curve.location = end.xyz
         bpy.context.view_layer.update()
 
         # Update capsules and AABB
@@ -187,6 +203,7 @@ class CurveModule:
 
     
     def collides(self, _other:'CurveModule', _quick=False) -> list[Hit]:
+        if not self.aabb: return None
         if not self.aabb.contains(_other.aabb): return None
         
         hits = []
@@ -202,12 +219,15 @@ class CurveModule:
                     if _quick: return hits
         
         return hits
+    
 
 # -----------------------------------------------------------------------------
 # Generated Map
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class GeneratedMap(UserList):
+    """` list[CurveModule] `"""
+
     def __init__(self, _data=None, _settings:MapGenSettings=None):
         super().__init__(_data)
 
@@ -223,6 +243,8 @@ class GeneratedMap(UserList):
 
 
     def resolve_collisions(self, _print_iteration:int, _print_state:str):
+        if len(self.data) <= 1: return
+
         smallest_pen_depth = float('inf')
 
         best_angle_perm = None
@@ -237,20 +259,34 @@ class GeneratedMap(UserList):
 
         found_zero_collisions = False
 
+        # Store original angles
+        original_angles = []
+
+        for cm in self.data:
+            a = cm.curve.rotation_euler.z
+            original_angles.append(a)
+
+        # Resolve collisions
         for k in range(start, max_depth, -1):
             r = len(self.data) - k
 
             # Try different angle permutations to solve collisions
             for angle_perm in itertools.product(self.angles, repeat=r):
-                total_pen_depth = self.try_configuration(k, angle_perm)
+                self.apply_configuration(self.data, k, angle_perm)
+
+                total_pen_depth = self.check_collisions(self.data)
 
                 print(f'Iteration: {_print_iteration}, State: {_print_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle perm: {angle_perm}), total penetration: {total_pen_depth}')
                 
                 if total_pen_depth < smallest_pen_depth: 
                     smallest_pen_depth = total_pen_depth
                     best_angle_perm    = angle_perm
+                
+                # Reset angles
+                for k, cm in enumerate(self.data):
+                    cm.curve.rotation_euler.z = original_angles[k]
 
-                found_zero_collisions = total_pen_depth == 0
+                if (found_zero_collisions := total_pen_depth == 0): break
                 
             if found_zero_collisions:
                 print(f'0 Collisions with angle perm: {angle_perm}')
@@ -268,21 +304,14 @@ class GeneratedMap(UserList):
             for k in range(len(_data)):
                 if j == k: break
 
-                ch1 = _data[j]
-                ch2 = _data[k]
+                cm1 = _data[j]
+                cm2 = _data[k]
 
-                if (hits := ch1.collides(ch2)):
+                if (hits := cm1.collides(cm2)):
                     for h in hits:
                         total_depth += h.depth
 
         return total_depth 
-
-
-    def try_configuration(self, _start_idx:int, _angle_permutation:int) -> float:
-        temp:list[CurveModule] = deepcopy(self.data)
-        self.apply_configuration(temp, _start_idx, _angle_permutation)
-
-        return self.check_collisions(temp)
     
 
     def apply_configuration(self, _data:list[CurveModule], _start_idx:int, _angle_permutation:list[int]):
@@ -302,6 +331,9 @@ class GeneratedMap(UserList):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def generate(_chain:str, _seperator:str, _module_group:list[MET_PG_ModuleGroup], _dataset_name:str, _settings:MapGenSettings):
+    if bpy.context.object:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
     main_collection = b3d_utils.new_collection(f'POPULATED_{_dataset_name} : {_settings}' )
     b3d_utils.new_collection('PrepareForExport', main_collection)
 
@@ -314,24 +346,22 @@ def generate(_chain:str, _seperator:str, _module_group:list[MET_PG_ModuleGroup],
     for k, str_state in enumerate(states):
         state = int(str_state)
 
-        if k == 10:
-            break
-
         # Get module
         module = _module_group[state].random_object()
 
         if not module: continue
 
         # Duplicate module
-        curve = b3d_utils.duplicate_object_with_children(module, False, main_collection)
-        curve.name = f'{k}_{str_state}_{curve.name}'
+        curve = b3d_utils.duplicate_object_with_children(module, False, main_collection, False)
+        curve.name = f'{k}_{State(state).name}_{curve.name}'
 
         cm = CurveModule(curve, state)
+
         cm.align(generated_map, _settings.align_orientation)
 
         generated_map.append(cm)
 
-        #generated_map.resolve_collisions(k, State(state).name)
+        generated_map.resolve_collisions(k, State(state).name)
         
     # Update collection property
     get_population_prop(main_collection).has_content = True

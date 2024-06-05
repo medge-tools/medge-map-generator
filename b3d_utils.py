@@ -85,9 +85,6 @@ def link_object_to_scene(_obj:Object, _collection:str|Collection=None, _clear_us
 
         coll.objects.link(_obj)
 
-    else:
-        bpy.context.scene.collection.objects.link(_obj)
-
 
 # -----------------------------------------------------------------------------
 def remove_object(_obj:Object):
@@ -115,14 +112,25 @@ def duplicate_object(_obj:Object, _instance=False, _collection=None) -> Object:
     
 
 # -----------------------------------------------------------------------------
-def duplicate_object_with_children(_obj:Object, _instance=False, _collection=None) -> Object:
-    root = duplicate_object(_obj, _instance, _collection)
+def duplicate_object_with_children(_obj:Object, _instance=False, _collection=None, _link_modifiers=True) -> Object:
+    if _link_modifiers: 
+        root = duplicate_object(_obj, _instance, _collection)
 
-    for child in _obj.children:
-        copy = duplicate_object(child, _instance, _collection)
-        reparent(copy, root)
+        for child in _obj.children:
+            copy = duplicate_object(child, _instance, _collection)
+            reparent(copy, root)
 
-    return root
+        return root
+        
+    else:
+        with bpy.context.temp_override(active_object=_obj, selected_objects=[_obj, *_obj.children]):
+            bpy.context.view_layer.objects.active = _obj
+            bpy.ops.object.duplicate()
+
+        for obj in bpy.context.selected_objects:
+            link_object_to_scene(obj, _collection)
+
+        return bpy.context.object
 
 
 # -----------------------------------------------------------------------------
@@ -673,20 +681,24 @@ def draw_aabb_lines_3d(_bmin:Vector, _bmax:Vector, _color:tuple, _width=1):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/39127/how-to-put-together-a-driver-with-python
-def add_driver(_target:ID, _prop:str, _index:int, _source:ID, id_type:str, _var_type:str, _data_path:str, _var_name='var', _expression='var'):
+def add_driver(_target:ID, _prop:str, _index:int) -> Driver:
     driver = _target.driver_add(_prop, _index).driver
     
-    var = driver.variables.new()
+    return driver
+
+
+# -----------------------------------------------------------------------------
+def add_driver_variable(_driver:Driver, _source:ID, id_type:str, _var_type:str, _data_path:str, _var_name='var') -> DriverVariable:
+    var = _driver.variables.new()
     
     var.name = _var_name
     var.type = _var_type
 
-    var.targets[0].id_type    = id_type
-    var.targets[0].id         = _source
-    var.targets[0].data_path  = _data_path
-
-    driver.expression = _expression
-
+    var.targets[-1].id_type    = id_type
+    var.targets[-1].id         = _source
+    var.targets[-1].data_path  = _data_path
+    
+    return var
 
 # -----------------------------------------------------------------------------
 # Layout
