@@ -22,9 +22,12 @@ markov_chain_models:dict[str, MarkovChain] = {}
 
 # -----------------------------------------------------------------------------
 class MET_PG_GeneratedChain(PropertyGroup):
+    def split(self):
+        return self.chain.split(self.seperator)
 
     def __get_name(self):
         return self.chain
+
 
     name:      StringProperty(name='Name', get=__get_name)
     chain:     StringProperty(name='Sequence')
@@ -83,6 +86,10 @@ class MET_PG_MarkovChain(PropertyGroup):
         gs.chain = gs.seperator.join(str(c) for c in chain)
 
 
+    def get_selected_generated_chain(self) -> MET_PG_GeneratedChain:
+        return self.generated_chains.get_selected()
+
+
     def __get_name(self):
         if self.collection:
             return self.collection.name
@@ -107,6 +114,11 @@ class MET_PG_MarkovChain(PropertyGroup):
         mc.update_statistics(f, t)
 
 
+    def add_handmade_chain(self):
+        gs:MET_PG_GeneratedChain = self.generated_chains.add()
+        gs.chain = self.handmade_chain
+
+
     name:               StringProperty(name='Name', get=__get_name)
     collection:         PointerProperty(type=Collection, name='Collection')
 
@@ -118,7 +130,9 @@ class MET_PG_MarkovChain(PropertyGroup):
     seed:               IntProperty(name='Seed', default=2024, min=0)
 
     generated_chains:   PointerProperty(type=MET_PG_GeneratedChainList)
+    handmade_chain:     StringProperty(name='Handmade Chain')
     show_chain:         BoolProperty(name='Show Chain')
+
 
 
 # -----------------------------------------------------------------------------
@@ -137,24 +151,60 @@ class MET_SCENE_PG_MarkovChainList(PropertyGroup, GenericList):
 # Map Generation
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OBJECT_PG_Module(PropertyGroup):
-    
-    capsule: PointerProperty(type=Object, name='PRIVATE')
+def add_volume(_obj:Object) -> Object:
+    cube = b3d_utils.create_cube()
+    volume = b3d_utils.new_object(cube, 'Volume', 'Modules', _obj, False)
+    volume.display_type = 'WIRE'
+    volume.location = _obj.location
+
+    get_curve_module_prop(_obj).volume = volume
 
 
 # -----------------------------------------------------------------------------
-class MET_PG_ModuleGroup(PropertyGroup):
+def create_module() -> Object:
+    curve, _ = b3d_utils.create_curve()
+    module = b3d_utils.new_object(curve, 'CurveModule', 'Modules')
+    
+    add_volume(module)
 
-    def random_object(self) -> Object | None:
-        if not self.use_collection:
-            return self.object
+    return module
+
+
+# -----------------------------------------------------------------------------
+class MET_OBJECT_PG_CurveModule(PropertyGroup):
+
+    def __on_volume_update(self, _context:Context):
+        if self.volume:
+            b3d_utils.set_parent(self.volume, self.id_data)
+
+
+    volume: PointerProperty(type=Object, name='Volume', update=__on_volume_update)
+
+
+# -----------------------------------------------------------------------------
+class MET_PG_CurveModuleGroup(PropertyGroup):
+
+    def random_module(self) -> Object | None:
+        if self.use_collection:
+            modules = self.collection.objects
+
+            if not modules: return None
+
+            k = randint(0, len(modules) - 1)
+            return modules[k]
         
         else:
-            objects = self.collection.objects
-            n = len(objects)
-            k = randint(0, n - 1)
-            return objects[k]
+            return self.module
         
+    
+    def add_module(self):
+        if self.use_collection and self.collection:
+            module = create_module()
+            b3d_utils.link_object_to_scene(module, self.collection)
+
+        elif not self.module:
+            self.module = create_module()
+
 
     def __get_name(self):
         name = State(self.state).name
@@ -166,209 +216,100 @@ class MET_PG_ModuleGroup(PropertyGroup):
             else:
                 name = '[EMPTY]_' + name
         else:
-            if not self.object:
+            if not self.module:
                 name = '[EMPTY]_' + name
 
         return f'{self.state}_{name}'
 
 
-    def __on_object_poll(self, _obj:Object):
+    def __on_module_poll(self, _obj:Object):
         return _obj.type == 'CURVE'
 
 
     name:   StringProperty(name='Name', get=__get_name)
     state:  IntProperty(name='PRIVATE')
-    active: BoolProperty(name='PRIVATE')
 
-    object:         PointerProperty(type=Object, name='Curve Object', poll=__on_object_poll)
+    module:         PointerProperty(type=Object, name='Curve Object', poll=__on_module_poll)
     use_collection: BoolProperty(name='Use Collection')
     collection:     PointerProperty(type=Collection, name='Collection')
 
 
 # -----------------------------------------------------------------------------
-class MET_SCENE_PG_ModuleGroupList(PropertyGroup, GenericList):
+class MET_SCENE_PG_CurveModuleGroupList(PropertyGroup, GenericList):
 
     # Override to define return type
-    def get_selected(self) -> MET_PG_ModuleGroup:
+    def get_selected(self) -> MET_PG_CurveModuleGroup:
         if self.items:
             return self.items[self.selected_item_idx]
         
         return None
 
 
-    def init(self):        
+    def init_groups(self):        
         self.items.clear()
         
         for state in State:
             module = self.add()
             module.state = state
 
+                    
+    items:                  CollectionProperty(type=MET_PG_CurveModuleGroup)   
 
-    def update_active_states(self, _gen:MET_PG_GeneratedChain):
-        for m in self.items:
-            m.active = False
+    seed:                   IntProperty(name='Seed', default=2024, min=0)
 
-        states = _gen.chain.split(_gen.seperator)
+    align_orientation:      BoolProperty(name='Align Orientation')
+    resolve_volume_overlap: BoolProperty(name='Resolve Overlap', default=True)
 
-        for s in states:
-            item = self.items[int(s)]
-            item.active = True
-            
-
-    def init_capsule_data(self):
-        coll_name = 'MapGeneration_CapsuleData'
-
-        b3d_utils.remove_object(self.capsule_data)
-
-        self.update_capsule_data()
-
-        # Init capsule data per object
-        def init(_curve:Object):
-            nonlocal coll_name
-
-            assert(_curve.type == 'CURVE')
-
-            copy = b3d_utils.duplicate_object(self.capsule_data, True, coll_name)
-            
-            module = get_module_prop(_curve)
-
-            b3d_utils.remove_object(module.capsule)
-
-            module.capsule = copy
-
-            copy.location = _curve.location
-
-            b3d_utils.set_parent(copy, _curve)
-
-            # Add modifiers
-            array_mod = copy.modifiers.get('Array')
-
-            if not array_mod:
-                array_mod = copy.modifiers.new('Array', 'ARRAY')
-            
-            array_mod.fit_type = 'FIT_CURVE'
-            array_mod.curve = _curve
-            array_mod.use_relative_offset = False
-            array_mod.use_constant_offset = True
-
-            driver = b3d_utils.add_driver(array_mod, 'constant_offset_displace', 0)
-            b3d_utils.add_driver_variable(driver, bpy.context.scene, 'SCENE', 'SINGLE_PROP', 'medge_module_groups.capsule_radius', 'var1')
-            b3d_utils.add_driver_variable(driver, bpy.context.scene, 'SCENE', 'SINGLE_PROP', 'medge_module_groups.capsule_spacing', 'var2')
-            driver.expression = 'var1 + var2'
-
-            curve_mod = copy.modifiers.get('Curve')
-
-            if not curve_mod:
-                curve_mod = copy.modifiers.new('Curve', 'CURVE')
-
-            curve_mod.object = _curve
-            curve_mod.deform_axis = 'POS_X'
-
-
-        for m in self.items:
-            if m.use_collection:
-                if m.collection:
-                    for obj in m.collection.objects:
-                        init(obj)
-
-            elif m.object:
-                init(m.object)
-
-    def update_capsule_data(self, _dummy=None):        
-        if self.capsule_radius >= (r := self.capsule_height * .5):
-           self.capsule_radius = r
-
-        h = self.capsule_height
-        r = self.capsule_radius
-        tip = h - r
-
-        verts = [
-            # First edge is the height
-            Vector((0, 0, 0)),
-            Vector((0, 0, h)),
-            # Two horizontal edges at the base of each half sphere
-            Vector((-r,  0, r)),
-            Vector(( r,  0, r)),
-            Vector(( 0, -r, r)),
-            Vector(( 0,  r, r)),
-
-            Vector((-r,  0, tip)),
-            Vector(( r,  0, tip)),
-            Vector(( 0, -r, tip)),
-            Vector(( 0,  r, tip)),
-        ]
-        
-        edges = [
-            (0, 1), 
-            (2, 3), (4, 5),
-            (6, 7), (8, 9),
-        ]
-        
-        cap_name = 'CapsuleColliderData'
-        coll_name = 'MapGeneration_CapsuleData'
-
-        if not self.capsule_data:
-            mesh = b3d_utils.new_mesh(verts, edges, [], cap_name)
-            self.capsule_data = b3d_utils.new_object(mesh, cap_name, coll_name)
-
-        vertices = self.capsule_data.data.vertices
-
-        for k in range(len(verts)):
-            vertices[k].co = verts[k]
-        
-
-    items:              CollectionProperty(type=MET_PG_ModuleGroup)   
-    
-    seed:               IntProperty(name='Seed', default=2024, min=0)
-
-    align_orientation:  BoolProperty(name='Align Orientation')
-    resolve_collisions: BoolProperty(name='Resolve Collisions', default=True)
-
-    capsule_data:       PointerProperty(type=Object, name='PRIVATE')
-    capsule_height:     FloatProperty(name='Capsule Height', default=1.92, min=1, update=update_capsule_data)
-    capsule_radius:     FloatProperty(name='Capsule Radius', default=.5, min=0.1, update=update_capsule_data)
-    capsule_spacing:    FloatProperty(name='Capsule Spacing', default=.5, min=0)
-
-    max_depth:          IntProperty(name='Max Depth', default=3)
-    max_angle:          IntProperty(name='Max Angle', default=180, max=180)
-    angle_step:         IntProperty(name='Angle Step', default=45, max=180)
-
-    random_angles:      BoolProperty(name='Random Angles')
+    max_depth:              IntProperty(name='Max Depth', default=3)
+    max_angle:              IntProperty(name='Max Angle', default=180, max=180)
+    angle_step:             IntProperty(name='Angle Step', default=45, max=180)
+     
+    random_angles:          BoolProperty(name='Random Angles')
 
 
 # -----------------------------------------------------------------------------
-class MET_UL_ModuleList(UIList):
+class MET_UL_CurveModuleGroupList(UIList):
 
-    def draw_item(self, context, layout, data, item:MET_PG_ModuleGroup, icon, active_data, active_property, index, flt_flag):
+    def draw_item(self, _context, _layout, _data, _item:MET_PG_CurveModuleGroup, _icon, _active_data, _active_property, _index, _flt_flag):
         if self.layout_type == 'GRID':
-            layout.alignment = 'CENTER'
+            _layout.alignment = 'CENTER'
 
+        mc = get_markov_chains_prop(_context).get_selected()
+        gen_chain = mc.get_selected_generated_chain()
+        states = set(gen_chain.split())
+        
         ic = 'RADIOBUT_OFF'
-        if item.active:
+        if str(_item.state) in states:
             ic = 'RADIOBUT_ON'
-    
-        layout.label(text=item.name, icon=ic)
+
+        _layout.label(text=_item.name, icon=ic)
 
 
     def draw_filter(self, _context:Context|None, _layout:UILayout):
         _layout.separator() 
         col = _layout.column(align=True) 
-        col.prop(self, 'filter_active', text='', icon='RADIOBUT_ON') 
+        col.prop(self, 'filter_gen_chain', text='', icon='RADIOBUT_ON') 
 
 
     def filter_items(self, _context:Context|None, _data, _property:str):
         items = getattr(_data, _property) 
-        filtered = [self.bitflag_filter_item] * len(items)
-        
-        if self.filter_active:
-            for k, item in enumerate(items):
-                if item.active: continue
-                filtered[k] &= ~self.bitflag_filter_item
+        filtered = []
+
+        if self.filter_gen_chain:
+            filtered = [0] * len(items)
+            
+            mc = get_markov_chains_prop(_context).get_selected()
+            gen_chain = mc.get_selected_generated_chain()
+
+            states = set(gen_chain.split())
+
+            for s in states:
+                filtered[int(s)] = self.bitflag_filter_item
         
         return filtered, []
 
 
-    filter_active: BoolProperty(name='Filter Active')
+    filter_gen_chain: BoolProperty(name='Filter Generated Chain')
 
 
 # -----------------------------------------------------------------------------
@@ -386,8 +327,13 @@ def get_markov_chains_prop(_context: Context) -> MET_SCENE_PG_MarkovChainList:
 
 
 # -----------------------------------------------------------------------------
-def get_module_groups_prop(_context:Context) -> MET_SCENE_PG_ModuleGroupList:
-    return _context.scene.medge_module_groups
+def get_curve_module_prop(_obj:Object) -> MET_OBJECT_PG_CurveModule:
+    return _obj.medge_curve_module
+
+
+# -----------------------------------------------------------------------------
+def get_curve_module_groups_prop(_context:Context) -> MET_SCENE_PG_CurveModuleGroupList:
+    return _context.scene.medge_curve_module_groups
 
 
 # -----------------------------------------------------------------------------
@@ -396,27 +342,22 @@ def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_GeneratedMa
 
 
 # -----------------------------------------------------------------------------
-def get_module_prop(_obj:Object) -> MET_OBJECT_PG_Module:
-    return _obj.medge_module
-
-
-# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 def register():
-   Object.medge_module            = PointerProperty(type=MET_OBJECT_PG_Module)
-   Scene.medge_markov_chains      = PointerProperty(type=MET_SCENE_PG_MarkovChainList)
-   Scene.medge_module_groups      = PointerProperty(type=MET_SCENE_PG_ModuleGroupList)
-   Collection.medge_generated_map = PointerProperty(type=MET_COLLECTION_PG_GeneratedMap)
+   Object.medge_curve_module       = PointerProperty(type=MET_OBJECT_PG_CurveModule)
+   Scene.medge_markov_chains       = PointerProperty(type=MET_SCENE_PG_MarkovChainList)
+   Scene.medge_curve_module_groups = PointerProperty(type=MET_SCENE_PG_CurveModuleGroupList)
+   Collection.medge_generated_map  = PointerProperty(type=MET_COLLECTION_PG_GeneratedMap)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
     del Collection.medge_generated_map
-    del Scene.medge_module_groups
+    del Scene.medge_curve_module_groups
     del Scene.medge_markov_chains
-    del Object.medge_module
+    del Object.medge_curve_module
 
     

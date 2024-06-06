@@ -286,7 +286,7 @@ def attribute_layers(_bm:BMesh) -> Generator[BMLayerAccessVert, None, None]:
 
 # -----------------------------------------------------------------------------
 def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
-    bm = b3d_utils.get_bmesh(_obj)
+    bm = b3d_utils.get_bmesh_from_object(_obj)
 
     def retrieve_entry(vert):
         entry = DatabaseEntry()
@@ -357,7 +357,7 @@ def set_player_state(_obj:Object, _new_state:int):
     if _obj.mode != 'EDIT': return
     if not is_dataset(_obj): return
     
-    bm = b3d_utils.get_bmesh(_obj)
+    bm = b3d_utils.get_bmesh_from_object(_obj)
 
     state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
 
