@@ -3,7 +3,8 @@ from bpy.types           import Operator, Context
 from bpy_extras.io_utils import ImportHelper, ExportHelper
 from bpy.props           import StringProperty
 
-from .dataset  import DatasetIO, to_dataset, set_player_state, is_dataset, select_transitions, select_player_states, resolve_overlap
+from ..        import b3d_utils
+from .dataset  import DatasetIO, to_dataset, set_player_state, is_dataset, select_transitions, select_player_states, resolve_overlap, dataset_sequences
 from .movement import State
 from .props    import get_dataset_prop
 from .         import vis
@@ -46,11 +47,12 @@ class MET_OT_ExportDataset(Operator, ExportHelper):
 
     def execute(self, context):
         io = DatasetIO()
+
         return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------
-# DATASET
+# Dataset Visualization
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 vis_state = False
@@ -80,6 +82,7 @@ class MET_OT_EnableDatasetVis(Operator):
         vis.add_handle(_context)
         _context.area.tag_redraw()
         set_vis_state(True)
+
         return{'FINISHED'}
     
 
@@ -98,6 +101,7 @@ class MET_OT_DisableDatasetVis(Operator):
         vis.remove_handle()
         _context.area.tag_redraw()
         set_vis_state(False)
+
         return {'FINISHED'}
 
 
@@ -113,12 +117,14 @@ class MET_OT_ConvertToDataset(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+
         return obj.type == 'MESH'
 
 
     def execute(self, _context:Context):
         obj = _context.object
         to_dataset(obj)
+
         return {'FINISHED'}  
 
 
@@ -131,6 +137,7 @@ class MET_OT_SetState(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+
         return obj.mode == 'EDIT'
 
 
@@ -139,6 +146,7 @@ class MET_OT_SetState(Operator):
         settings = get_dataset_prop(obj).get_ops_settings()
         s = settings.new_state
         set_player_state(obj, State[s])
+
         return {'FINISHED'} 
 
 
@@ -151,6 +159,7 @@ class MET_OT_SelectTransitions(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+
         return is_dataset(obj) and obj.mode == 'EDIT'
 
 
@@ -158,6 +167,7 @@ class MET_OT_SelectTransitions(Operator):
         obj = _context.object
         settings = get_dataset_prop(obj).get_ops_settings()
         select_transitions(obj, settings.filter, settings.restrict)
+
         return {'FINISHED'}
     
 
@@ -170,6 +180,7 @@ class MET_OT_SelectStates(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+
         return obj.mode == 'EDIT'
 
 
@@ -177,6 +188,7 @@ class MET_OT_SelectStates(Operator):
         obj = _context.object
         settings = get_dataset_prop(obj).get_ops_settings()
         select_player_states(obj, settings.filter)
+
         return {'FINISHED'}
 
 
@@ -189,15 +201,52 @@ class MET_OT_ResolveOverlap(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+
         return obj.mode == 'EDIT'
     
 
     def execute(self, _context:Context):
         obj = _context.object
         resolve_overlap(obj)
+
         return {'FINISHED'}
 
 
+# -----------------------------------------------------------------------------
+class MET_OT_ExtractCurves(Operator):
+    bl_idname = 'medge_dataset.extract_curves'
+    bl_label  = 'Extract Curves'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        obj = _context.object
+
+        return is_dataset(obj)
+
+
+    def execute(self, _context:Context):
+        obj = _context.object
+
+        collection = b3d_utils.new_collection('EXTRACTED_CURVES_' + obj.name)
+
+        for state, locations, _, _ in dataset_sequences(obj):
+            name = State(state).name
+
+            curve_data, path = b3d_utils.create_curve(len(locations))
+
+            # To origin
+            offset = locations[0].copy()
+            for p in locations:
+                p -= offset
+
+            # Update curve points
+            for p1, p2 in zip(path.points, locations):
+                p1.co = *p2, 1
+
+            b3d_utils.new_object(curve_data, f'{name}_Curve', collection)
+
+        return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------

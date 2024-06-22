@@ -151,13 +151,35 @@ class MET_SCENE_PG_MarkovChainList(PropertyGroup, GenericList):
 # Map Generation
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def add_volume(_obj:Object) -> Object:
+def add_collision_volume(_obj:Object) -> Object:
+    if _obj.type != 'CURVE': return
+
     cube = b3d_utils.create_cube()
-    volume = b3d_utils.new_object(cube, 'Volume', 'Modules', _obj, False)
+    volume = b3d_utils.new_object(cube, 'Volume', bpy.context.collection, _obj, False)
     volume.display_type = 'WIRE'
     volume.location = _obj.location
+    volume.location.x += 1
+    volume.location.z += .5
 
-    get_curve_module_prop(_obj).volume = volume
+    from bpy.types import Curve, Spline
+
+    length = _obj.data.splines[0].calc_length()
+
+    mod = volume.modifiers.new('Array', 'ARRAY')
+    mod.fit_type = 'FIT_LENGTH'
+    mod.fit_length = length - 1.5
+
+    mod = volume.modifiers.new('Curve', 'CURVE')
+    mod.object = _obj
+
+    get_curve_module_prop(_obj).collision_volume = volume
+
+    return volume
+
+
+# -----------------------------------------------------------------------------
+def remove_collision_volume(_obj:Object): 
+    get_curve_module_prop(_obj).collision_volume = None
 
 
 # -----------------------------------------------------------------------------
@@ -165,7 +187,7 @@ def create_module() -> Object:
     curve, _ = b3d_utils.create_curve()
     module = b3d_utils.new_object(curve, 'CurveModule', 'Modules')
     
-    add_volume(module)
+    add_collision_volume(module)
 
     return module
 
@@ -173,12 +195,7 @@ def create_module() -> Object:
 # -----------------------------------------------------------------------------
 class MET_OBJECT_PG_CurveModule(PropertyGroup):
 
-    def __on_volume_update(self, _context:Context):
-        if self.volume:
-            b3d_utils.set_parent(self.volume, self.id_data)
-
-
-    volume: PointerProperty(type=Object, name='Volume', update=__on_volume_update)
+    collision_volume: PointerProperty(type=Object, name='Collision Volume')
 
 
 # -----------------------------------------------------------------------------
@@ -226,8 +243,8 @@ class MET_PG_CurveModuleGroup(PropertyGroup):
         return _obj.type == 'CURVE'
 
 
-    name:   StringProperty(name='Name', get=__get_name)
-    state:  IntProperty(name='PRIVATE')
+    name:  StringProperty(name='Name', get=__get_name)
+    state: IntProperty(name='PRIVATE')
 
     module:         PointerProperty(type=Object, name='Curve Object', poll=__on_module_poll)
     use_collection: BoolProperty(name='Use Collection')
@@ -313,12 +330,6 @@ class MET_UL_CurveModuleGroupList(UIList):
 
 
 # -----------------------------------------------------------------------------
-class MET_COLLECTION_PG_GeneratedMap(PropertyGroup):
-
-    has_content: BoolProperty(name='PRIVATE', default=False)
-
-
-# -----------------------------------------------------------------------------
 # Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -337,27 +348,19 @@ def get_curve_module_groups_prop(_context:Context) -> MET_SCENE_PG_CurveModuleGr
 
 
 # -----------------------------------------------------------------------------
-def get_population_prop(_collection:Collection) -> MET_COLLECTION_PG_GeneratedMap:
-    return _collection.medge_generated_map
-
-
-# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 def register():
    Object.medge_curve_module       = PointerProperty(type=MET_OBJECT_PG_CurveModule)
    Scene.medge_markov_chains       = PointerProperty(type=MET_SCENE_PG_MarkovChainList)
    Scene.medge_curve_module_groups = PointerProperty(type=MET_SCENE_PG_CurveModuleGroupList)
-   Collection.medge_generated_map  = PointerProperty(type=MET_COLLECTION_PG_GeneratedMap)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    del Collection.medge_generated_map
-    del Scene.medge_curve_module_groups
-    del Scene.medge_markov_chains
-    del Object.medge_curve_module
+    if hasattr(Scene, 'medge_curve_module_groups'): del Scene.medge_curve_module_groups
+    if hasattr(Scene, 'medge_markov_chains'):       del Scene.medge_markov_chains
+    if hasattr(Object, 'medge_curve_module'):       del Object.medge_curve_module
 
     

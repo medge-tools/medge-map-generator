@@ -30,6 +30,7 @@ class Attribute(int, Enum):
         obj._value_ = _value
         obj.label = _label
         obj.type = _type
+        
         return obj
     
     def __int__(self):

@@ -53,11 +53,10 @@ def get_dataset_prop(_obj:Object) -> MET_MESH_PG_Dataset:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# BUG: We call these manually in '__init__.py' because 'auto_load' throws an AttributeError every other reload
 def register():
    Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-   del Mesh.medge_dataset
+   if hasattr(Mesh, 'medge_dataset'): del Mesh.medge_dataset

@@ -4,7 +4,8 @@ from ..gui_defaults import MapGenPanel_DefaultProps
 from ..         import b3d_utils
 from .props     import get_dataset_prop
 from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectStates, MET_OT_SelectTransitions, 
-                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled, MET_OT_ResolveOverlap)
+                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled, 
+                        MET_OT_ResolveOverlap, MET_OT_ExtractCurves)
 
 
 # -----------------------------------------------------------------------------
@@ -20,14 +21,14 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         obj = _context.active_object
 
         if not obj: 
-            b3d_utils.draw_box('Select Object', layout)
+            b3d_utils.draw_box(layout, 'Select Object')
             return
 
         col = layout.column(align=True)
 
         if not (dataset := get_dataset_prop(obj)): 
             col.operator(MET_OT_ConvertToDataset.bl_idname)
-            b3d_utils.draw_box('Make sure it is a polyline', layout)
+            b3d_utils.draw_box(layout, 'Make sure it is a polyline')
             return
         else:
             col.operator(MET_OT_ConvertToDataset.bl_idname, text='Update Attributes')
@@ -56,6 +57,7 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         col.separator()
         col.operator(MET_OT_SelectTransitions.bl_idname)
         col.operator(MET_OT_ResolveOverlap.bl_idname)
+        col.operator(MET_OT_ExtractCurves.bl_idname)
 
 
 # -----------------------------------------------------------------------------

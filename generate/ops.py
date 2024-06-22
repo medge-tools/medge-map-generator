@@ -4,7 +4,7 @@ from .props import get_markov_chains_prop
 from .      import stats
 
 from ..b3d_utils       import get_active_collection
-from .props            import MET_PG_GeneratedChain, get_curve_module_groups_prop, get_curve_module_prop, get_population_prop, add_volume
+from .props            import MET_PG_GeneratedChain, get_curve_module_groups_prop, get_curve_module_prop, add_collision_volume, remove_collision_volume
 from .map              import MapGenSettings, generate, prepare_for_export, export
 
 
@@ -118,6 +118,7 @@ class MET_OT_AddHandmadeChain(Operator):
     def execute(self, _context:Context):
         mc = get_markov_chains_prop(_context)
         mc.get_selected().add_handmade_chain()
+        
         return {'FINISHED'}    
     
 
@@ -133,6 +134,7 @@ class MET_OT_InitModules(Operator):
     def execute(self, _context):
         modules = get_curve_module_groups_prop(_context)
         modules.init_groups()
+
         return {'FINISHED'}
 
 
@@ -158,27 +160,47 @@ class MET_OT_AddCurveModuleToGroup(Operator):
         module_groups = get_curve_module_groups_prop(_context)
         mg = module_groups.get_selected()
         mg.add_module()
+
         return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_AddVolumeToCurveModule(Operator):
-    bl_idname = 'medge_generate.add_volume_to_curve_module'
-    bl_label = 'Add Volume To Curve Module'
+class MET_OT_AddCollisionVolume(Operator):
+    bl_idname  = 'medge_generate.add_collision_volume'
+    bl_label   = 'Add Collision Volume'
     bl_options = {'UNDO'}
 
 
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
-        return obj and not get_curve_module_prop(obj).volume
+        return obj and not get_curve_module_prop(obj).collision_volume
 
 
     def execute(self, _context:Context):
-        obj = _context.object
-        add_volume(obj)
+        objs = _context.selected_objects
+
+        for obj in objs:
+            add_collision_volume(obj)
+
         return {'FINISHED'}
     
+
+# -----------------------------------------------------------------------------
+class MET_OT_RemoveCollisionVolume(Operator):
+    bl_idname  = 'medge_generate.remove_collision_volume'
+    bl_label   = 'Remove Collision Volume'
+    bl_options = {'UNDO'}
+
+
+    def execute(self, _context:Context):
+        objs = _context.selected_objects
+
+        for obj in objs:
+            remove_collision_volume(obj)
+
+        return {'FINISHED'}
+
 
 # -----------------------------------------------------------------------------
 # class MET_OT_TestVolumeOverlap(Operator):
@@ -219,13 +241,13 @@ class MET_OT_GenerateMap(Operator):
         gen_chain:MET_PG_GeneratedChain = active_mc.generated_chains.get_selected()
 
         settings = MapGenSettings()
-        settings.seed               = module_groups.seed 
-        settings.align_orientation  = module_groups.align_orientation
-        settings.resolve_overlap = module_groups.resolve_volume_overlap
-        settings.max_depth          = module_groups.max_depth
-        settings.max_angle          = module_groups.max_angle
-        settings.angle_step         = module_groups.angle_step
-        settings.random_angles      = module_groups.random_angles
+        settings.seed              = module_groups.seed 
+        settings.align_orientation = module_groups.align_orientation
+        settings.resolve_overlap   = module_groups.resolve_volume_overlap
+        settings.max_depth         = module_groups.max_depth
+        settings.max_angle         = module_groups.max_angle
+        settings.angle_step        = module_groups.angle_step
+        settings.random_angles     = module_groups.random_angles
 
         generate(gen_chain, module_groups.items, active_mc.name, settings)
 
@@ -239,14 +261,6 @@ class MET_OT_PrepareForExport(Operator):
     bl_options = {'UNDO'}
 
 
-    @classmethod
-    def poll(cls, _context:Context):
-        collection = get_active_collection()
-        if not collection: return False
-        prop = get_population_prop(collection)
-        return prop.has_content
-
-
     def execute(self, _context:Context):
         collection = get_active_collection()
         prepare_for_export(collection)
@@ -258,17 +272,6 @@ class MET_OT_ExportT3D(Operator):
     bl_idname = 'medge_generate.export_t3d'
     bl_label = 'Export T3D'
     bl_options = {'UNDO'}
-
-
-    @classmethod
-    def poll(cls, _context:Context):
-        collection = get_active_collection()
-        
-        if not collection: return False
-
-        prop = get_population_prop(collection)
-
-        return prop.has_content
 
 
     def execute(self, _context:Context):

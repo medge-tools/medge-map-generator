@@ -11,7 +11,7 @@ from collections import UserList
 from ..                 import b3d_utils
 from ..b3d_utils        import rotation_matrix
 from ..dataset.movement import State
-from .props             import MET_PG_CurveModuleGroup, MET_PG_GeneratedChain, get_population_prop, get_curve_module_prop
+from .props             import MET_PG_CurveModuleGroup, MET_PG_GeneratedChain, get_curve_module_prop
 
 
 # -----------------------------------------------------------------------------
@@ -67,7 +67,7 @@ class CurveModule:
     
     @property
     def volume(self) -> Object | None:
-        return get_curve_module_prop(self.curve).volume
+        return get_curve_module_prop(self.curve).collision_volume
 
     def __len__(self):
         return len(self.path.points)
@@ -116,7 +116,7 @@ class CurveModule:
         if not (vol1 := self.volume) or not (vol2 := _other.volume):
             return False
 
-        return b3d_utils.check_objects_overlap(vol1, vol2)
+        return b3d_utils.check_objects_intersection(vol1, vol2)
         
 
 # -----------------------------------------------------------------------------
@@ -231,7 +231,7 @@ def generate(_gen_chain:MET_PG_GeneratedChain, _module_group:list[MET_PG_CurveMo
     if bpy.context.object:
         bpy.ops.object.mode_set(mode='OBJECT')
     
-    main_collection = b3d_utils.new_collection(f'POPULATED_{_dataset_name}[{_settings}]' )
+    main_collection = b3d_utils.new_collection(f'POPULATED_{_dataset_name}_[{_settings}]' )
     b3d_utils.new_collection('PrepareForExport', main_collection)
 
     states = _gen_chain.split()
@@ -261,9 +261,6 @@ def generate(_gen_chain:MET_PG_GeneratedChain, _module_group:list[MET_PG_CurveMo
         if _settings.resolve_overlap:
             generated_map.resolve_overlap(k, State(state).name)
         
-    # Update collection property
-    get_population_prop(main_collection).has_content = True
-
     print('Finished')
 
     

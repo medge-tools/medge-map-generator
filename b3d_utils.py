@@ -135,15 +135,19 @@ def link_object_to_scene(_obj:Object, _collection:Collection|str=None, _clear_us
             coll = new_collection(_collection)
 
         coll.objects.link(_obj)
+
     else:
-        bpy.context.scene.collection.objects.link(_obj)
+        if (coll := bpy.context.collection):
+            coll.objects.link(_obj)
+            
+        else:
+            bpy.context.scene.collection.objects.link(_obj)
 
 
 # -----------------------------------------------------------------------------
 def new_object(_data:ID, _name:str, _collection:Collection|str=None, _parent:Object=None, _set_active=True):
     obj = bpy.data.objects.new(_name, _data)
     obj.location = bpy.context.scene.cursor.location
-    bpy.context.view_layer.update()
 
     link_object_to_scene(obj, _collection)
 
@@ -712,7 +716,7 @@ def draw_aabb_lines_3d(_bmin:Vector, _bmax:Vector, _color:tuple, _width=1):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/39127/how-to-put-together-a-driver-with-python
-def add_driver(_target:ID, _prop:str, _index:int) -> Driver:
+def add_driver(_target:ID, _prop:str, _index=-1) -> Driver:
     driver = _target.driver_add(_prop, _index).driver
     
     return driver
@@ -756,7 +760,7 @@ def create_bvh_tree_from_object(_obj:Object, _apply_modifiers=True) -> BVHTree:
 
 
 # -----------------------------------------------------------------------------
-def check_objects_overlap(_obj1:Object, _obj2:Object, _apply_modifiers=True) -> list[tuple[int, int]]:
+def check_objects_intersection(_obj1:Object, _obj2:Object, _apply_modifiers=True) -> list[tuple[int, int]]:
     bvh1 = create_bvh_tree_from_object(_obj1, _apply_modifiers)
     bvh2 = create_bvh_tree_from_object(_obj2, _apply_modifiers)
 
@@ -773,7 +777,7 @@ def auto_gui_props(_data:PropertyGroup, _layout:UILayout):
 
 
 # -----------------------------------------------------------------------------
-def draw_box(_text:str, _layout:UILayout, _alignment='CENTER'):
+def draw_box(_layout:UILayout, _text:str, _alignment='CENTER'):
     box = _layout.box()
     row = box.row()
     row.alignment = _alignment
