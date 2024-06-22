@@ -4,7 +4,6 @@ from ..             import b3d_utils
 from ..gui_defaults import MapGenPanel_DefaultProps
 
 from .ops   import (MET_OT_CreateTransitionMatrix, MET_OT_GenerateChain, MET_OT_AddHandmadeChain,
-                    MET_OT_EnableMarkovStats, MET_OT_DisableMarkovStats,
                     MET_OT_InitModules, MET_OT_AddCurveModuleToGroup, MET_OT_AddCollisionVolume, MET_OT_RemoveCollisionVolume,
                     MET_OT_GenerateMap, MET_OT_PrepareForExport, MET_OT_ExportT3D)
 from .props import get_markov_chains_prop, get_curve_module_groups_prop, get_curve_module_prop
@@ -128,36 +127,6 @@ class MET_PT_MarkovChains(MapGenPanel_DefaultProps, Panel):
             col.separator(factor=2)
             b3d_utils.multiline_text(_context, col, active_chain.chain)
             col.separator(factor=2)
-
-
-# -----------------------------------------------------------------------------
-class MET_PT_MarkovChainsStats(MapGenPanel_DefaultProps, Panel):
-    bl_idname = 'MET_PT_MarkovChainsStats'
-    bl_label = 'Statistics'
-
-
-    def draw(self, _context:Context):
-        layout = self.layout
-        layout.use_property_decorate = False
-        layout.use_property_split = True
-
-        col = layout.column(align=True)
-        row = col.row(align=True)
-
-        row.operator(MET_OT_EnableMarkovStats.bl_idname, text='Enable')
-        row.operator(MET_OT_DisableMarkovStats.bl_idname, text='Disable')
-
-        markov = get_markov_chains_prop(_context)
-        item = markov.get_selected()
-
-        if not item: return
-        if not item.has_transition_matrix(): 
-            b3d_utils.draw_box(layout, 'Selected Dataset Collection has no transition matrix')
-            return
-
-        col.separator()
-        col.prop(item, 'from_state')
-        col.prop(item, 'to_state')
 
 
 # -----------------------------------------------------------------------------

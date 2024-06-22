@@ -1,13 +1,12 @@
 import bpy
 from bpy.types import PropertyGroup, Object, Scene, Collection, Context, UIList, UILayout
-from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty, FloatProperty, CollectionProperty
-from mathutils import Vector
+from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty, CollectionProperty
 
 from random import randint
 
 from ..                 import b3d_utils
 from ..b3d_utils        import GenericList
-from ..dataset.movement import State, StateProperty
+from ..dataset.movement import State
 from ..dataset.props    import get_dataset_prop
 
 from .markov import MarkovChain
@@ -70,7 +69,6 @@ class MET_PG_MarkovChain(PropertyGroup):
 
         if success: 
             markov_chain_models[self.name] = mc
-            self.update_statistics()
 
 
     def generate_chain(self):
@@ -102,18 +100,6 @@ class MET_PG_MarkovChain(PropertyGroup):
         return self.name in markov_chain_models
     
 
-    def update_statistics(self, _dummy=None):
-        global markov_chain_models
-        
-        if self.name not in markov_chain_models: return
-
-        mc = markov_chain_models[self.name]
-        f  = State[self.from_state].value
-        t  = State[self.to_state].value
-
-        mc.update_statistics(f, t)
-
-
     def add_handmade_chain(self):
         gs:MET_PG_GeneratedChain = self.generated_chains.add()
         gs.chain = self.handmade_chain
@@ -122,10 +108,6 @@ class MET_PG_MarkovChain(PropertyGroup):
     name:               StringProperty(name='Name', get=__get_name)
     collection:         PointerProperty(type=Collection, name='Collection')
 
-    display_statistics: BoolProperty(name='Display Statistics')
-    from_state:         StateProperty('From', update_statistics)
-    to_state:           StateProperty('To', update_statistics)
-    
     length:             IntProperty(name='Length', default=100, min=0)
     seed:               IntProperty(name='Seed', default=2024, min=0)
 

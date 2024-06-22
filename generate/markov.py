@@ -17,8 +17,6 @@ class MarkovChain:
         self.transition_matrix = None
         self.nstates = 0
 
-        self.statistics = []
-
 
     # https://stackoverflow.com/questions/46657221/generating-markov-transition-matrix-in-python
     def create_transition_matrix(self, _objects:list[Object], _name='') -> bool:
@@ -79,38 +77,3 @@ class MarkovChain:
             prev_state = next_state
 
         return gen_chain
-
-        
-    def update_statistics(self, _from_state:int, _to_state:int):
-        data = np.zeros((0, 2), dtype=str)
-
-        t = self.transition_matrix[_from_state][_to_state]
-
-        header = [[State(_from_state).name + ' -> ' + State(_to_state).name, str(round(t, 3))]]
-
-        data = np.append(data, header, axis=0)
-
-        info = [['Transition', 'Probability']]
-        data = np.append(data, info, axis=0)
-
-        # Pretty printing
-        rows, cols = data.shape
-        max_width = [0] * cols
-        for k in range(cols):
-            w = len(max(data[:, k], key=len))
-            max_width[k] = w
-        
-        fill = ' '
-        align = '<'
-        for k in range(cols):
-            width = max_width[k]
-            a = data[:, k]
-            for j in range(rows):
-                a[j] = f'{a[j]:{fill}{align}{width}}'
-
-        # Finalize
-        seperator = [['-' * max_width[0], '-' * max_width[1]]]
-        data = np.insert(data, 1, seperator, axis=0)
-        
-        self.statistics = data
-

@@ -1,7 +1,6 @@
 from bpy.types  import Operator, Context
 
 from .props import get_markov_chains_prop
-from .      import stats
 
 from ..b3d_utils       import get_active_collection
 from .props            import MET_PG_GeneratedChain, get_curve_module_groups_prop, get_curve_module_prop, add_collision_volume, remove_collision_volume
@@ -11,57 +10,6 @@ from .map              import MapGenSettings, generate, prepare_for_export, expo
 # -----------------------------------------------------------------------------
 # Markov Chains
 # -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-statistics_state = False
-
-def is_stats_enabled():
-    global statistics_state
-    return statistics_state
-
-
-def set_stats_state(state: bool):
-    global statistics_state
-    statistics_state = state
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_EnableMarkovStats(Operator):
-    bl_idname = 'medge_generate.enable_markov_statistics'
-    bl_label  = 'Enable Statistics'
-
-
-    @classmethod
-    def poll(cls, _context:Context):
-        return not is_stats_enabled()
-
-
-    def execute(self, context: Context):
-        stats.add_handle(context)
-        context.area.tag_redraw()
-        set_stats_state(True)
-
-        return{'FINISHED'}
-    
-
-# -----------------------------------------------------------------------------
-class MET_OT_DisableMarkovStats(Operator):
-    bl_idname = 'medge_generate.disable_markov_statistics'
-    bl_label  = 'Disable Statistics'
-
-
-    @classmethod
-    def poll(cls, _context:Context):
-        return is_stats_enabled()
-
-
-    def execute(self, _context:Context):
-        stats.remove_handle()
-        _context.area.tag_redraw()
-        set_stats_state(False)
-
-        return {'FINISHED'}
-
-
 # -----------------------------------------------------------------------------
 class MET_OT_CreateTransitionMatrix(Operator):
     bl_idname = 'medge_generate.create_transition_matrix'
