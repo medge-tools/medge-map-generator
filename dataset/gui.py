@@ -1,17 +1,24 @@
 from bpy.types import Context, Panel
 
-from ..gui_defaults import MapGenPanel_DefaultProps
+from ..gui      import MEdgeToolsPanel, MET_PT_map_gen_panel
 from ..         import b3d_utils
 from .props     import get_dataset_prop
-from .ops       import (MET_OT_ConvertToDataset, MET_OT_SetState, MET_OT_SelectStates, MET_OT_SelectTransitions, 
-                        MET_OT_EnableDatasetVis, MET_OT_DisableDatasetVis, is_vis_enabled, 
-                        MET_OT_ResolveOverlap, MET_OT_ExtractCurves)
+from .ops       import (MET_OT_convert_to_dataset, MET_OT_set_state, MET_OT_select_states, MET_OT_select_transitions, 
+                        MET_OT_enable_dataset_vis, MET_OT_disable_dataset_vis, is_vis_enabled, 
+                        MET_OT_resolve_overlap, MET_OT_extract_curves)
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
-    bl_idname = 'MET_PT_DatasetMainPanel'
-    bl_label = 'Map Gen: Dataset'
+class MET_PT_dataset(Panel, MEdgeToolsPanel):
+    bl_idname = 'MET_PT_dataset_panel'
+    bl_parent_id = MET_PT_map_gen_panel.bl_idname
+    bl_label = 'Dataset'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        return _context.scene.medge_map_gen_active_tab == 'DATASET'
+    
     
     def draw(self, _context: Context):
         layout = self.layout
@@ -27,11 +34,11 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         col = layout.column(align=True)
 
         if not (dataset := get_dataset_prop(obj)): 
-            col.operator(MET_OT_ConvertToDataset.bl_idname)
+            col.operator(MET_OT_convert_to_dataset.bl_idname)
             b3d_utils.draw_box(layout, 'Make sure it is a polyline')
             return
         else:
-            col.operator(MET_OT_ConvertToDataset.bl_idname, text='Update Attributes')
+            col.operator(MET_OT_convert_to_dataset.bl_idname, text='Update Attributes')
 
         settings = dataset.get_ops_settings()
         
@@ -40,13 +47,13 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
         col.separator(factor=2)
         col.prop(settings, 'new_state')
         col.separator()
-        col.operator(MET_OT_SetState.bl_idname)
+        col.operator(MET_OT_set_state.bl_idname)
         
         col.separator()
         col.prop(settings, 'filter')
         
         col.separator()
-        col.operator(MET_OT_SelectStates.bl_idname)
+        col.operator(MET_OT_select_states.bl_idname)
         
         col.separator()
         col.prop(settings, 'use_filter')
@@ -55,14 +62,14 @@ class MET_PT_DatasetMainPanel(MapGenPanel_DefaultProps, Panel):
             col.prop(settings, 'filter')
         
         col.separator()
-        col.operator(MET_OT_SelectTransitions.bl_idname)
-        col.operator(MET_OT_ResolveOverlap.bl_idname)
-        col.operator(MET_OT_ExtractCurves.bl_idname)
+        col.operator(MET_OT_select_transitions.bl_idname)
+        col.operator(MET_OT_resolve_overlap.bl_idname)
+        col.operator(MET_OT_extract_curves.bl_idname)
 
 
 # -----------------------------------------------------------------------------
-class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
-    bl_parent_id = MET_PT_DatasetMainPanel.bl_idname
+class MET_PT_dataset_vis(Panel, MEdgeToolsPanel):
+    bl_parent_id = MET_PT_dataset.bl_idname
     bl_label = 'Visualization'
     bl_options = {'DEFAULT_CLOSED'}
 
@@ -75,8 +82,8 @@ class MET_PT_DatasetVis(MapGenPanel_DefaultProps, Panel):
         col = layout.column(align=True)
         row = col.row(align=True)
 
-        row.operator(MET_OT_EnableDatasetVis.bl_idname, text='Enable')
-        row.operator(MET_OT_DisableDatasetVis.bl_idname, text='Disable')
+        row.operator(MET_OT_enable_dataset_vis.bl_idname, text='Enable')
+        row.operator(MET_OT_disable_dataset_vis.bl_idname, text='Disable')
         
         if not is_vis_enabled(): 
             box = layout.box()

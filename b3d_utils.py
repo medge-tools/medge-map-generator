@@ -576,11 +576,11 @@ def create_cylinder(_radius=2,
 
 # -----------------------------------------------------------------------------
 #https://blender.stackexchange.com/questions/127603/how-to-specify-nurbs-path-vertices-in-python
-def create_curve(_num_points=3) -> tuple[Curve, Spline]:
+def create_curve(_type='NURBS', _num_points=3) -> tuple[Curve, Spline]:
     curve = bpy.data.curves.new('CURVE', 'CURVE')
     curve.dimensions = '3D'
 
-    path = curve.splines.new('NURBS')
+    path = curve.splines.new(_type)
     path.points.add(_num_points - 1)
 
     for k, p in enumerate(path.points):

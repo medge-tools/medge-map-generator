@@ -14,7 +14,7 @@ from .         import vis
 # IO
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OT_ImportDataset(Operator, ImportHelper):
+class MET_OT_import_dataset(Operator, ImportHelper):
     bl_idname = 'medge_dataset.import_dataset'
     bl_label = 'Import Dataset'
     filename_ext = '.json'
@@ -33,7 +33,7 @@ class MET_OT_ImportDataset(Operator, ImportHelper):
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_ExportDataset(Operator, ExportHelper):
+class MET_OT_export_dataset(Operator, ExportHelper):
     bl_idname = 'medge_dataset.export_dataset'
     bl_label = 'Export Dataset'
     filename_ext = ".json"
@@ -68,7 +68,7 @@ def set_vis_state(state: bool):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_EnableDatasetVis(Operator):
+class MET_OT_enable_dataset_vis(Operator):
     bl_idname = 'medge_dataset.enable_dataset_vis'
     bl_label  = 'Enable Dataset Vis'
 
@@ -87,7 +87,7 @@ class MET_OT_EnableDatasetVis(Operator):
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_DisableDatasetVis(Operator):
+class MET_OT_disable_dataset_vis(Operator):
     bl_idname = 'medge_dataset.disable_dataset_vis'
     bl_label  = 'Disable Dataset Vis'
 
@@ -109,7 +109,7 @@ class MET_OT_DisableDatasetVis(Operator):
 # Dataset Operations
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OT_ConvertToDataset(Operator):
+class MET_OT_convert_to_dataset(Operator):
     bl_idname = 'medge_dataset.convert_to_dataset'
     bl_label  = 'Convert To Dataset'
 
@@ -129,7 +129,7 @@ class MET_OT_ConvertToDataset(Operator):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_SetState(Operator):
+class MET_OT_set_state(Operator):
     bl_idname = 'medge_dataset.set_state'
     bl_label  = 'Set State'
 
@@ -151,7 +151,7 @@ class MET_OT_SetState(Operator):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_SelectTransitions(Operator):
+class MET_OT_select_transitions(Operator):
     bl_idname = 'medge_dataset.select_transitions'
     bl_label  = 'Select Transitions'
 
@@ -172,7 +172,7 @@ class MET_OT_SelectTransitions(Operator):
     
 
 # -----------------------------------------------------------------------------
-class MET_OT_SelectStates(Operator):
+class MET_OT_select_states(Operator):
     bl_idname = 'medge_dataset.select_states'
     bl_label  = 'Select States'
 
@@ -193,7 +193,7 @@ class MET_OT_SelectStates(Operator):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_ResolveOverlap(Operator):
+class MET_OT_resolve_overlap(Operator):
     bl_idname = 'medge_dataset.resolve_overlap'
     bl_label  = 'Resolve Overlap'
 
@@ -213,7 +213,7 @@ class MET_OT_ResolveOverlap(Operator):
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_ExtractCurves(Operator):
+class MET_OT_extract_curves(Operator):
     bl_idname = 'medge_dataset.extract_curves'
     bl_label  = 'Extract Curves'
 
@@ -233,7 +233,7 @@ class MET_OT_ExtractCurves(Operator):
         for state, locations, _, _ in dataset_sequences(obj):
             name = State(state).name
 
-            curve_data, path = b3d_utils.create_curve(len(locations))
+            curve_data, path = b3d_utils.create_curve('POLY', len(locations))
 
             # To origin
             offset = locations[0].copy()
@@ -254,7 +254,7 @@ class MET_OT_ExtractCurves(Operator):
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def menu_func_import_dataset(self, context):
-    self.layout.operator(MET_OT_ImportDataset.bl_idname, text='MEdge Dataset (.json)')
+    self.layout.operator(MET_OT_import_dataset.bl_idname, text='MEdge Dataset (.json)')
 
 
 # -----------------------------------------------------------------------------

@@ -6,7 +6,7 @@ from .dataset  import is_dataset
 
 
 # -----------------------------------------------------------------------------
-class MET_DS_PG_VisSettings(PropertyGroup):
+class MET_DS_PG_vis_settings(PropertyGroup):
     to_name:           BoolProperty(name='To Name', default=False)
     only_selection:    BoolProperty(name='Only Selection', default=False)
     show_timestamps:   BoolProperty(name='Show Timestamps', default=False)
@@ -19,7 +19,7 @@ class MET_DS_PG_VisSettings(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
-class MET_DS_PG_OpsSettings(PropertyGroup):
+class MET_DS_PG_ops_settings(PropertyGroup):
     use_filter: BoolProperty(name='Use Filter')
     restrict:   BoolProperty(name='Restrict')
     filter:     StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
@@ -28,22 +28,22 @@ class MET_DS_PG_OpsSettings(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
-class MET_MESH_PG_Dataset(PropertyGroup):
-    def get_vis_settings(self) -> MET_DS_PG_VisSettings:
+class MET_MESH_PG_dataset(PropertyGroup):
+    def get_vis_settings(self) -> MET_DS_PG_vis_settings:
         return self.vis_settings
 
-    def get_ops_settings(self) -> MET_DS_PG_OpsSettings:
+    def get_ops_settings(self) -> MET_DS_PG_ops_settings:
         return self.ops_settings
 
-    vis_settings: PointerProperty(type=MET_DS_PG_VisSettings)
-    ops_settings: PointerProperty(type=MET_DS_PG_OpsSettings)
+    vis_settings: PointerProperty(type=MET_DS_PG_vis_settings)
+    ops_settings: PointerProperty(type=MET_DS_PG_ops_settings)
 
     
 # -----------------------------------------------------------------------------
 # SCENE UITLS
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_dataset_prop(_obj:Object) -> MET_MESH_PG_Dataset:
+def get_dataset_prop(_obj:Object) -> MET_MESH_PG_dataset:
     if is_dataset(_obj):
         return _obj.data.medge_dataset
     return None
@@ -54,7 +54,7 @@ def get_dataset_prop(_obj:Object) -> MET_MESH_PG_Dataset:
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def register():
-   Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_Dataset)
+   Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_dataset)
 
 
 # -----------------------------------------------------------------------------

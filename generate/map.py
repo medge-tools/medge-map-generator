@@ -4,14 +4,15 @@ from mathutils import Vector, Matrix
 
 import itertools
 import numpy     as     np
-from math        import radians, pi
-from dataclasses import dataclass
-from collections import UserList
+from numpy.random import randint
+from math         import radians, pi
+from dataclasses  import dataclass
+from collections  import UserList
 
 from ..                 import b3d_utils
 from ..b3d_utils        import rotation_matrix
 from ..dataset.movement import State
-from .props             import MET_PG_CurveModuleGroup, MET_PG_GeneratedChain, get_curve_module_prop
+from .props             import MET_PG_curve_module_group, MET_PG_generated_chain, get_curve_module_prop
 
 
 # -----------------------------------------------------------------------------
@@ -87,12 +88,14 @@ class CurveModule:
 
         # My direction
         my_mw = self.curve.matrix_world
-        my_dir = my_mw @ self.points[1].co - my_mw @ self.points[0].co
+        my_dir = my_mw @ self.points[1].co - (start := my_mw @ self.points[0].co)
+        my_dir.normalize()
 
         # Other direction
         cm = _gen_map[-1]
         other_wm = cm.curve.matrix_world
         other_dir = ( end := other_wm @ cm.points[-1].co ) - other_wm @ cm.points[-2].co
+        other_dir.normalize()
 
         # Add rotation offset
         R = Matrix.Rotation(radians(_rotation_offset), 3, 'Z')
@@ -101,6 +104,9 @@ class CurveModule:
             # Get rotation matrix around z-axis from direction vectors
             a = my_dir.xyz    * Vector((1, 1, 0))
             b = other_dir.xyz * Vector((1, 1, 0))
+
+            if a.length == 0 or b.length == 0:
+                print('Direction vector has 0 length. Perhaps overlapping control points')
 
             A = rotation_matrix(a, b)
             R = R @ A
@@ -112,9 +118,9 @@ class CurveModule:
         bpy.context.view_layer.update()
 
     
-    def overlap(self, _other:'CurveModule') -> list[tuple[int, int]]:
+    def overlap(self, _other:'CurveModule') -> list[tuple[int, int]] | None:
         if not (vol1 := self.volume) or not (vol2 := _other.volume):
-            return False
+            return None
 
         return b3d_utils.check_objects_intersection(vol1, vol2)
         
@@ -140,7 +146,7 @@ class GeneratedMap(UserList):
             self.angles.append(k)
 
 
-    def resolve_overlap(self, _curr_iteration:int, _curr_state:str):
+    def resolve_overlap(self, _curr_state:str):
         if len(self.data) <= 1: return
 
         lowest_amount_hits = float('inf')
@@ -174,7 +180,7 @@ class GeneratedMap(UserList):
 
                 total_hits = self.check_overlaps(self.data)
 
-                print(f'Iteration: {_curr_iteration}, State: {_curr_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle perm: {angle_perm}), total penetration: {total_hits}')
+                print(f'State: {_curr_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle perm: {angle_perm}), total penetration: {total_hits}')
                 
                 if total_hits < lowest_amount_hits: 
                     lowest_amount_hits = total_hits
@@ -227,30 +233,43 @@ class GeneratedMap(UserList):
 # Map Generation
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def generate(_gen_chain:MET_PG_GeneratedChain, _module_group:list[MET_PG_CurveModuleGroup], _dataset_name:str, _settings:MapGenSettings):
+def generate(_gen_chain:MET_PG_generated_chain, _module_group:list[MET_PG_curve_module_group], _settings:MapGenSettings, _target_collection:Collection):
     if bpy.context.object:
         bpy.ops.object.mode_set(mode='OBJECT')
     
-    main_collection = b3d_utils.new_collection(f'POPULATED_{_dataset_name}_[{_settings}]' )
-    b3d_utils.new_collection('PrepareForExport', main_collection)
+    b3d_utils.deselect_all_objects()
+
+    # Collect all curve objects
+    module_names:list[list[str]|None] = []
+
+    for g in _module_group:
+        module_names.append(g.collect_curve_names())
+
+    # Generation data
+    np.random.seed(_settings.seed)
 
     states = _gen_chain.split()
 
     generated_map = GeneratedMap(None, _settings)
 
     print()
-    print('Duplicating and aligning modules...')
     for k, str_state in enumerate(states):
         state = int(str_state)
 
-        # Get module
-        module = _module_group[state].random_module()
+        print(f'Iteration: {k}')
 
-        if not module: continue
+        # Get module
+        names = module_names[state]
+
+        if not names: continue
+
+        n = randint(len(names))
+
+        module = bpy.data.objects[names[n]]
 
         # Duplicate module
-        curve = b3d_utils.duplicate_object_with_children(module, False, main_collection, False)
-        curve.name = f'{k}_{State(state).name}_{curve.name}'
+        curve = b3d_utils.duplicate_object_with_children(module, False, _target_collection, False)
+        curve.name = f'{k}_{State(state).name}_{module.name}'
 
         cm = CurveModule(curve, state)
 
@@ -259,7 +278,7 @@ def generate(_gen_chain:MET_PG_GeneratedChain, _module_group:list[MET_PG_CurveMo
         generated_map.append(cm)
 
         if _settings.resolve_overlap:
-            generated_map.resolve_overlap(k, State(state).name)
+            generated_map.resolve_overlap(State(state).name)
         
     print('Finished')
 
@@ -312,4 +331,8 @@ def export(_collection:Collection):
         
         b3d_utils.select_object(obj)
 
+    bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
+
     bpy.ops.medge_map_editor.t3d_export('INVOKE_DEFAULT', selected_objects=True)
+
+    bpy.ops.ed.undo()
