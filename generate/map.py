@@ -10,36 +10,9 @@ from dataclasses  import dataclass
 from collections  import UserList
 
 from ..                 import b3d_utils
-from ..b3d_utils        import rotation_matrix
+from ..b3d_utils        import rotation_matrix, update_matrices, duplicate_object_with_children, remove_object_with_children
 from ..dataset.movement import State
-from .props             import MET_PG_curve_module_group, MET_PG_generated_chain, get_curve_module_prop
-
-
-# -----------------------------------------------------------------------------
-# Map Generation Settings
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-@dataclass
-class MapGenSettings:
-    seed               = 0
-    align_orientation  = True
-    resolve_overlap    = True
-    max_depth          = 3
-    max_angle          = 180
-    angle_step         = 45
-    random_angles      = False
-    
-
-    def __str__(self):
-        return f"\
-{self.seed}_\
-{str(self.align_orientation)[0]}_\
-{str(self.resolve_overlap)[0]}_\
-{self.max_depth}_\
-{self.max_angle}_\
-{self.angle_step}_\
-{str(self.random_angles)[0]}\
-"
+from .props             import MET_PG_curve_module_collection, MET_PG_generated_chain, get_curve_module_prop, MET_SCENE_PG_map_gen_settings
 
 
 # -----------------------------------------------------------------------------
@@ -81,22 +54,22 @@ class CurveModule:
         self.curve.scale = _scale, _scale, _scale
 
 
-    def align(self, _gen_map:'GeneratedMap|list[CurveModule]', _align_direction=False, _rotation_offset=0):
-        if len(_gen_map) == 0:
-            self.curve.location.xyz = Vector()
+    def align(self, other:'CurveModule', _align_direction=False, _rotation_offset=0):
+        if not other:
+            self.curve.location.xyz = 0, 0, 0
+            update_matrices(self.curve)
             return
 
         # My direction
-        my_mw = self.curve.matrix_world
+        my_mw = self.curve.matrix_world.copy()
         my_dir = my_mw @ self.points[1].co - (start := my_mw @ self.points[0].co)
         my_dir.normalize()
 
         # Other direction
-        cm = _gen_map[-1]
-        other_wm = cm.curve.matrix_world
-        other_dir = ( end := other_wm @ cm.points[-1].co ) - other_wm @ cm.points[-2].co
+        other_wm = other.curve.matrix_world.copy()
+        other_dir = (end := other_wm @ other.points[-1].co) - other_wm @ other.points[-2].co
         other_dir.normalize()
-
+        
         # Add rotation offset
         R = Matrix.Rotation(radians(_rotation_offset), 3, 'Z')
 
@@ -106,7 +79,7 @@ class CurveModule:
             b = other_dir.xyz * Vector((1, 1, 0))
 
             if a.length == 0 or b.length == 0:
-                print('Direction vector has 0 length. Perhaps overlapping control points')
+                raise Exception(f'Direction vector has 0 length. Perhaps overlapping control points for curve: {self.curve.name}')
 
             A = rotation_matrix(a, b)
             R = R @ A
@@ -115,10 +88,10 @@ class CurveModule:
 
         # Move chain to the end of the other chain
         self.curve.location = end.xyz
-        bpy.context.view_layer.update()
+        update_matrices(self.curve)
 
     
-    def overlap(self, _other:'CurveModule') -> list[tuple[int, int]] | None:
+    def intersect(self, _other:'CurveModule') -> list[tuple[int, int]] | None:
         if not (vol1 := self.volume) or not (vol2 := _other.volume):
             return None
 
@@ -132,11 +105,11 @@ class CurveModule:
 class GeneratedMap(UserList):
     """` list[CurveModule] `"""
 
-    def __init__(self, _data=None, _settings:MapGenSettings=None):
+    def __init__(self, _data=None, _settings:MET_SCENE_PG_map_gen_settings=None):
         super().__init__(_data)
 
         self.obj:Object = None
-        self.settings:MapGenSettings = _settings
+        self.settings = _settings
 
         self.angles = [0]
 
@@ -146,7 +119,7 @@ class GeneratedMap(UserList):
             self.angles.append(k)
 
 
-    def resolve_overlap(self, _curr_state:str):
+    def resolve_intersection(self, _curr_state:str) -> int:
         if len(self.data) <= 1: return
 
         lowest_amount_hits = float('inf')
@@ -176,11 +149,11 @@ class GeneratedMap(UserList):
 
             # Try different angle permutations to solve collisions
             for angle_perm in itertools.product(self.angles, repeat=r):
-                self.apply_configuration(self.data, k, angle_perm)
+                self.apply_configuration(k, angle_perm)
 
-                total_hits = self.check_overlaps(self.data)
+                total_hits = self.check_intersection()
 
-                print(f'State: {_curr_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle perm: {angle_perm}), total penetration: {total_hits}')
+                print(f'State: {_curr_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle permutation: {angle_perm}), total penetration: {total_hits}')
                 
                 if total_hits < lowest_amount_hits: 
                     lowest_amount_hits = total_hits
@@ -193,38 +166,39 @@ class GeneratedMap(UserList):
                 if (found_zero_collisions := total_hits == 0): break
                 
             if found_zero_collisions:
-                print(f'0 Collisions with angle perm: {angle_perm}')
+                print(f'0 Collisions with angle permutation: {angle_perm}')
                 break
             
         # Apply the best configuration
-        print(f'Best angle perm: {best_angle_perm}, with total depth: {lowest_amount_hits}')
-        self.apply_configuration(self.data, k, best_angle_perm)
+        print(f'Best angle permutation: {best_angle_perm}, with total depth: {lowest_amount_hits}')
+        self.apply_configuration(k, best_angle_perm)
+
+        return lowest_amount_hits, best_angle_perm
         
 
-    def check_overlaps(self, _data:list[CurveModule]) -> float:
+    def check_intersection(self) -> float:
+        """ Checks if the last element intersects with the rest of the chain """
         overlapping_indices = 0
         
-        for j in range(len(_data) - 1, -1, -1):
-            for k in range(len(_data)):
-                if j == k: break
+        cm1 = self.data[-1]
 
-                cm1 = _data[j]
-                cm2 = _data[k]
+        for j in range(len(self.data) - 2, -1, -1):
+            cm2 = self.data[j]
 
-                if (hits := cm1.overlap(cm2)):
-                    overlapping_indices += len(hits)
+            if (hits := cm1.intersect(cm2)):
+                overlapping_indices += len(hits)
 
-        return overlapping_indices 
+        return overlapping_indices
     
 
-    def apply_configuration(self, _data:list[CurveModule], _start_idx:int, _angle_permutation:list[int]):
+    def apply_configuration(self, _start_idx:int, _angle_permutation:list[int]):
         # Mirror data 
-        end = len(_data)
+        end = len(self.data)
         p = 0
 
         for k in range(_start_idx, end, 1):
             angle = _angle_permutation[p]
-            _data[k].align(_data[:k], self.settings.align_orientation, angle)
+            self.data[k].align(self.data[k-1], self.settings.align_orientation, angle)
 
             p += 1
 
@@ -233,7 +207,11 @@ class GeneratedMap(UserList):
 # Map Generation
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def generate(_gen_chain:MET_PG_generated_chain, _module_group:list[MET_PG_curve_module_group], _settings:MapGenSettings, _target_collection:Collection):
+def generate(_gen_chain:MET_PG_generated_chain, 
+             _module_group:list[MET_PG_curve_module_collection], 
+             _settings:MET_SCENE_PG_map_gen_settings, 
+             _target_collection:Collection):
+    
     if bpy.context.object:
         bpy.ops.object.mode_set(mode='OBJECT')
     
@@ -254,37 +232,103 @@ def generate(_gen_chain:MET_PG_generated_chain, _module_group:list[MET_PG_curve_
 
     print()
     for k, str_state in enumerate(states):
-        state = int(str_state)
-
         print(f'Iteration: {k}')
 
-        # Get module
+        state = int(str_state)
+
+        # Handle specific cases:
+        if (n := k + 1) < len(states):
+            next_state = int(states[n])
+
+            # Case 1: Jump -> WallClimbing
+            # To go into WallCLimbing the jump distance should be so short we can just ignore it
+            if state == State.Jump:
+                if next_state == State.WallClimbing:
+                    continue
+
+            # Case 2: WallClimbing -> WallClimb180TurnJump
+            # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb
+            elif state == State.WallClimbing:
+                if next_state == State.WallClimb180TurnJump:
+                    continue
+
+        if (p := k - 1) >= 0:
+            prev_state = int(states[p])
+
+            # Case 3: WallClimb180TurnJump -> Falling
+            # There are falling modules the could end up back where the player came from
+            # Falling should be included in the WallClimb180TurnJump module
+            if state == State.Falling:
+                if prev_state == State.WallClimb180TurnJump:
+                    continue
+
         names = module_names[state]
 
         if not names: continue
+        
+        np.random.shuffle(names)
 
-        n = randint(len(names))
+        fewest_hits = float('inf')
+        fewest_hits_name = None
 
-        module = bpy.data.objects[names[n]]
+        for j in range(len(names)):
+            # Duplicate module
+            curr_name = names[j]
+            module = bpy.data.objects[curr_name]
+            
+            curve_obj = duplicate_object_with_children(module, False, _target_collection, False)
+            curve_obj.name = f'{k}_{module.name}'
 
-        # Duplicate module
-        curve = b3d_utils.duplicate_object_with_children(module, False, _target_collection, False)
-        curve.name = f'{k}_{State(state).name}_{module.name}'
+            # Align it
+            cm = CurveModule(curve_obj, state)
 
-        cm = CurveModule(curve, state)
+            if len(generated_map) == 0:
+                cm.align(None, _settings.align_orientation)
+            else:
+                cm.align(generated_map[-1], _settings.align_orientation)
 
-        cm.align(generated_map, _settings.align_orientation)
+            generated_map.append(cm)
+
+            if (hits := generated_map.check_intersection()) == 0:
+                fewest_hits = hits
+                break
+            
+            if hits < fewest_hits:
+                fewest_hits_name = curr_name
+
+            # Remove it
+            generated_map.pop()
+            remove_object_with_children(curve_obj)
+
+        if fewest_hits == 0: continue
+
+        # Resolve intersection if we did not found a module with 0 intersections
+        # TODO: resolve intersections by also trying different modules
+        if not _settings.resolve_intersection: continue
+        
+        # Duplicate module with the fewest intersections
+        module = bpy.data.objects[fewest_hits_name]
+        
+        curve_obj = duplicate_object_with_children(module, False, _target_collection, False)
+        curve_obj.name = f'{k}_{module.name}'
+        
+        # Align it
+        cm = CurveModule(curve_obj, state)
+        cm.align(generated_map[-1], _settings.align_orientation)
 
         generated_map.append(cm)
 
-        if _settings.resolve_overlap:
-            generated_map.resolve_overlap(State(state).name)
+        #Resolve intersections
+        generated_map.resolve_intersection(State(state).name)
         
-    print('Finished')
+    print('Finished!')
 
-    
+
 # -----------------------------------------------------------------------------
-def prepare_for_export(_collection:Collection):
+# Export
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+def prepare_for_export(_settings:MET_SCENE_PG_map_gen_settings, _collection:Collection):
     new_collection = b3d_utils.new_collection('PrepareForExport', _collection)
 
     # Add player start
@@ -293,7 +337,7 @@ def prepare_for_export(_collection:Collection):
 
     b3d_utils.link_object_to_scene(ps, new_collection)
     
-    ps.location = Vector((0, 0, 2))
+    ps.location = Vector((0, 0, 0))
 
     # Add directional light
     bpy.ops.object.light_add(type='SUN', align='WORLD', location=(0, 0, 3), scale=(1, 1, 1))
@@ -301,17 +345,34 @@ def prepare_for_export(_collection:Collection):
 
     b3d_utils.link_object_to_scene(light, new_collection)
 
-    # Add skybox top
+    # Add killvolume
+    scale = 500
+
+    bpy.ops.medge_map_editor.add_actor(type='KILL_VOLUME')
+    kv = bpy.context.object
+
+    b3d_utils.link_object_to_scene(kv, new_collection)
+
+    kv.location = 0, 0, -50
+    kv.scale = scale, scale, 10
+
+    # Add skydome top
+    scale = 7000
     bpy.ops.medge_map_editor.add_skydome()
     sd = bpy.context.object
-    scale = 7000
 
     b3d_utils.link_object_to_scene(sd, new_collection)
 
-    sd.location = (0, 0, 0)
-    sd.scale = (scale, scale, scale)
+    sd.location = 0, 0, 0
+    sd.scale = scale, scale, scale
 
-    # Add skybox bottom
+    if _settings.skydome:
+        sd.medge_actor.static_mesh.use_prefab = True
+        sd.medge_actor.static_mesh.prefab = _settings.skydome
+
+    if _settings.only_top: return
+
+    # Add skydome bottom
     bpy.ops.medge_map_editor.add_skydome()
     sd = bpy.context.object
     b3d_utils.link_object_to_scene(sd, new_collection)
@@ -319,6 +380,10 @@ def prepare_for_export(_collection:Collection):
     sd.location = (0, 0, 0)
     sd.scale = (scale, scale, scale)
     sd.rotation_euler.x = pi
+        
+    if _settings.skydome:
+        sd.medge_actor.static_mesh.use_prefab = True
+        sd.medge_actor.static_mesh.prefab = _settings.skydome
 
 
 # -----------------------------------------------------------------------------
@@ -333,6 +398,8 @@ def export(_collection:Collection):
 
     bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
 
-    bpy.ops.medge_map_editor.t3d_export('INVOKE_DEFAULT', selected_objects=True)
+    b3d_utils.deselect_all_objects()
+    
+    bpy.ops.medge_map_editor.t3d_export('INVOKE_DEFAULT', selected_collection=True)
 
     bpy.ops.ed.undo()

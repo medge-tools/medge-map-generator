@@ -11,25 +11,25 @@ bl_info = {
 
 
 # -----------------------------------------------------------------------------
-from bpy.utils     import register_class, unregister_class 
-from .b3d_utils    import register_subpackage, unregister_subpackages
-from .generate.gui import MET_PT_markov_chains_data, MET_PT_markov_chains_generate, MET_PT_generate_map
+from bpy.utils     import register_class 
+
+from .             import auto_load
+from .gui          import MET_PT_map_gen_panel
+from .generate.gui import MET_PT_markov_chains_data, MET_PT_markov_chains_generate, MET_PT_modules, MET_PT_generate_map, MET_PT_export_map
 
 # -----------------------------------------------------------------------------
 def register():
-    register_subpackage('')
-    register_subpackage('dataset')
-
+    # Order of these panels is important
+    register_class(MET_PT_map_gen_panel)
     register_class(MET_PT_markov_chains_data)
     register_class(MET_PT_markov_chains_generate)
+    register_class(MET_PT_modules)
     register_class(MET_PT_generate_map)
+    register_class(MET_PT_export_map)
 
-    register_subpackage('generate')
-    
+    auto_load.init()
+    auto_load.register()
 
 # -----------------------------------------------------------------------------
 def unregister():
-    unregister_subpackages()
-
-    unregister_class(MET_PT_markov_chains_data)
-    unregister_class(MET_PT_generate_map)
+    auto_load.unregister()

@@ -33,6 +33,7 @@ def init():
 
 def register():
     for cls in ordered_classes:
+        if cls.is_registered: continue 
         bpy.utils.register_class(cls)
 
     for module in modules:
@@ -50,6 +51,7 @@ def unregister():
             module.unregister()
 
     for cls in reversed(ordered_classes):
+        if not cls.is_registered: continue
         bpy.utils.unregister_class(cls)
 
 

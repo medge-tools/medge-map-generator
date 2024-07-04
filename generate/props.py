@@ -134,6 +134,8 @@ class MET_SCENE_PG_markov_chain_list(PropertyGroup, GenericList):
 def add_collision_volume(_obj:Object) -> Object:
     if _obj.type != 'CURVE': return
 
+    b3d_utils.update_matrices(_obj)
+
     cube = b3d_utils.create_cube((1, 1, 1.95))
     volume = b3d_utils.new_object(cube, 'Volume', bpy.context.collection, _obj, False)
     volume.display_type = 'WIRE'
@@ -147,8 +149,8 @@ def add_collision_volume(_obj:Object) -> Object:
 
 
 # -----------------------------------------------------------------------------
-def create_module() -> Object:
-    curve, _ = b3d_utils.create_curve('POLY')
+def create_curve_module() -> Object:
+    curve, _ = b3d_utils.create_curve('POLY', 3, 1)
     module = b3d_utils.new_object(curve, 'CurveModule', 'Modules')
     
     add_collision_volume(module)
@@ -170,7 +172,7 @@ class MET_OBJECT_PG_curve_module(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
-class MET_PG_curve_module_group(PropertyGroup):
+class MET_PG_curve_module_collection(PropertyGroup):
 
     def collect_curve_names(self) -> list[str]:
         if self.collection:            
@@ -188,7 +190,7 @@ class MET_PG_curve_module_group(PropertyGroup):
     
     def add_module(self):
         if self.collection:
-            module = create_module()
+            module = create_curve_module()
             b3d_utils.link_object_to_scene(module, self.collection)
 
 
@@ -207,46 +209,64 @@ class MET_PG_curve_module_group(PropertyGroup):
     name:  StringProperty(name='Name', get=__get_name)
     state: IntProperty(name='PRIVATE')
 
-    collection:     PointerProperty(type=Collection, name='Collection')
+    collection: PointerProperty(type=Collection, name='Collection')
 
 
 # -----------------------------------------------------------------------------
-class MET_SCENE_PG_curve_module_group_list(PropertyGroup, GenericList):
+class MET_SCENE_PG_curve_module_collection_list(PropertyGroup, GenericList):
 
     # Override to define return type
-    def get_selected(self) -> MET_PG_curve_module_group:
+    def get_selected(self) -> MET_PG_curve_module_collection:
         if self.items:
             return self.items[self.selected_item_idx]
         
         return None
 
 
-    def init_groups(self):        
+    def init_collections(self):        
         self.items.clear()
         
         for state in State:
-            module = self.add()
+            module:MET_PG_curve_module_collection = self.add()
             module.state = state
 
                     
-    items:                  CollectionProperty(type=MET_PG_curve_module_group)   
-
-    seed:                   IntProperty(name='Seed', default=2024, min=0)
-
-    align_orientation:      BoolProperty(name='Align Orientation')
-    resolve_volume_overlap: BoolProperty(name='Resolve Overlap', default=True)
-
-    max_depth:              IntProperty(name='Max Depth', default=3)
-    max_angle:              IntProperty(name='Max Angle', default=180, max=180)
-    angle_step:             IntProperty(name='Angle Step', default=45, max=180)
-     
-    random_angles:          BoolProperty(name='Random Angles')
+    items: CollectionProperty(type=MET_PG_curve_module_collection)   
 
 
 # -----------------------------------------------------------------------------
-class MET_UL_curve_module_group_list(UIList):
+class MET_SCENE_PG_map_gen_settings(PropertyGroup):
+    
+    def __str__(self):
+        return f"\
+{self.seed}_\
+{str(self.align_orientation)[0]}_\
+{str(self.resolve_intersection)[0]}_\
+{self.max_depth}_\
+{self.max_angle}_\
+{self.angle_step}_\
+{str(self.random_angles)[0]}\
+"
 
-    def draw_item(self, _context, _layout, _data, _item:MET_PG_curve_module_group, _icon, _active_data, _active_property, _index, _flt_flag):
+    seed:                 IntProperty(name='Seed', default=2024, min=0)
+
+    align_orientation:    BoolProperty(name='Align Orientation')
+    resolve_intersection: BoolProperty(name='Resolve Intersection', default=True)
+
+    max_depth:            IntProperty(name='Max Depth', default=3)
+    max_angle:            IntProperty(name='Max Angle', default=180, max=180)
+    angle_step:           IntProperty(name='Angle Step', default=45, max=180)
+     
+    random_angles:        BoolProperty(name='Random Angles')
+
+    skydome:              PointerProperty(type=Object, name='Skydome')
+    only_top:             BoolProperty(name='Only Top')
+
+
+# -----------------------------------------------------------------------------
+class MET_UL_curve_module_group_draw(UIList):
+
+    def draw_item(self, _context, _layout, _data, _item:MET_PG_curve_module_collection, _icon, _active_data, _active_property, _index, _flt_flag):
         if self.layout_type == 'GRID':
             _layout.alignment = 'CENTER'
 
@@ -302,8 +322,13 @@ def get_curve_module_prop(_obj:Object) -> MET_OBJECT_PG_curve_module:
 
 
 # -----------------------------------------------------------------------------
-def get_curve_module_groups_prop(_context:Context) -> MET_SCENE_PG_curve_module_group_list:
+def get_curve_module_groups_prop(_context:Context) -> MET_SCENE_PG_curve_module_collection_list:
     return _context.scene.medge_curve_module_groups
+
+
+# -----------------------------------------------------------------------------
+def get_medge_map_gen_settings(_context:Context) -> MET_SCENE_PG_map_gen_settings:
+    return _context.scene.medge_map_gen_settings
 
 
 # -----------------------------------------------------------------------------
@@ -313,11 +338,13 @@ def get_curve_module_groups_prop(_context:Context) -> MET_SCENE_PG_curve_module_
 def register():
     Object.medge_curve_module       = PointerProperty(type=MET_OBJECT_PG_curve_module)
     Scene.medge_markov_chains       = PointerProperty(type=MET_SCENE_PG_markov_chain_list)
-    Scene.medge_curve_module_groups = PointerProperty(type=MET_SCENE_PG_curve_module_group_list)
+    Scene.medge_curve_module_groups = PointerProperty(type=MET_SCENE_PG_curve_module_collection_list)
+    Scene.medge_map_gen_settings    = PointerProperty(type=MET_SCENE_PG_map_gen_settings)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
+    if hasattr(Scene, 'medge_map_gen_settings'):    del Scene.medge_map_gen_settings
     if hasattr(Scene, 'medge_curve_module_groups'): del Scene.medge_curve_module_groups
     if hasattr(Scene, 'medge_markov_chains'):       del Scene.medge_markov_chains
     if hasattr(Object, 'medge_curve_module'):       del Object.medge_curve_module
