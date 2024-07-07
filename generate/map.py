@@ -2,15 +2,13 @@ import bpy
 from bpy.types import Object, Collection, Spline, Operator
 from mathutils import Vector, Matrix
 
-import itertools
-import numpy     as     np
-from numpy.random import randint
+import numpy      as     np
+from itertools    import product
 from math         import radians, pi
-from dataclasses  import dataclass
 from collections  import UserList
 
 from ..                 import b3d_utils
-from ..b3d_utils        import rotation_matrix, update_matrices, duplicate_object_with_children, remove_object_with_children
+from ..b3d_utils        import rotation_matrix, update_matrices, duplicate_object_with_children, remove_object_with_children, check_objects_intersection, print_console
 from ..dataset.movement import State
 from .props             import MET_PG_curve_module_collection, MET_PG_generated_chain, get_curve_module_prop, MET_SCENE_PG_map_gen_settings
 
@@ -21,15 +19,18 @@ from .props             import MET_PG_curve_module_collection, MET_PG_generated_
 # -----------------------------------------------------------------------------
 class CurveModule:
     def __init__(self, 
-                 _curve:Object, 
-                 _state:int):
-
-        assert(_curve.type == 'CURVE')
-
-        _curve.data.twist_mode = 'Z_UP'
+                 _state:int,
+                 _module_names:list[str]):
         
-        self.curve = _curve
         self.state = _state
+        self.module_names = _module_names.copy()
+        np.random.shuffle(self.module_names)
+
+        self.curve:Object = None
+        self.current_name_index = 0
+        self.index = 0
+        self.collection = None
+
 
     @property
     def path(self) -> Spline:
@@ -43,15 +44,31 @@ class CurveModule:
     def volume(self) -> Object | None:
         return get_curve_module_prop(self.curve).collision_volume
 
-    def __len__(self):
-        return len(self.path.points)
-
     def __getitem__(self, _key:int):
         return self.path.points[_key].co
 
 
-    def resize(self, _scale:float):
-        self.curve.scale = _scale, _scale, _scale
+    def prepare(self, _index:int, _collection:Collection):
+        self.index = _index
+        self.collection = _collection
+
+
+    def next_module(self, _index=-1):
+        if self.curve:
+            remove_object_with_children(self.curve)
+
+        if _index >= 0 or _index < len(self.module_names):
+            idx = _index
+        else:
+            idx = self.current_name_index
+            self.current_name_index += 1
+            self.current_name_index %= len(self.module_names)
+        
+        name = self.module_names[idx]
+        module = bpy.data.objects[name]
+        
+        self.curve = duplicate_object_with_children(module, False, self.collection, False)
+        self.curve.name = f'{self.index}_{module.name}'
 
 
     def align(self, other:'CurveModule', _align_direction=False, _rotation_offset=0):
@@ -95,14 +112,14 @@ class CurveModule:
         if not (vol1 := self.volume) or not (vol2 := _other.volume):
             return None
 
-        return b3d_utils.check_objects_intersection(vol1, vol2)
+        return check_objects_intersection(vol1, vol2)
         
 
 # -----------------------------------------------------------------------------
-# Generated Map
+# Map
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class GeneratedMap(UserList):
+class Map(UserList):
     """` list[CurveModule] `"""
 
     def __init__(self, _data=None, _settings:MET_SCENE_PG_map_gen_settings=None):
@@ -111,96 +128,129 @@ class GeneratedMap(UserList):
         self.obj:Object = None
         self.settings = _settings
 
-        self.angles = [0]
-
-        for k in range(_settings.angle_step, _settings.max_angle + 1, _settings.angle_step):
-            if k != 180:
-                self.angles.append(-k)
-            self.angles.append(k)
+        # Only contains indices that point to candidates to resolve intersection
+        self.resolve_candidates:list[int] = []
+        # If the CurveModule is a resolve candidate, store the index to resolve_candidates, otherwise it is 0
+        self.cm_flag:list[int] = []
 
 
-    def resolve_intersection(self, _curr_state:str) -> int:
-        if len(self.data) <= 1: return
-
-        lowest_amount_hits = float('inf')
-
-        best_angle_perm = None
-        max_depth = 0
-
-        # Resolve any collisions by testing angle product permutations
-        start = len(self.data) - 1
-        max_depth = max(len(self.data) - self.settings.max_depth - 1, 0)
+    def append(self, _item:CurveModule):
+        super().append(_item)
         
-        if self.settings.random_angles:
-            np.random.shuffle(self.angles)
+        if (_item.state == State.Walking or 
+            _item.state == State.WallRunningLeft or 
+            _item.state == State.WallRunningRight):
+            self.resolve_candidates.append(len(self.data) - 1)
+            self.cm_flag.append(len(self.resolve_candidates) - 1)
 
-        found_zero_collisions = False
+        else:
+            self.cm_flag.append(0)
 
-        # Store original angles
-        original_angles = []
 
-        for cm in self.data:
-            a = cm.curve.rotation_euler.z
-            original_angles.append(a)
+    def build(self, _collection:Collection):
+        cm:CurveModule
+        # Prepare modules
+        for k, cm in enumerate(self.data):
+            cm.prepare(k, _collection)
 
-        # Resolve collisions
-        for k in range(start, max_depth, -1):
-            r = len(self.data) - k
+        # Build modules
+        for k, cm in enumerate(self.data):
+            print(f'Iteration: {k}')
+            cm.next_module()
 
-            # Try different angle permutations to solve collisions
-            for angle_perm in itertools.product(self.angles, repeat=r):
-                self.apply_configuration(k, angle_perm)
+            # Align
+            self.align_module(k)
 
-                total_hits = self.check_intersection()
+            # Check intersections
+            if self.check_intersection(k, k - 1) == 0: 
+                continue
 
-                print(f'State: {_curr_state}, Max depth: {max_depth}, Current depth: {k}, Tested angle permutation: {angle_perm}), total penetration: {total_hits}')
-                
-                if total_hits < lowest_amount_hits: 
-                    lowest_amount_hits = total_hits
-                    best_angle_perm    = angle_perm
-                
-                # Reset angles
-                for k, cm in enumerate(self.data):
-                    cm.curve.rotation_euler.z = original_angles[k]
-
-                if (found_zero_collisions := total_hits == 0): break
-                
-            if found_zero_collisions:
-                print(f'0 Collisions with angle permutation: {angle_perm}')
-                break
+            # Resolve intersections
+            if not self.settings.resolve_intersection: 
+                continue
             
-        # Apply the best configuration
-        print(f'Best angle permutation: {best_angle_perm}, with total depth: {lowest_amount_hits}')
-        self.apply_configuration(k, best_angle_perm)
+            print(f'Resolving intersection...')
+            self.resolve_intersections(k)
 
-        return lowest_amount_hits, best_angle_perm
-        
 
-    def check_intersection(self) -> float:
-        """ Checks if the last element intersects with the rest of the chain """
-        overlapping_indices = 0
-        
-        cm1 = self.data[-1]
+    def check_intersection(self, _index:int, _start:int) -> int:
+        cm1 = self.data[_index]
+            
+        for k in range(_start - 1, -1, -1):
+            if _index == k: continue
 
-        for j in range(len(self.data) - 2, -1, -1):
-            cm2 = self.data[j]
+            cm2 = self.data[k]
 
             if (hits := cm1.intersect(cm2)):
-                overlapping_indices += len(hits)
+                total_intersections += len(hits)
 
-        return overlapping_indices
-    
 
-    def apply_configuration(self, _start_idx:int, _angle_permutation:list[int]):
-        # Mirror data 
-        end = len(self.data)
-        p = 0
+    def check_intersections_range(self, _start:int) -> int:
+        if _start == 0: return 0
 
-        for k in range(_start_idx, end, 1):
-            angle = _angle_permutation[p]
-            self.data[k].align(self.data[k-1], self.settings.align_orientation, angle)
+        total_intersections = 0
+        
+        for j in range(_start, -1, -1):
+            self.check_intersection(j, _start)
 
-            p += 1
+        return total_intersections
+
+
+    def resolve_intersections(self, _start:int) -> int:
+        module_names_indices:list[list[int]] = []
+        current_candidates:list[int] = []
+
+        # Find resolve candidate
+        start_candidate:int
+        for k in range(_start, -1, -1):
+            if (start_candidate := self.cm_flag[k]) != 0:
+                break
+
+        intersections_resolved = False
+
+        for k in range(start_candidate, -1, -1):
+            i = self.resolve_candidates[k]
+            cm:CurveModule = self.data[i]
+
+            module_names_indices.append(range(len(cm.module_names)))
+            current_candidates.append(i)
+        
+            for permutation in product(*module_names_indices):
+                self.apply_configuration(current_candidates, permutation)
+
+                if self.check_intersections_range(_start) == 0:
+                    intersections_resolved = True
+                    break
+        
+            if intersections_resolved:
+                break
+
+
+    def apply_configuration(self, _indices:list[int], _permutation:tuple[int, ...]) -> int:
+        print(f'Tested permutation: {_permutation}')
+        lowest_idx = len(self.data) - 1
+
+        # Apply permutation
+        for i, p in zip(_indices, _permutation):
+            cm:CurveModule = self.data[i]
+            cm.next_module(p)
+
+            if i < lowest_idx: 
+                lowest_idx = i
+
+        # Align modules
+        for k in range(lowest_idx, len(self.data), 1):
+            self.align_module(k)
+
+
+    def align_module(self, _index:int):
+        cm:CurveModule = self.data[_index]
+        if not cm.curve: return
+
+        if _index == 0:
+            cm.align(None)
+        else:
+            cm.align(self.data[_index - 1], self.settings.align_orientation)
 
 
 # -----------------------------------------------------------------------------
@@ -217,26 +267,19 @@ def generate(_gen_chain:MET_PG_generated_chain,
     
     b3d_utils.deselect_all_objects()
 
-    # Collect all curve objects
-    module_names:list[list[str]|None] = []
-
-    for g in _module_group:
-        module_names.append(g.collect_curve_names())
-
     # Generation data
     np.random.seed(_settings.seed)
 
     states = _gen_chain.split()
 
-    generated_map = GeneratedMap(None, _settings)
+    map = Map(None, _settings)
 
-    print()
+    # Instantiate all CurveModules
     for k, str_state in enumerate(states):
-        print(f'Iteration: {k}')
-
         state = int(str_state)
 
         # Handle specific cases:
+        # Handle state compared to the next state
         if (n := k + 1) < len(states):
             next_state = int(states[n])
 
@@ -248,10 +291,12 @@ def generate(_gen_chain:MET_PG_generated_chain,
 
             # Case 2: WallClimbing -> WallClimb180TurnJump
             # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb
+            # The WallClimb180TurnJump should have its own wall
             elif state == State.WallClimbing:
                 if next_state == State.WallClimb180TurnJump:
                     continue
 
+        # Handle state compared to the previous state
         if (p := k - 1) >= 0:
             prev_state = int(states[p])
 
@@ -262,65 +307,15 @@ def generate(_gen_chain:MET_PG_generated_chain,
                 if prev_state == State.WallClimb180TurnJump:
                     continue
 
-        names = module_names[state]
+        if not (mn := _module_group[state].collect_curve_names()): 
+            continue
 
-        if not names: continue
+        cm = CurveModule(state, mn)
+        map.append(cm)
         
-        np.random.shuffle(names)
+    # Build the map
+    map.build(_target_collection)
 
-        fewest_hits = float('inf')
-        fewest_hits_name = None
-
-        for j in range(len(names)):
-            # Duplicate module
-            curr_name = names[j]
-            module = bpy.data.objects[curr_name]
-            
-            curve_obj = duplicate_object_with_children(module, False, _target_collection, False)
-            curve_obj.name = f'{k}_{module.name}'
-
-            # Align it
-            cm = CurveModule(curve_obj, state)
-
-            if len(generated_map) == 0:
-                cm.align(None, _settings.align_orientation)
-            else:
-                cm.align(generated_map[-1], _settings.align_orientation)
-
-            generated_map.append(cm)
-
-            if (hits := generated_map.check_intersection()) == 0:
-                fewest_hits = hits
-                break
-            
-            if hits < fewest_hits:
-                fewest_hits_name = curr_name
-
-            # Remove it
-            generated_map.pop()
-            remove_object_with_children(curve_obj)
-
-        if fewest_hits == 0: continue
-
-        # Resolve intersection if we did not found a module with 0 intersections
-        # TODO: resolve intersections by also trying different modules
-        if not _settings.resolve_intersection: continue
-        
-        # Duplicate module with the fewest intersections
-        module = bpy.data.objects[fewest_hits_name]
-        
-        curve_obj = duplicate_object_with_children(module, False, _target_collection, False)
-        curve_obj.name = f'{k}_{module.name}'
-        
-        # Align it
-        cm = CurveModule(curve_obj, state)
-        cm.align(generated_map[-1], _settings.align_orientation)
-
-        generated_map.append(cm)
-
-        #Resolve intersections
-        generated_map.resolve_intersection(State(state).name)
-        
     print('Finished!')
 
 

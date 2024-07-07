@@ -1,1 +1,1 @@
-# medge-dataset-editor
+# MEdge Map Generator

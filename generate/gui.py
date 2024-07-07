@@ -156,13 +156,7 @@ class MET_PT_generate_map(MEdgeToolsPanel, GenerateTab, Panel):
         col.prop(settings, 'seed')
         col.prop(settings, 'align_orientation')
         col.prop(settings, 'resolve_intersection')
-
-        if settings.resolve_intersection:
-            col.prop(settings, 'max_depth')
-            col.prop(settings, 'max_angle')
-            col.prop(settings, 'angle_step')
-            col.prop(settings, 'random_angles')
-
+        
         col.separator(factor=2)
         b3d_utils.draw_box(col, 'Select Generated Chain')
 

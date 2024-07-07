@@ -241,23 +241,13 @@ class MET_SCENE_PG_map_gen_settings(PropertyGroup):
         return f"\
 {self.seed}_\
 {str(self.align_orientation)[0]}_\
-{str(self.resolve_intersection)[0]}_\
-{self.max_depth}_\
-{self.max_angle}_\
-{self.angle_step}_\
-{str(self.random_angles)[0]}\
+{str(self.resolve_intersection)[0]}\
 "
 
     seed:                 IntProperty(name='Seed', default=2024, min=0)
 
     align_orientation:    BoolProperty(name='Align Orientation')
     resolve_intersection: BoolProperty(name='Resolve Intersection', default=True)
-
-    max_depth:            IntProperty(name='Max Depth', default=3)
-    max_angle:            IntProperty(name='Max Angle', default=180, max=180)
-    angle_step:           IntProperty(name='Angle Step', default=45, max=180)
-     
-    random_angles:        BoolProperty(name='Random Angles')
 
     skydome:              PointerProperty(type=Object, name='Skydome')
     only_top:             BoolProperty(name='Only Top')

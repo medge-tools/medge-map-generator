@@ -829,6 +829,20 @@ def multiline_text(_context:Context, _layout:UILayout, _text:str):
 
 
 # -----------------------------------------------------------------------------
+# Logging
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
+# https://blenderartists.org/t/print-to-info-area/1383928/3
+def print_console(_text:str):
+    for w in bpy.context.window_manager.windows:
+        s = w.screen
+        for a in s.areas:
+            if a.type == 'CONSOLE':
+                with bpy.context.temp_override(window=w, screen=s, area=a):
+                    bpy.ops.console.scrollback_append(text=_text, type="OUTPUT")
+
+
+# -----------------------------------------------------------------------------
 # Generic List
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
