@@ -176,24 +176,29 @@ class Map(UserList):
     def check_intersection(self, _index:int, _start:int) -> int:
         cm1 = self.data[_index]
             
+        total = 0
+
         for k in range(_start - 1, -1, -1):
             if _index == k: continue
 
             cm2 = self.data[k]
 
             if (hits := cm1.intersect(cm2)):
-                total_intersections += len(hits)
+                total += len(hits)
+
+        return total
 
 
     def check_intersections_range(self, _start:int) -> int:
+        """ Goes from _start to 0"""
         if _start == 0: return 0
 
-        total_intersections = 0
+        total = 0
         
         for j in range(_start, -1, -1):
-            self.check_intersection(j, _start)
+            total += self.check_intersection(j, _start)
 
-        return total_intersections
+        return total
 
 
     def resolve_intersections(self, _start:int) -> int:

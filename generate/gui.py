@@ -18,6 +18,15 @@ class GenerateTab:
 
 
 # -----------------------------------------------------------------------------
+class ModulesTab:
+    bl_parent_id = MET_PT_map_gen_panel.bl_idname
+
+    @classmethod
+    def poll(cls, _context:Context):
+        return _context.scene.medge_map_gen_active_tab == 'MODULES'
+
+
+# -----------------------------------------------------------------------------
 # Markov Chains
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -95,7 +104,7 @@ class MET_PT_markov_chains_generate(MEdgeToolsPanel, GenerateTab, Panel):
 # Modules
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_PT_modules(MEdgeToolsPanel, GenerateTab, Panel):
+class MET_PT_modules(MEdgeToolsPanel, ModulesTab, Panel):
     bl_label = 'Modules'
 
 

@@ -32,10 +32,11 @@ class MET_PT_map_gen_panel(Panel, MEdgeToolsPanel):
 def register():
     Scene.medge_map_gen_active_tab = EnumProperty(items=(
         ('DATASET', 'Dataset', 'Dataset Tab'), 
+        ('MODULES', 'Modules', 'Modules Tab'),
         ('GENERATE', 'Generate', 'Generate Tab')
     ))
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    if hasattr(Scene, 'medge_map_gen_active_tab'):  del Scene.medge_map_gen_active_tab
+    if hasattr(Scene, 'medge_map_gen_active_tab'): del Scene.medge_map_gen_active_tab
