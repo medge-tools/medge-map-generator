@@ -26,11 +26,7 @@ def new_collection(_name:str, _parent:Collection|str=None):
     """
     Collection will be automatically created if it doesn't exists
     If the _collection == None, then the object will be linked to the root collection
-    """
-    coll = bpy.context.blend_data.collections.get(_name)
-
-    if coll: return coll
-    
+    """    
     coll = bpy.data.collections.new(_name)
 
     if _parent:
