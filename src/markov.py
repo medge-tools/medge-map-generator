@@ -204,6 +204,69 @@ class MET_SCENE_PG_markov_chain_list(PropertyGroup, GenericList):
 # Operators
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
+class MET_OT_create_transition_matrix(Operator):
+    bl_idname = 'medge_generate.create_transition_matrix'
+    bl_label  = 'Create Transition Matrix'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        chains = get_markov_chains_prop(_context)
+        item = chains.get_selected()
+        cls.bl_label = 'Create Transition Matrix'
+
+        if item.has_transition_matrix():
+            cls.bl_label = 'Update Transition Matrix'
+
+        return True
+
+
+    def execute(self, _context:Context):
+        markov_chains = get_markov_chains_prop(_context)
+        item = markov_chains.get_selected()
+        item.create_transition_matrix()
+
+        return {'FINISHED'}
+    
+
+# -----------------------------------------------------------------------------
+class MET_OT_generate_chain(Operator):
+    bl_idname = 'medge_generate.generate_chain'
+    bl_label  = 'Generate Chain'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        chains = get_markov_chains_prop(_context)
+        item = chains.get_selected()
+        return item.has_transition_matrix()
+
+
+    def execute(self, _context:Context):
+        chains = get_markov_chains_prop(_context)
+        item = chains.get_selected()
+        item.generate_chain()
+
+        return {'FINISHED'}  
+
+
+# -----------------------------------------------------------------------------
+class MET_OT_add_handmade_chain(Operator):
+    bl_idname = 'medge_generate.add_handmade_chain'
+    bl_label  = 'Add Handmade Chain'
+
+
+    def execute(self, _context:Context):
+        mc = get_markov_chains_prop(_context)
+        mc.get_selected().add_handmade_chain()
+        
+        return {'FINISHED'}    
+    
+
+# -----------------------------------------------------------------------------
+# GUI
+# -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 class MET_PT_markov_chains_data(MEdgeToolsPanel, GenerateTab, Panel):
     bl_label = 'Markov Data'
     
@@ -288,73 +351,13 @@ def get_markov_chains_prop(_context: Context) -> MET_SCENE_PG_markov_chain_list:
 
 
 # -----------------------------------------------------------------------------
-class MET_OT_create_transition_matrix(Operator):
-    bl_idname = 'medge_generate.create_transition_matrix'
-    bl_label  = 'Create Transition Matrix'
-
-
-    @classmethod
-    def poll(cls, _context:Context):
-        chains = get_markov_chains_prop(_context)
-        item = chains.get_selected()
-        cls.bl_label = 'Create Transition Matrix'
-
-        if item.has_transition_matrix():
-            cls.bl_label = 'Update Transition Matrix'
-
-        return True
-
-
-    def execute(self, _context:Context):
-        markov_chains = get_markov_chains_prop(_context)
-        item = markov_chains.get_selected()
-        item.create_transition_matrix()
-
-        return {'FINISHED'}
-    
-
-# -----------------------------------------------------------------------------
-class MET_OT_generate_chain(Operator):
-    bl_idname = 'medge_generate.generate_chain'
-    bl_label  = 'Generate Chain'
-
-
-    @classmethod
-    def poll(cls, _context:Context):
-        chains = get_markov_chains_prop(_context)
-        item = chains.get_selected()
-        return item.has_transition_matrix()
-
-
-    def execute(self, _context:Context):
-        chains = get_markov_chains_prop(_context)
-        item = chains.get_selected()
-        item.generate_chain()
-
-        return {'FINISHED'}  
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_add_handmade_chain(Operator):
-    bl_idname = 'medge_generate.add_handmade_chain'
-    bl_label  = 'Add Handmade Chain'
-
-
-    def execute(self, _context:Context):
-        mc = get_markov_chains_prop(_context)
-        mc.get_selected().add_handmade_chain()
-        
-        return {'FINISHED'}    
-    
-
-# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def register():
-    Scene.medge_markov_chains       = PointerProperty(type=MET_SCENE_PG_markov_chain_list)
+    Scene.medge_markov_chains = PointerProperty(type=MET_SCENE_PG_markov_chain_list)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    if hasattr(Scene, 'medge_markov_chains'):       del Scene.medge_markov_chains
+    if hasattr(Scene, 'medge_markov_chains'): del Scene.medge_markov_chains

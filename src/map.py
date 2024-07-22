@@ -473,6 +473,7 @@ class MET_PT_generate_map(MEdgeToolsPanel, GenerateTab, Panel):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
+        
         col = layout.column(align=True)
 
         markov_chains = get_markov_chains_prop(_context)

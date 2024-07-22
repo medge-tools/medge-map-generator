@@ -3,7 +3,7 @@ from   bpy.types           import PropertyGroup, Object, Mesh, MeshVertex, Opera
 from   bpy.props           import BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, StringProperty, PointerProperty
 from   bpy_extras          import view3d_utils
 from   bpy_extras.io_utils import ImportHelper
-from   bmesh.types         import BMesh, BMLayerAccessVert
+from   bmesh.types         import BMesh, BMLayerAccessVert, BMLayerItem
 from   mathutils           import Vector
 
 import ntpath, json
@@ -56,7 +56,7 @@ class Attribute(int, Enum):
     
     # These will be updated after import
     # A vertex is a sequence start when it has a different state than the previous vertex or it is disconnected from the previous vertex
-    SEQUENCE_START  = 4, 'sequence_start' , LayerType.INT
+    SEQUENCE_START  = 3, 'sequence_start' , LayerType.INT
 
 
 # -----------------------------------------------------------------------------
@@ -233,10 +233,12 @@ def to_dataset(_obj:Object, _dataset:Dataset=None):
 
 
 # -----------------------------------------------------------------------------
-def get_layer(_bm:BMesh, _att:Attribute):
+def get_layer(_bm:BMesh, _att:Attribute) -> BMLayerItem | None:
     layers = _bm.verts.layers
 
     match(_att.type):
+        case LayerType.NONE:
+            return None
         case LayerType.INT:
             return layers.int.get(_att.label)
         case LayerType.FLOAT_VECTOR:
@@ -280,7 +282,8 @@ def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
         entry = DatabaseEntry()
         entry[Attribute.LOCATION.index] = _vert.co
 
-        for layer in get_layers(bm):
+        for layer in get_layers():
+            if not layer: continue
             entry[layer.name] = _vert[layer]
 
         return entry
@@ -767,50 +770,50 @@ class MET_PT_dataset(MEdgeToolsPanel, DatasetTab, Panel):
         layout.use_property_decorate = False
         layout.use_property_split = True
 
+        col = layout.column(align=True)
+
         obj = _context.active_object
 
         if not obj: 
-            b3d_utils.draw_box(layout, 'Select Object')
+            b3d_utils.draw_box(col, 'Select Object')
             return
-
-        col = layout.column(align=True)
 
         if not (dataset := get_dataset_prop(obj)): 
             col.operator(MET_OT_convert_to_dataset.bl_idname)
-            b3d_utils.draw_box(layout, 'Make sure it is a polyline')
+            b3d_utils.draw_box(col, 'Make sure it is a polyline')
         
             return
         
-        else:
-            b3d_utils.draw_box(layout, 'Update attributes if you have made edits to the mesh')
-            col.operator(MET_OT_update_attributes.bl_idname)
-
         settings = dataset.get_ops_settings()
         
         if not settings: return
 
-        col.separator(factor=2)
-        col.prop(settings, 'new_state')
-        col.separator()
-        col.operator(MET_OT_set_state.bl_idname)
+        box = col.box()
+        box.prop(settings, 'new_state')
+        box.operator(MET_OT_set_state.bl_idname)
         
-        col.separator()
-        col.prop(settings, 'filter')
-        
-        col.separator()
-        col.operator(MET_OT_select_states.bl_idname)
-        
-        col.separator()
-        col.prop(settings, 'use_filter')
+        box = col.box()
+        box.prop(settings, 'filter')
+        box.operator(MET_OT_select_states.bl_idname)
 
+        box = col.box()
+        box.prop(settings, 'use_filter')
         if settings.use_filter:
-            col.prop(settings, 'restrict')
-            col.prop(settings, 'filter')
+            box.prop(settings, 'restrict')
+            box.prop(settings, 'filter')
         
+        box.operator(MET_OT_select_transitions.bl_idname)
+
         col.separator()
-        col.operator(MET_OT_select_transitions.bl_idname)
-        col.operator(MET_OT_resolve_overlap.bl_idname)
-        col.operator(MET_OT_extract_curves.bl_idname)
+        row = col.row()
+        row.scale_y = 1.2
+        row.operator(MET_OT_resolve_overlap.bl_idname)
+        row.operator(MET_OT_extract_curves.bl_idname)
+
+        col.separator()
+        row = col.row()
+        row.scale_y = 1.2
+        row.operator(MET_OT_update_attributes.bl_idname)
 
 
 # -----------------------------------------------------------------------------
