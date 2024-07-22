@@ -4,7 +4,7 @@ from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty
 import numpy as np
 
 from ..b3d_utils import GenericList, draw_generic_list, multiline_text, draw_box
-from .gui       import MEdgeToolsPanel, GenerateTab
+from .gui        import MEdgeToolsPanel, GenerateTab
 from .dataset    import is_dataset, dataset_sequences, get_dataset_prop, update_attributes
 from .movement   import State
 
@@ -36,7 +36,7 @@ class MarkovChain:
 
             states = []
 
-            for state, _, _, _ in dataset_sequences(obj):
+            for state, _ in dataset_sequences(obj):
                 self.nstates = max(self.nstates, state)
                 states.append(state)
 

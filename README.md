@@ -1,6 +1,6 @@
 # MEdge Map Generator
 
-With this addon you can generate maps for Mirror's Edge. See `example.blend` for a complete setup.
+With this addon you can generate maps for Mirror's Edge. See `example.blend` for a complete setup. However, you can use it to generate maps for other than Mirror's Edge, see [How To Modify](#how-to-modify).
 
 ## Dependencies
 
@@ -49,17 +49,27 @@ For the `Walking` modules included flat level segments for each direction. These
 
 ### Special Cases
 
-The combination of some modules can create non-solvable situations. Therefore, before the map is generated the algorithm filters out these cases.
+The combination of some modules can create non-solvable situations. Therefore, before the map is generated the algorithm filters out these cases. You only need to take action in case 5.
 
 1. `Jump -> WallClimbing` To go into WallClimbing the jump distance should be short, but the some jump modules can be to long. To solve this we just ignore the jump.
 
 2. `Jump -> WallRunning[Left, Right]` Similar to Case 1, where the jump distance should be short.
 
-3. `WallClimbing -> WallClimb180TurnJump` To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing and WallClimb180TurnJump should have its own wall.
+3. `WallClimbing -> WallClimb180TurnJump` To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing, and WallClimb180TurnJump should have its own wall.
 
-4. `WallClimb180TurnJump -> Falling` A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored.
+4. `WallClimb180TurnJump -> Falling` A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored and you should decide where the player should end after WallClimb180TurnJump.
 
 5. `WallRunning[Left, Right] > WallRunJump > WallClimbing > WallClimbing180Jump` If you want to perform a WallClimbing180Jump after a WallRun, then you cannot be wall running for long and you are always jumping perpendicular after a wall run. These properties are not implicitly adhered to when choosing modules from each state and can result in a non-solvable level segment. To solve this, extra states have been made, namely: `WallRunningLeftWallClimb180TurnJump` and `WallRunningRightWallClimb180TurnJump`.
+
+## How To Modify
+
+The files that are specific to Mirror's Edge are:
+
+- `movement.py > State` Contains all the states that we can expect from the dataset and those that are custom. 
+- `dataset.py` 
+    - Handles parsing of json files. Update this if you datasets contain 
+- `markov.py > MarkovChain > generate_chain()` Uses `State.Walking` as it's initial state.
+- `map.py > MET_OT_generate_map > generate()` This functions filters out the [special cases](#special-cases).
 
 ## TODO
 
