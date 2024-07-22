@@ -27,7 +27,7 @@ class CurveModule:
         np.random.shuffle(self.module_names)
 
         self.curve:Object = None
-        self.current_name_index = 0
+        self.current_name_index = np.random.randint(len(self.module_names))
         self.index = 0
         self.collection = None
 
@@ -211,13 +211,27 @@ class MET_SCENE_PG_curve_module_collection_list(PropertyGroup, GenericList):
         return None
 
 
-    def init_collections(self):        
+    def reset_collections(self):        
         self.items.clear()
         
         for state in State:
-            module:MET_PG_curve_module_collection = self.add()
-            module.state = state
+            mc:MET_PG_curve_module_collection = self.add()
+            mc.state = state
 
+
+    def update_collections(self):
+        for state in State:
+            if self.exists(state): continue
+            mc:MET_PG_curve_module_collection = self.add()
+            mc.state = state
+
+
+    def exists(self, _state:int):
+        mc:MET_PG_curve_module_collection
+        for mc in self.items:
+            if _state == mc.state:
+                return True
+    
                     
     items: CollectionProperty(type=MET_PG_curve_module_collection)   
 
@@ -230,13 +244,16 @@ class MET_UL_curve_module_group_draw(UIList):
         if self.layout_type == 'GRID':
             _layout.alignment = 'CENTER'
 
-        mc = get_markov_chains_prop(_context).get_selected()
-        gen_chain = mc.get_selected_generated_chain()
-        states = set(gen_chain.split())
-        
         ic = 'RADIOBUT_OFF'
-        if str(_item.state) in states:
-            ic = 'RADIOBUT_ON'
+
+        mc = get_markov_chains_prop(_context).get_selected()
+        
+        if mc:
+            gen_chain = mc.get_selected_generated_chain()
+            states = set(gen_chain.split())
+            
+            if str(_item.state) in states:
+                ic = 'RADIOBUT_ON'
 
         _layout.label(text=_item.name, icon=ic)
 
@@ -272,25 +289,40 @@ class MET_UL_curve_module_group_draw(UIList):
 # Operators
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_OT_init_module_collections(Operator):
-    bl_idname      = 'medge_generate.init_modules'
-    bl_label       = 'Init Module Collections'
-    bl_description = 'Initialize list elements or reset if they already exists'
+class MET_OT_reset_module_collections(Operator):
+    bl_idname      = 'medge_generate.reset_modules'
+    bl_label       = 'Reset Module Collections'
+    bl_description = 'Reset list elements or reset if they already exists'
 
 
     def execute(self, _context):
         modules = get_curve_module_groups_prop(_context)
-        modules.init_collections()
+        modules.reset_collections()
 
         return {'FINISHED'}
 
 
 # -----------------------------------------------------------------------------
+class MET_OT_update_module_collections(Operator):
+    bl_idname      = 'medge_generate.update_modules'
+    bl_label       = 'Update Module Collections'
+    bl_description = 'Update list elements or reset if they already exists'
+
+
+    def execute(self, _context):
+        modules = get_curve_module_groups_prop(_context)
+        modules.update_collections()
+
+        return {'FINISHED'}
+    
+
+# -----------------------------------------------------------------------------
 class MET_OT_add_curve_module_to_group(Operator):
     bl_idname      = 'medge_generate.add_curve_module_to_group'
-    bl_label       = 'Add Curve Module To Group'
+    bl_label       = 'Add CurveModule To Group'
     bl_description = 'Add curve module to collection'
     bl_options     = {'UNDO'}
+
 
     @classmethod
     def poll(cls, _context:Context):
@@ -340,16 +372,6 @@ class MET_PT_modules(MEdgeToolsPanel, ModulesTab, Panel):
 
 
     def draw(self, _context:Context):
-        markov_chains = get_markov_chains_prop(_context)
-        active_mc = markov_chains.get_selected()
-
-        if not active_mc: return
-
-        gen_chains = active_mc.generated_chains
-        active_chain = gen_chains.get_selected()
-
-        if not active_chain: return
-        
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
@@ -362,7 +384,14 @@ class MET_PT_modules(MEdgeToolsPanel, ModulesTab, Panel):
         row.template_list('MET_UL_curve_module_group_draw', '#modules', module_groups, 'items', module_groups, 'selected_item_idx', rows=3)
         
         col.separator()
-        col.operator(MET_OT_init_module_collections.bl_idname)
+        row = col.row(align=True)
+
+        t = 'Reset'
+        if not module_groups.items:
+            t = 'Init'
+
+        row.operator(MET_OT_reset_module_collections.bl_idname, text=t)
+        row.operator(MET_OT_update_module_collections.bl_idname, text='Update')
 
         if len(module_groups.items) == 0: return
 

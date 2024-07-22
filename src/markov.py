@@ -3,10 +3,9 @@ from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty
 
 import numpy as np
 
-from ..b3d_utils import GenericList, draw_generic_list, multiline_text
+from ..b3d_utils import GenericList, draw_generic_list, multiline_text, draw_box
 from .gui       import MEdgeToolsPanel, GenerateTab
-from .dataset    import is_dataset, dataset_sequences
-from .dataset    import get_dataset_prop
+from .dataset    import is_dataset, dataset_sequences, get_dataset_prop, update_attributes
 from .movement   import State
 
 
@@ -32,6 +31,8 @@ class MarkovChain:
         # Collect all states
         for obj in _objects:
             if not is_dataset(obj): continue
+
+            update_attributes(obj)
 
             states = []
 
@@ -252,6 +253,11 @@ class MET_PT_markov_chains_generate(MEdgeToolsPanel, GenerateTab, Panel):
 
         markov_chains = get_markov_chains_prop(_context)
         mc = markov_chains.get_selected()
+
+        if not mc: 
+            draw_box(col, 'No Markov Data')
+            return
+
         gen_chains = mc.generated_chains
 
         draw_generic_list(col, gen_chains, '#generated_chain_list', 3, {'REMOVE', 'MOVE', 'CLEAR'})

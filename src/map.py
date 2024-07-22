@@ -14,7 +14,7 @@ from ..          import b3d_utils
 from ..b3d_utils import get_active_collection, new_collection
 from .movement   import State
 from .markov     import MET_PG_generated_chain, get_markov_chains_prop
-from .modules    import CurveModule, MET_PG_curve_module_collection
+from .modules    import CurveModule, MET_PG_curve_module_collection, get_curve_module_groups_prop
 
 
 # -----------------------------------------------------------------------------
@@ -24,15 +24,19 @@ class MET_SCENE_PG_map_gen_settings(PropertyGroup):
         return f"\
 {self.seed}_\
 {str(self.align_orientation)[0]}_\
-{str(self.resolve_intersection)[0]}\
+{str(self.resolve_intersection)[0]}_\
+{self.max_resolve_attempts}\
 "
 
+    # Gen settings
     seed:                 IntProperty(name='Seed', default=2024, min=0)
-    length:               IntProperty(name='Length', default=-1, min=-1, description='-1 will generate the full chain')
+    length:               IntProperty(name='Length', default=0, min=-1, description='-1 will generate the full chain')
 
     align_orientation:    BoolProperty(name='Align Orientation')
     resolve_intersection: BoolProperty(name='Resolve Intersection', default=True)
+    max_resolve_attempts: IntProperty(name='Max Resolve Attempts', default=50, min=1)
 
+    # Export settings
     skydome:              PointerProperty(type=Object, name='Skydome')
     only_top:             BoolProperty(name='Only Top')
 
@@ -69,18 +73,17 @@ class Map(UserList):
             self.is_candidate.append(0)
 
 
-    def build(self, _collection:Collection, _print:callable):
-        cm:CurveModule
+    def build(self, _collection:Collection):
         # Prepare modules
+        cm:CurveModule
         for k, cm in enumerate(self.data):
             cm.prepare(k, _collection)
 
         # Build modules
-        for k, cm in enumerate(self.data):
-            if (length := self.settings.length) != -1 and k >= length:
-                return
+        print('Building map...')
 
-            _print(f'Iteration: {k} / {len(self.data)}')
+        for k, cm in enumerate(self.data):
+            print(f'Iteration: {k} / {len(self.data) - 1}')
             cm.next_module()
 
             # Align
@@ -133,10 +136,16 @@ class Map(UserList):
             if (start_candidate := self.is_candidate[k]) != 0:
                 break
 
-        intersections_resolved = False
+        end_resolving = False
+        lowest_hits = float('inf')
+        best_candidates = None
+        best_permutation = None
 
         # Try different candidates
+        curr_iteration = 0
+
         for k in range(start_candidate, -1, -1):
+
             i = self.resolve_candidates[k]
             cm:CurveModule = self.data[i]
 
@@ -149,17 +158,26 @@ class Map(UserList):
                 hits = self.check_intersections_range(_start)
                 print(f'Hits: {hits}')
 
-                if hits == 0:
-                    intersections_resolved = True
+                curr_iteration += 1
+
+                if hits < lowest_hits:
+                    lowest_hits = hits
+                    best_candidates = current_candidates
+                    best_permutation = permutation
+
+                if hits == 0 or curr_iteration >= self.settings.max_resolve_attempts:
+                    end_resolving = True
                     break
         
-            if intersections_resolved:
+            if end_resolving:
                 break
+
+        if lowest_hits != 0:
+            print('Applying best permutation')
+            self.apply_configuration(best_candidates, best_permutation)
 
 
     def apply_configuration(self, _indices:list[int], _permutation:tuple[int, ...]) -> int:
-        print(f'Applied permutation: {_permutation}')
-        
         lowest_idx = len(self.data) - 1
         names = []
 
@@ -172,7 +190,7 @@ class Map(UserList):
             if i < lowest_idx: 
                 lowest_idx = i
 
-        print(f'Objects: {names}')
+        print(f'Applied permutation: {_permutation}, Objects: {names}')
 
         # Align modules
         for k in range(lowest_idx, len(self.data), 1):
@@ -209,7 +227,7 @@ class MET_OT_generate_map(Operator):
         settings = get_medge_map_gen_settings(_context)
         
         time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-        collection = new_collection(f'POPULATED_{active_mc.name}_[{settings}]_{time}' )
+        collection = new_collection(f'GENERATED_{active_mc.name}_[{settings}]_{time}' )
 
         self.generate(gen_chain, module_groups.items, settings, collection)
 
@@ -235,8 +253,19 @@ class MET_OT_generate_map(Operator):
         map = Map(None, _settings)
 
         # Instantiate all CurveModules
-        for k, str_state in enumerate(states):
-            state = int(str_state)
+        print('Instantiating CurveModules...')
+
+        k = -1
+        while True:
+            k += 1
+            
+            if k >= len(states):
+                break
+
+            if (length := _settings.length) != -1 and k >= length:
+                break
+
+            state = int(states[k])
 
             # Handle specific cases:
             # Handle state compared to the next state
@@ -244,43 +273,62 @@ class MET_OT_generate_map(Operator):
                 next_state = int(states[n])
 
                 # Case 1: Jump -> WallClimbing
-                # To go into WallCLimbing the jump distance should be so short we can just ignore it
+                # To go into WallClimbing the jump distance should be short, but the some jump modules can be to long. To solve this we just ignore the jump.
                 if state == State.Jump:
                     if next_state == State.WallClimbing:
+                        print(f'{k} - Case 1')
+                        continue
+                # Case 2: Jump -> WallRunningLeft or WallRunningRight
+                # Similar to Case 1, where the jump distance should be short.
+                    if (next_state == State.WallRunningLeft or 
+                        next_state == State.WallRunningRight):
+                        print(f'{k} - Case 2')
                         continue
 
-                # Case 2: WallClimbing -> WallClimb180TurnJump
-                # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb
-                # The WallClimb180TurnJump should have its own wall
+                # Case 3: WallClimbing -> WallClimb180TurnJump
+                # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing and WallClimb180TurnJump should have its own wall.
                 elif state == State.WallClimbing:
                     if next_state == State.WallClimb180TurnJump:
+                        print(f'{k} - Case 3')
                         continue
 
             # Handle state compared to the previous state
             if (p := k - 1) >= 0:
                 prev_state = int(states[p])
 
-                # Case 3: WallClimb180TurnJump -> Falling
-                # There are falling modules the could end up back where the player came from
-                # Falling should be included in the WallClimb180TurnJump module
+                # Case 4: WallClimb180TurnJump -> Falling
+                # A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored.
                 if state == State.Falling:
                     if prev_state == State.WallClimb180TurnJump:
+                        print(f'{k} - Case 4')
                         continue
 
+            # Case 5: WallRunning[Left, Right] > WallRunJump > WallClimbing > WallClimbing180Jump
+            # If you want to perform a WallClimbing180Jump after a WallRun, then you cannot be wall running for long and you are always jumping perpendicular after a wall run. These properties are not implicitly adhered to when choosing modules from each state and can result in a non-solvable level segment. To solve this, extra states have been made, namely: `WallRunningLeftWallClimb180TurnJump` and `WallRunningRightWallClimb180TurnJump`.
+            if ((left := state == State.WallRunningLeft) or (right := state == State.WallRunningRight)):
+                if k + 3 < len(states):
+                    if (int(states[k + 1]) == State.WallRunJump and
+                        int(states[k + 2]) == State.WallClimbing and
+                        int(states[k + 3]) == State.WallClimb180TurnJump):
+                        print(f'{k} - Case 5')
+
+                        if left: 
+                            state = State.WallRunningLeftWallClimb180TurnJump.value
+                        elif right: 
+                            state = State.WallRunningRightWallClimb180TurnJump.value
+
+                        k += 3
+            
             if not (mn := _module_group[state].collect_curve_names()): 
                 continue
 
             cm = CurveModule(state, mn)
             map.append(cm)
-            
+
         # Build the map
-        map.build(_target_collection, self.print)
+        map.build(_target_collection)
 
         print('Finished!')
-
-    
-    def print(self, _text:str):
-        self.report({'INFO'}, _text)
 
 
 # # -----------------------------------------------------------------------------
@@ -321,10 +369,11 @@ class MET_OT_prepare_for_export(Operator):
         collection = get_active_collection()
         settings = get_medge_map_gen_settings(_context)
         self.prepare_for_export(settings, collection)
+
         return {'FINISHED'}
     
 
-    def prepare_for_export(_settings:MET_SCENE_PG_map_gen_settings, _collection:Collection):
+    def prepare_for_export(self, _settings:MET_SCENE_PG_map_gen_settings, _collection:Collection):
         new_collection = b3d_utils.new_collection('PrepareForExport', _collection)
 
         # Add player start
@@ -392,10 +441,11 @@ class MET_OT_export_t3d(Operator):
     def execute(self, _context:Context):
         collection = get_active_collection()
         self.export(collection)
+
         return {'FINISHED'}
     
 
-    def export(_collection:Collection):
+    def export(self, _collection:Collection):
         b3d_utils.deselect_all_objects()
 
         for obj in _collection.all_objects:
@@ -423,8 +473,20 @@ class MET_PT_generate_map(MEdgeToolsPanel, GenerateTab, Panel):
         layout = self.layout
         layout.use_property_decorate = False
         layout.use_property_split = True
-
         col = layout.column(align=True)
+
+        markov_chains = get_markov_chains_prop(_context)
+        mc = markov_chains.get_selected()
+
+        if not mc: 
+            b3d_utils.draw_box(col, 'No Markov Data')
+            return
+
+        chain = mc.get_selected_generated_chain()
+
+        if not chain: 
+            b3d_utils.draw_box(col, 'No Generated Chains')
+            return
 
         settings = get_medge_map_gen_settings(_context)
 
@@ -432,6 +494,9 @@ class MET_PT_generate_map(MEdgeToolsPanel, GenerateTab, Panel):
         col.prop(settings, 'length')
         col.prop(settings, 'align_orientation')
         col.prop(settings, 'resolve_intersection')
+
+        if settings.resolve_intersection:
+            col.prop(settings, 'max_resolve_attempts')
         
         col.separator(factor=2)
         b3d_utils.draw_box(col, 'Select Generated Chain')
@@ -457,8 +522,8 @@ class MET_PT_export_map(MEdgeToolsPanel, ExportTab, Panel):
         settings = get_medge_map_gen_settings(_context)
 
         col.separator()
-        col.prop(settings, 'only_top')
         col.prop(settings, 'skydome')
+        col.prop(settings, 'only_top')
         col.separator()
         col.operator(MET_OT_prepare_for_export.bl_idname)
         col.operator(MET_OT_export_t3d.bl_idname)
@@ -472,16 +537,14 @@ def get_medge_map_gen_settings(_context:Context) -> MET_SCENE_PG_map_gen_setting
     return _context.scene.medge_map_gen_settings
 
 
-
-
 # -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def register():
-    Scene.medge_map_gen_settings    = PointerProperty(type=MET_SCENE_PG_map_gen_settings)
+    Scene.medge_map_gen_settings = PointerProperty(type=MET_SCENE_PG_map_gen_settings)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
-    if hasattr(Scene, 'medge_map_gen_settings'):    del Scene.medge_map_gen_settings
+    if hasattr(Scene, 'medge_map_gen_settings'): del Scene.medge_map_gen_settings

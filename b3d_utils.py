@@ -605,15 +605,15 @@ def create_curve(_type='NURBS', _num_points=3, _resolution=12) -> tuple[Curve, S
 
     if _type != 'BEZIER':
         path.points.add(_num_points - 1)
-        points = path.points
+        for k, p in enumerate(path.points):
+            x = 1 * k
+            p.co = x, 0, 0, 1
 
     else:
         path.bezier_points.add(_num_points - 1)
-        points = path.bezier_points
-        
-    for k, p in enumerate(points):
-        x = 1 * k
-        p.co = x, 0, 0
+        for k, p in enumerate(path.bezier_points):
+            x = 1 * k
+            p.co = x, 0, 0
 
     path.resolution_u = _resolution
     path.use_endpoint_u = True

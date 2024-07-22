@@ -1,8 +1,8 @@
 import bpy, bmesh, blf
-from   bpy.types           import PropertyGroup, Object, Mesh, Operator, Context, Panel, SpaceView3D
+from   bpy.types           import PropertyGroup, Object, Mesh, MeshVertex, Operator, Context, Panel, SpaceView3D
 from   bpy.props           import BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, StringProperty, PointerProperty
 from   bpy_extras          import view3d_utils
-from   bpy_extras.io_utils import ImportHelper, ExportHelper
+from   bpy_extras.io_utils import ImportHelper
 from   bmesh.types         import BMesh, BMLayerAccessVert
 from   mathutils           import Vector
 
@@ -16,7 +16,9 @@ from ..        import b3d_utils
 from .gui      import MEdgeToolsPanel, DatasetTab
 from .movement import State, StateProperty
 
-
+# -----------------------------------------------------------------------------
+# region Dataset
+# -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class AttributeType(str, Enum):
     NONE         = 'NONE'
@@ -49,16 +51,11 @@ class Attribute(int, Enum):
         raise ValueError(cls.__name__ + ' has no value matching "' + _s + '"')
 
 
-    STATE           = 0, 'player_state', AttributeType.INT
-    LOCATION        = 1, 'location'    , AttributeType.NONE
-    TIMESTAMP       = 2, 'timestamp'   , AttributeType.FLOAT_VECTOR
-    CONNECTED       = 3, 'connected'   , AttributeType.INT
-    CHAIN_START     = 4, 'chain_start' , AttributeType.INT
-    # If CHAIN_START is True then LENGTH is the length of the chain
-    # Else LENGTH is the distance to CHAIN_START
-    LENGTH          = 5, 'length'      , AttributeType.INT
-    AABB_MIN        = 6, 'aabb_min'    , AttributeType.FLOAT_VECTOR
-    AABB_MAX        = 7, 'aabb_max'    , AttributeType.FLOAT_VECTOR
+    STATE           = 0, 'state'          , AttributeType.INT
+    LOCATION        = 1, 'location'       , AttributeType.NONE
+    TIMESTAMP       = 2, 'timestamp'      , AttributeType.FLOAT_VECTOR
+    CONNECTED       = 3, 'connected'      , AttributeType.INT
+    SEQUENCE_START  = 4, 'sequence_start' , AttributeType.INT
 
 
 # -----------------------------------------------------------------------------
@@ -89,40 +86,9 @@ class DatabaseEntry(UserList):
     def __setitem__(self, _key:int|str, _value):
         if isinstance(_key, int):        
             self.data[_key] = _value
+
         if isinstance(_key, str):
             self.data[Attribute.from_string(_key).value] = _value
-
-
-# -----------------------------------------------------------------------------
-def db_entry_sequences(first_entry:DatabaseEntry, rest_of_data:any) -> Generator[tuple[int, list[Vector], float, bool], None, None]:
-    """Yields ( state, list of locations, total length, connected )"""
-    prev_loc = first_entry[Attribute.LOCATION.value]
-
-    curr_state  = first_entry[Attribute.STATE.value]
-    curr_conn   = first_entry[Attribute.CONNECTED.value]
-    curr_locs   = [prev_loc]
-    curr_length = 0
-
-    for entry in rest_of_data:
-        state      = entry[Attribute.STATE.value]
-        loc        = entry[Attribute.LOCATION.value]
-        start      = entry[Attribute.CHAIN_START.value]
-        curr_conn  = entry[Attribute.CONNECTED.value]
-
-        curr_length += (loc - prev_loc).length
-        
-        if curr_conn:
-            curr_locs.append(loc)
-        
-        if state != curr_state or start:
-            yield curr_state, curr_locs, curr_length, curr_conn
-            curr_state  = state
-            curr_length = 0
-            curr_locs   = []
-
-        prev_loc = loc
-    
-    yield curr_state, curr_locs, curr_length, curr_conn
 
 
 # -----------------------------------------------------------------------------
@@ -149,10 +115,6 @@ class Dataset:
         self.data = np.concatenate((self.data, _other.data), axis=0)
 
 
-    def sequences(self):
-        """Yields ( state, list of locations, total length, connected )"""
-        return db_entry_sequences(self.data[0], self.data[1:])
-
 # -----------------------------------------------------------------------------
 class DatasetIO:
     def import_from_file(self, _filepath:str) -> None:
@@ -160,6 +122,8 @@ class DatasetIO:
             log = json.load(f)
 
         dataset = Dataset()
+
+        prev_state = None
 
         for item in log:
             player_state = int(item[Attribute.STATE.label])
@@ -173,34 +137,92 @@ class DatasetIO:
             location = Vector((y, x, z))
 
             entry = DatabaseEntry()
-            entry[Attribute.STATE.value] = player_state
-            entry[Attribute.TIMESTAMP.value] = timestamp
-            entry[Attribute.LOCATION.value] = location
+            entry[Attribute.STATE.value]       = player_state
+            entry[Attribute.TIMESTAMP.value]   = timestamp
+            entry[Attribute.LOCATION.value]    = location
+            entry[Attribute.SEQUENCE_START.value] = False
+
+            if not prev_state or prev_state != player_state:
+                entry[Attribute.SEQUENCE_START.value] = True
 
             dataset.append(entry)
 
+            prev_state = player_state
+
         name = ntpath.basename(_filepath)
-        create_polyline(dataset, name)
+        self.create_polyline(dataset, name)
 
 
-    def write_to_file(self, _filepath:str) -> None:
-        pass
+    def create_polyline(self, _dataset:Dataset, _name:str) -> Object:
+        # Create polyline
+        verts = _dataset[:, Attribute.LOCATION.value]
+        edges = [(i, i + 1) for i in range(len(verts) - 1)]
+
+        mesh = b3d_utils.new_mesh(verts, edges, [], _name)
+        obj = b3d_utils.new_object(mesh, _name)  
+
+        # Add dataset to obj
+        to_dataset(obj, _dataset)
+        update_attributes(obj)
+
+        return obj
+
+
+# -----------------------------------------------------------------------------
+def update_attributes(_obj:Object):
+    if not is_dataset(_obj): return
+
+    bm = b3d_utils.get_bmesh_from_object(_obj)
+    bm.verts.ensure_lookup_table()
+
+    layers = bm.verts.layers
+
+    connected = layers.int.get(Attribute.CONNECTED.label)
+    seq_start = layers.int.get(Attribute.SEQUENCE_START.label)
+
+    # Check if v1 and v2 (consecutive vertices) are connected
+    for v1, v2 in zip(bm.verts, bm.verts[1:]):
+        conn = False
+        if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
+            conn = True
+
+        v1[connected] = conn
+
+    # Check if it is sequence start
+    for v1, v2 in zip(bm.verts, bm.verts[1:]):
+        if not v1[connected]:
+            v2[seq_start] = True
+
+    b3d_utils.update_mesh_from_bmesh(_obj.data, bm)
+
+
+# -----------------------------------------------------------------------------
+def is_dataset(_obj:Object):
+    if _obj.type != 'MESH': return False
+
+    for att in Attribute:
+        if att.type == AttributeType.NONE: 
+            continue
+
+        if att.label not in _obj.data.attributes:
+            return False
+        
+    return True
 
 
 # -----------------------------------------------------------------------------
 def to_dataset(_obj:Object, _dataset:Dataset=None):
     prev_mode = _obj.mode
+    
     b3d_utils.set_object_mode(_obj, 'OBJECT')
+    
     mesh = _obj.data
     
-    n             = len(mesh.vertices)
-    player_states = [State.Walking.value] * n
-    timestamps    = [0] * n * 3
-    connections   = [True] * n
-    chain_starts  = [False] * n
-    lengths       = [0] * n
-    aabb_mins     = [0] * n * 3
-    aabb_maxs     = [0] * n * 3
+    n               = len(mesh.vertices)
+    player_states   = [State.Walking.value] * n
+    timestamps      = [0] * n * 3
+    connections     = [True] * n
+    sequence_starts = [False] * n
 
 
     def unpack(_packed:list, _dest:list):
@@ -217,13 +239,8 @@ def to_dataset(_obj:Object, _dataset:Dataset=None):
         unpack(packed_ts, timestamps)
 
         connections = list(_dataset[:, Attribute.CONNECTED.value])
-        chain_starts  = list(_dataset[:, Attribute.CHAIN_START.value])
-        lengths = list(_dataset[:, Attribute.LENGTH.value])
-
-        packed_mins = list(_dataset[:, Attribute.AABB_MIN.value])
-        packed_maxs = list(_dataset[:, Attribute.AABB_MAX.value])
-        unpack(packed_mins, aabb_mins)
-        unpack(packed_maxs, aabb_maxs)
+        
+        sequence_starts = list(_dataset[:, Attribute.SEQUENCE_START.value])
 
 
     def add_attribute(_att:Attribute, _data:list):
@@ -238,244 +255,111 @@ def to_dataset(_obj:Object, _dataset:Dataset=None):
                     raise Exception(f'Unknown case for attribute: {_att.type}')
 
 
-    add_attribute(Attribute.STATE, player_states)
-    add_attribute(Attribute.TIMESTAMP  , timestamps)
-    add_attribute(Attribute.CONNECTED  , connections)
-    add_attribute(Attribute.CHAIN_START, chain_starts)
-    add_attribute(Attribute.LENGTH     , lengths)
-    add_attribute(Attribute.AABB_MIN   , aabb_mins)
-    add_attribute(Attribute.AABB_MAX   , aabb_maxs)
+    add_attribute(Attribute.STATE         , player_states)
+    add_attribute(Attribute.TIMESTAMP     , timestamps)
+    add_attribute(Attribute.CONNECTED     , connections)
+    add_attribute(Attribute.SEQUENCE_START, sequence_starts)
         
     b3d_utils.set_object_mode(_obj, prev_mode)
-
-
-# -----------------------------------------------------------------------------
-def is_dataset(_obj:Object):
-    if _obj.type != 'MESH': return False
-
-    for att in Attribute:
-        if att.type == AttributeType.NONE: continue
-        if att.label not in _obj.data.attributes:
-            return False
-        
-    return True
-
-
-# -----------------------------------------------------------------------------
-def create_polyline(_dataset:Dataset, _name='DATASET') -> Object:
-    # Create polyline
-    verts = _dataset[:, Attribute.LOCATION.value]
-    edges = []
-
-    for i in range(len(verts) - 1):
-        edges.append( (i, i + 1) )
-    
-    mesh = b3d_utils.new_mesh(verts, edges, [], _name)
-    obj = b3d_utils.new_object(mesh, _name)  
-
-    # Add dataset to obj
-    to_dataset(obj, _dataset)
-
-    return obj
-
-
-# -----------------------------------------------------------------------------
-def attribute_layers(_bm:BMesh) -> Generator[BMLayerAccessVert, None, None]:
-    layers = _bm.verts.layers
-    for att in Attribute:
-        match(att.type):
-            case AttributeType.INT:
-                yield layers.int.get(att.label)
-            case AttributeType.FLOAT_VECTOR:
-                yield layers.float_vector.get(att.label)
 
 
 # -----------------------------------------------------------------------------
 def dataset_entries(_obj:Object) -> Generator[DatabaseEntry, None, None]:
     bm = b3d_utils.get_bmesh_from_object(_obj)
 
-    def retrieve_entry(vert):
+
+    def attribute_layers() -> Generator[BMLayerAccessVert, None, None]:
+        nonlocal bm
+        layers = bm.verts.layers
+
+        for att in Attribute:
+            match(att.type):
+                case AttributeType.INT:
+                    yield layers.int.get(att.label)
+                case AttributeType.FLOAT_VECTOR:
+                    yield layers.float_vector.get(att.label)
+
+
+    def retrieve_entry(_vert:MeshVertex) -> DatabaseEntry:
+        nonlocal bm
         entry = DatabaseEntry()
-        entry[Attribute.LOCATION.value] = vert.co
+        entry[Attribute.LOCATION.value] = _vert.co
 
         for layer in attribute_layers(bm):
-            entry[layer.name] = vert[layer]
+            entry[layer.name] = _vert[layer]
 
         return entry
 
+
     bm.verts.ensure_lookup_table()
 
-    for v1, v2 in zip(bm.verts, bm.verts[1:]):
-        entry = retrieve_entry(v1)
-        
-        # Check if v1 and v2 (consecutive vertices) are connected
-        c = False
-        if v2 in [x for y in [a.verts for a in v1.link_edges] for x in y if x != v1]:
-            c = True
-
-        entry[Attribute.CONNECTED.value] = c
-
-        yield entry
+    for v in bm.verts:
+        yield retrieve_entry(v)
     
-    entry = retrieve_entry(bm.verts[-1])
-    entry[Attribute.CONNECTED.value] = False
-
-    yield entry
 
 
 # -----------------------------------------------------------------------------
-def dataset_sequences(_obj:Object):
+def dataset_sequences(_obj:Object) -> Generator[tuple[int, list[Vector], float, bool], None, None]:
     """Yields ( state, list of locations, total length, connected )"""
     entries = dataset_entries(_obj)
-    entry0 = next(entries)
+    first_entry = next(entries)
 
-    return db_entry_sequences(entry0, entries)
+    prev_loc = first_entry[Attribute.LOCATION.value]
 
+    curr_state  = first_entry[Attribute.STATE.value]
+    curr_conn   = first_entry[Attribute.CONNECTED.value]
+    curr_locs   = [prev_loc]
+    curr_length = 0
 
-# -----------------------------------------------------------------------------
-def resolve_overlap(_obj:Object):
-    if not is_dataset(_obj): return
-    if _obj.mode != 'EDIT': return
+    for entry in entries:
+        state      = entry[Attribute.STATE.value]
+        loc        = entry[Attribute.LOCATION.value]
+        start      = entry[Attribute.SEQUENCE_START.value]
+        curr_conn  = entry[Attribute.CONNECTED.value]
 
-    mesh = _obj.data
-    bm = bmesh.from_edit_mesh(mesh)
-
-    for k in range(len(bm.verts) - 1):
-        v1 = bm.verts[k]
-        v2 = bm.verts[k + 1]
-
-        if v1.co != v2.co: continue
-
-        v0 = bm.verts[k - 1]
-        offset = v1.co - v0.co
-        if k == 0:
-            v0 = bm.verts[k + 2]
-            offset = v0.co - v1.co
-
-        for v in bm.verts[k+1:]:
-            v.co += offset
-
-    bmesh.update_edit_mesh(mesh)
-
-
-# -----------------------------------------------------------------------------
-def set_player_state(_obj:Object, _new_state:int):
-    if _obj.mode != 'EDIT': return
-    if not is_dataset(_obj): return
-    
-    bm = b3d_utils.get_bmesh_from_object(_obj)
-
-    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
-
-    for v in bm.verts:
-        if v.select:
-            v[state_layer] = _new_state
-
-    bmesh.update_edit_mesh(_obj.data)
-
-
-# -----------------------------------------------------------------------------
-def select_transitions(_obj:Object, _filter:str='', _restrict:bool=False):
-    if not is_dataset(_obj): return
-    if _obj.mode != 'EDIT': return
-
-    # Transform str to int
-    if _filter:
-        _filter = _filter.split(',')
-        _filter = [int(s) if s.isnumeric() else State[s] for s in _filter]
-
-    mesh = _obj.data
-    bm = bmesh.from_edit_mesh(mesh)
-
-    # Select transitions
-    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
-
-    b3d_utils.deselect_all_vertices(bm)
-
-    for k in range(len(bm.verts) - 1):
-        v1 = bm.verts[k]
-        v2 = bm.verts[k + 1]
+        curr_length += (loc - prev_loc).length
         
-        s1 = v1[state_layer]
-        s2 = v2[state_layer]
+        if curr_conn:
+            curr_locs.append(loc)
+        
+        if state != curr_state or start:
+            yield curr_state, curr_locs, curr_length, curr_conn
+            curr_state  = state
+            curr_length = 0
+            curr_locs   = []
 
-        if s1 == s2: continue
-
-        if _filter: 
-            if s1 not in _filter and s2 not in _filter:
-                continue
-            if _restrict:
-                if s1 not in _filter or s2 not in _filter:
-                    continue                    
-
-        v1.select = True
-        v2.select = True
-
-    bmesh.update_edit_mesh(mesh)
+        prev_loc = loc
     
-
-# -----------------------------------------------------------------------------
-def select_player_states(_obj:Object, _filter:str=''):
-    if not _filter: return
-    if not is_dataset(_obj): return
-    if _obj.mode != 'EDIT': return
-
-    # Transform str to int
-    if _filter:
-        _filter = _filter.split(',')
-        _filter = [int(s) if s.isnumeric() else State[s] for s in _filter]
-
-    mesh = _obj.data
-    bm = bmesh.from_edit_mesh(mesh)
-
-    # Select transitions
-    state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
-
-    b3d_utils.deselect_all_vertices(bm)
-
-    for v in bm.verts:
-        s = v[state_layer]
-
-        if s in _filter:
-            v.select = True
-
-    bmesh.update_edit_mesh(mesh)
+    yield curr_state, curr_locs, curr_length, curr_conn
+    
+# endregion
 
 
 # -----------------------------------------------------------------------------
-# Visualization
+# region Visualization
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 draw_handle_post_pixel = None
-draw_handle_post_view = None
 
 
 # -----------------------------------------------------------------------------
 def add_handle(_context:Context):
     global draw_handle_post_pixel
-    global draw_handle_post_view
 
-    if draw_handle_post_pixel or draw_handle_post_view:
+    if draw_handle_post_pixel:
         remove_handle()
 
     draw_handle_post_pixel = SpaceView3D.draw_handler_add(
         draw_callback_post_pixel,(_context,), 'WINDOW', 'POST_PIXEL')
-    draw_handle_post_view = SpaceView3D.draw_handler_add(
-        draw_callback_post_view,(_context,), 'WINDOW', 'POST_VIEW')
 
 
 # -----------------------------------------------------------------------------
 def remove_handle():
     global draw_handle_post_pixel
-    global draw_handle_post_view
 
     if draw_handle_post_pixel:
         SpaceView3D.draw_handler_remove(draw_handle_post_pixel, 'WINDOW')
         draw_handle_post_pixel = None
-
-    if draw_handle_post_view:
-        SpaceView3D.draw_handler_remove(draw_handle_post_view, 'WINDOW')
-        draw_handle_post_view = None
 
 
 # -----------------------------------------------------------------------------
@@ -496,7 +380,7 @@ def draw_callback_post_pixel(_context:Context):
     # Layers
     state_layer       = bm.verts.layers.int.get(Attribute.STATE.label)
     time_layer        = bm.verts.layers.float_vector.get(Attribute.TIMESTAMP.label)
-    chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
+    chain_start_layer = bm.verts.layers.int.get(Attribute.SEQUENCE_START.label)
 
     # Settings
     vis_settings      = get_dataset_prop(obj).get_vis_settings()
@@ -554,42 +438,15 @@ def draw_callback_post_pixel(_context:Context):
         blf.position(0, co_2d[0] - font_size, co_2d[1], 0)
         blf.draw(0, str(state))
 
-
-# -----------------------------------------------------------------------------
-def draw_callback_post_view(_context:Context): 
-    # Validate
-    obj = _context.object
-    if not obj: return
-    if not is_dataset(obj): return
-    if obj.mode != 'EDIT': return
-
-    bm = bmesh.from_edit_mesh(obj.data)
-    
-    # Layers
-    chain_start_layer = bm.verts.layers.int.get(Attribute.CHAIN_START.label)
-    aabb_min_layer    = bm.verts.layers.float_vector.get(Attribute.AABB_MIN.label)
-    aabb_max_layer    = bm.verts.layers.float_vector.get(Attribute.AABB_MAX.label)
-    
-    # Settings
-    vis_settings  = get_dataset_prop(obj).get_vis_settings()
-    default_color = vis_settings.default_color
-    draw_abbb     = vis_settings.draw_aabb
-
-    # Draw AABB 
-    for v in bm.verts:
-        if draw_abbb:
-            if v[chain_start_layer]:
-                bmin = obj.matrix_world @ v[aabb_min_layer] 
-                bmax = obj.matrix_world @ v[aabb_max_layer]
-
-                b3d_utils.draw_aabb_lines_3d(bmin, bmax, default_color)
+# endregion
 
 
 # -----------------------------------------------------------------------------
-# Property Groups
+# region Property Groups
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class MET_DS_PG_vis_settings(PropertyGroup):
+
     to_name:           BoolProperty(name='To Name', default=False)
     only_selection:    BoolProperty(name='Only Selection', default=False)
     show_timestamps:   BoolProperty(name='Show Timestamps', default=False)
@@ -598,11 +455,11 @@ class MET_DS_PG_vis_settings(PropertyGroup):
     default_color:     FloatVectorProperty(name='Default Color', subtype='COLOR_GAMMA', default=(.9, .9, .9))
     start_chain_color: FloatVectorProperty(name='Start Chain Color', subtype='COLOR_GAMMA', default=(.0, .9, .0))
     font_size:         IntProperty(name='Font Size', default=13)
-    draw_aabb:         BoolProperty(name='Draw AABB', default=False)
 
 
 # -----------------------------------------------------------------------------
 class MET_DS_PG_ops_settings(PropertyGroup):
+
     use_filter: BoolProperty(name='Use Filter')
     restrict:   BoolProperty(name='Restrict')
     filter:     StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
@@ -612,6 +469,7 @@ class MET_DS_PG_ops_settings(PropertyGroup):
 
 # -----------------------------------------------------------------------------
 class MET_MESH_PG_dataset(PropertyGroup):
+
     def get_vis_settings(self) -> MET_DS_PG_vis_settings:
         return self.vis_settings
 
@@ -621,9 +479,11 @@ class MET_MESH_PG_dataset(PropertyGroup):
     vis_settings: PointerProperty(type=MET_DS_PG_vis_settings)
     ops_settings: PointerProperty(type=MET_DS_PG_ops_settings)
 
+# endregion
+
 
 # -----------------------------------------------------------------------------
-# Operators
+# region Operators
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class MET_OT_import_dataset(Operator, ImportHelper):
@@ -643,25 +503,6 @@ class MET_OT_import_dataset(Operator, ImportHelper):
 
         return {'FINISHED'}
     
-
-# -----------------------------------------------------------------------------
-class MET_OT_export_dataset(Operator, ExportHelper):
-    bl_idname = 'medge_dataset.export_dataset'
-    bl_label = 'Export Dataset'
-    filename_ext = ".json"
-
-    filter_glob: StringProperty(
-        default='*.json',
-        options={'HIDDEN'},
-        maxlen=255,
-    )
-
-
-    def execute(self, _context:Context):
-        io = DatasetIO()
-
-        return {'FINISHED'}
-
 
 # -----------------------------------------------------------------------------
 vis_state = False
@@ -689,7 +530,9 @@ class MET_OT_enable_dataset_vis(Operator):
 
     def execute(self, _context:Context):
         add_handle(_context)
+        
         _context.area.tag_redraw()
+        
         set_vis_state(True)
 
         return{'FINISHED'}
@@ -708,7 +551,9 @@ class MET_OT_disable_dataset_vis(Operator):
 
     def execute(self, _context:Context):
         remove_handle()
+        
         _context.area.tag_redraw()
+        
         set_vis_state(False)
 
         return {'FINISHED'}
@@ -722,16 +567,31 @@ class MET_OT_convert_to_dataset(Operator):
 
     @classmethod
     def poll(cls, _context:Context):
-        obj = _context.object
-
-        return obj.type == 'MESH'
+        return _context.object.type == 'MESH'
 
 
     def execute(self, _context:Context):
-        obj = _context.object
-        to_dataset(obj)
+        to_dataset(_context.object)
 
         return {'FINISHED'}  
+
+
+# -----------------------------------------------------------------------------
+class MET_OT_update_attributes(Operator):
+    bl_idname = 'medge_dataset.update_attributes'
+    bl_label  = 'Update Attributes'
+    bl_description = 'Update attributes if you have made edits to the mesh'
+
+
+    @classmethod
+    def poll(cls, _context:Context):
+        return is_dataset(_context.object)
+
+
+    def execute(self, _context:Context):
+        update_attributes(_context.object)
+
+        return {'FINISHED'} 
 
 
 # -----------------------------------------------------------------------------
@@ -743,19 +603,26 @@ class MET_OT_set_state(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
-
-        return obj.mode == 'EDIT'
+        return is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, _context:Context):
         obj = _context.object
         settings = get_dataset_prop(obj).get_ops_settings()
-        s = settings.new_state
-        set_player_state(obj, State[s])
+        
+        bm = b3d_utils.get_bmesh_from_object(obj)
+
+        state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
+
+        for v in bm.verts:
+            if v.select:
+                v[state_layer] = State[settings.new_state]
+
+        bmesh.update_edit_mesh(obj.data)
 
         return {'FINISHED'} 
 
-
+        
 # -----------------------------------------------------------------------------
 class MET_OT_select_transitions(Operator):
     bl_idname = 'medge_dataset.select_transitions'
@@ -765,14 +632,54 @@ class MET_OT_select_transitions(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
-
         return is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, _context:Context):
         obj = _context.object
+
         settings = get_dataset_prop(obj).get_ops_settings()
-        select_transitions(obj, settings.filter, settings.restrict)
+        filter = settings.filter
+        restrict = settings.restrict
+
+        # Transform str to int
+        if filter:
+            filter = filter.split(',')
+            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
+
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        # Select transitions
+        state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
+
+        b3d_utils.deselect_all_vertices(bm)
+
+        count = 0
+
+        for k in range(len(bm.verts) - 1):
+            v1 = bm.verts[k]
+            v2 = bm.verts[k + 1]
+            
+            s1 = v1[state_layer]
+            s2 = v2[state_layer]
+
+            if s1 == s2: continue
+
+            if filter: 
+                if s1 not in filter and s2 not in filter:
+                    continue
+                if restrict:
+                    if s1 not in filter or s2 not in filter:
+                        continue                    
+
+            v1.select = True
+            v2.select = True
+            count += 1
+
+        bmesh.update_edit_mesh(mesh)
+
+        self.report({'INFO'}, f'{count} transitions')
 
         return {'FINISHED'}
     
@@ -786,14 +693,35 @@ class MET_OT_select_states(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
+        filter = get_dataset_prop(obj).get_ops_settings().filter
 
-        return obj.mode == 'EDIT'
+        return filter and is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = get_dataset_prop(obj).get_ops_settings()
-        select_player_states(obj, settings.filter)
+        filter = get_dataset_prop(obj).get_ops_settings().filter
+
+        # Transform str to int
+        if filter:
+            filter = filter.split(',')
+            filter = [int(s) if s.isnumeric() else State[s] for s in filter]
+
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        # Select transitions
+        state_layer = bm.verts.layers.int.get(Attribute.STATE.label)
+
+        b3d_utils.deselect_all_vertices(bm)
+
+        for v in bm.verts:
+            s = v[state_layer]
+
+            if s in filter:
+                v.select = True
+
+        bmesh.update_edit_mesh(mesh)
 
         return {'FINISHED'}
 
@@ -807,13 +735,31 @@ class MET_OT_resolve_overlap(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
-
-        return obj.mode == 'EDIT'
+        return is_dataset(obj) and obj.mode == 'EDIT'
     
 
     def execute(self, _context:Context):
         obj = _context.object
-        resolve_overlap(obj)
+
+        mesh = obj.data
+        bm = bmesh.from_edit_mesh(mesh)
+
+        for k in range(len(bm.verts) - 1):
+            v1 = bm.verts[k]
+            v2 = bm.verts[k + 1]
+
+            if v1.co != v2.co: continue
+
+            v0 = bm.verts[k - 1]
+            offset = v1.co - v0.co
+            if k == 0:
+                v0 = bm.verts[k + 2]
+                offset = v0.co - v1.co
+
+            for v in bm.verts[k+1:]:
+                v.co += offset
+
+        bmesh.update_edit_mesh(mesh)
 
         return {'FINISHED'}
 
@@ -826,9 +772,7 @@ class MET_OT_extract_curves(Operator):
 
     @classmethod
     def poll(cls, _context:Context):
-        obj = _context.object
-
-        return is_dataset(obj)
+        return is_dataset(_context.object)
 
 
     def execute(self, _context:Context):
@@ -854,9 +798,10 @@ class MET_OT_extract_curves(Operator):
 
         return {'FINISHED'}
 
+# endregion
 
 # -----------------------------------------------------------------------------
-# GUI
+# region GUI
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class MET_PT_dataset(MEdgeToolsPanel, DatasetTab, Panel):
@@ -879,9 +824,12 @@ class MET_PT_dataset(MEdgeToolsPanel, DatasetTab, Panel):
         if not (dataset := get_dataset_prop(obj)): 
             col.operator(MET_OT_convert_to_dataset.bl_idname)
             b3d_utils.draw_box(layout, 'Make sure it is a polyline')
+        
             return
+        
         else:
-            col.operator(MET_OT_convert_to_dataset.bl_idname, text='Update Attributes')
+            b3d_utils.draw_box(layout, 'Update attributes if you have made edits to the mesh')
+            col.operator(MET_OT_update_attributes.bl_idname)
 
         settings = dataset.get_ops_settings()
         
@@ -900,6 +848,7 @@ class MET_PT_dataset(MEdgeToolsPanel, DatasetTab, Panel):
         
         col.separator()
         col.prop(settings, 'use_filter')
+
         if settings.use_filter:
             col.prop(settings, 'restrict')
             col.prop(settings, 'filter')
@@ -954,6 +903,8 @@ class MET_PT_dataset_vis(MEdgeToolsPanel, DatasetTab, Panel):
         col.prop(vis_settings, 'min_draw_distance', text='Draw Distance Min')
         col.prop(vis_settings, 'max_draw_distance', text='Max')
 
+# endregion
+
 
 # -----------------------------------------------------------------------------
 # Scene Utils
@@ -969,7 +920,7 @@ def get_dataset_prop(_obj:Object) -> MET_MESH_PG_dataset:
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def menu_func_import_dataset(self, _dummy:Context):
+def menu_func_import_dataset(self, _context:Context):
     self.layout.operator(MET_OT_import_dataset.bl_idname, text='MEdge Dataset (.json)')
 
 
