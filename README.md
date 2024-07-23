@@ -39,7 +39,7 @@ From the generated markov chains you can then generate maps. If you open a conso
 
 ### Export
 
-Use the `PrepareForExport` operator to add a PlayerStart, Sun light, KillVolume and Skybox. Then, you can export to T3D.
+Use the `PrepareForExport` operator to add a PlayerStart, Sun light, KillVolume and Skybox. Then, click the Collection with the `GENERATED_` prefix and export to T3D.
 
 ## Solvability
 
