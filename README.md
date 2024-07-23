@@ -1,6 +1,6 @@
 # MEdge Map Generator
 
-With this addon you can generate maps for Mirror's Edge. See `example_medge_map_generator.blend` for a complete setup. However, you can use it to generate maps for other games than Mirror's Edge, see [How To Modify](#how-to-modify).
+With this addon you can generate maps for Mirror's Edge. See `example_medge_map_generator.blend` in Releases for a complete setup. However, you can use it to generate maps for other games than Mirror's Edge, see [How To Modify](#how-to-modify).
 
 ## Dependencies
 
