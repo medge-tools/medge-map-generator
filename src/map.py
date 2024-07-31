@@ -9,7 +9,7 @@ from math        import pi
 from collections import UserList
 from datetime    import datetime
 
-from .gui       import MEdgeToolsPanel, GenerateTab, ExportTab
+from .gui        import MEdgeToolsPanel, GenerateTab, ExportTab
 from ..          import b3d_utils
 from ..b3d_utils import get_active_collection, new_collection
 from .movement   import State

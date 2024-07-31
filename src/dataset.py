@@ -14,7 +14,7 @@ from   typing      import Generator
 
 from ..        import b3d_utils
 from .gui      import MEdgeToolsPanel, DatasetTab
-from .movement import State, StateProperty
+from .movement import State, StateEnumProperty
 
 # -----------------------------------------------------------------------------
 # region Dataset
@@ -345,7 +345,7 @@ class MET_DS_PG_ops_settings(PropertyGroup):
     restrict:   BoolProperty(name='Restrict')
     filter:     StringProperty(name='Filter', description='List of [str | int] seperated by a comma')
 
-    new_state:  StateProperty()
+    new_state:  StateEnumProperty()
 
 
 # -----------------------------------------------------------------------------

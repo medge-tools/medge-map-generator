@@ -3,14 +3,14 @@ from bpy.types import Operator, Context, Scene, Object, Collection, Spline, Oper
 from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty, CollectionProperty
 from mathutils import Vector, Matrix
 
-import numpy      as     np
-from math         import radians
+import numpy as     np
+from math    import radians
 
-from .gui              import MEdgeToolsPanel, ModulesTab
-from ..                 import b3d_utils
-from ..b3d_utils        import GenericList, rotation_matrix, update_matrices, duplicate_object_with_children, remove_object_with_children, check_objects_intersection
-from .movement import State
-from .markov            import get_markov_chains_prop
+from .gui        import MEdgeToolsPanel, ModulesTab
+from ..          import b3d_utils
+from ..b3d_utils import GenericList, rotation_matrix, update_matrices, duplicate_object_with_children, remove_object_with_children, check_objects_intersection
+from .movement   import State
+from .markov     import get_markov_chains_prop
 
 
 # -----------------------------------------------------------------------------
@@ -18,6 +18,9 @@ from .markov            import get_markov_chains_prop
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 class CurveModule:
+    """
+    A curve module is the root of a level segment
+    """
     def __init__(self, 
                  _state:int,
                  _module_names:list[str]):
