@@ -51,7 +51,7 @@ For the `Walking` modules included flat level segments for each direction. These
 
 The combination of some modules can create non-solvable situations. Therefore, before the map is generated the algorithm filters out these cases. You only need to take action in case 5.
 
-1. `Jump -> WallClimbing` To go into WallClimbing the jump distance should be short, but the some jump modules can be to long. To solve this we just ignore the jump.
+1. `Jump -> WallClimbing` To go into WallClimbing the jump distance should be short, but some jump modules can be to long. To solve this we just ignore the jump.
 
 2. `Jump -> WallRunning[Left, Right]` Similar to Case 1, where the jump distance should be short.
 
