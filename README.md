@@ -55,7 +55,7 @@ The combination of some modules can create non-solvable situations. Therefore, b
 
 2. `Jump -> WallRunning[Left, Right]` Similar to Case 1, where the jump distance should be short.
 
-3. `WallClimbing -> WallClimb180TurnJump` To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing, and WallClimb180TurnJump should have its own wall.
+3. `WallClimbing -> WallClimb180TurnJump` There are two states where WallClimbing can transition into: GrabPullUp and WallClimb180TurnJump, but the height of the wall in both cases has tbe of different heights. In this case, we ignore WallClimbing and WallClimb180TurnJump should have its own wall.
 
 4. `WallClimb180TurnJump -> Falling` A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored and you should decide where the player should end after WallClimb180TurnJump.
 
