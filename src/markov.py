@@ -5,7 +5,7 @@ import numpy as np
 
 from ..b3d_utils import GenericList, draw_generic_list, multiline_text, draw_box
 from .gui        import MEdgeToolsPanel, GenerateTab
-from .dataset    import is_dataset, dataset_sequences, get_dataset_prop, update_attributes
+from .dataset    import is_dataset, dataset_sequences, get_datasettings_prop, update_attributes
 from .movement   import State
 
 
@@ -92,8 +92,8 @@ markov_chain_models:dict[str, MarkovChain] = {}
 
 # -----------------------------------------------------------------------------
 class MET_PG_generated_chain(PropertyGroup):
-    def split(self):
-        return self.chain.split(self.seperator)
+    def split(self) -> list[int]:
+        return [int(s) for s in self.chain.split(self.seperator)]
 
     def __get_name(self):
         return self.chain
@@ -125,7 +125,7 @@ class MET_PG_markov_chain(PropertyGroup):
         objects = []
 
         for obj in self.collection.all_objects:
-            if not get_dataset_prop(obj): continue
+            if not is_dataset(obj): continue
             objects.append(obj)
 
         if len(objects) == 0: return
@@ -167,7 +167,6 @@ class MET_PG_markov_chain(PropertyGroup):
     
     def has_transition_matrix(self) -> bool:
         global markov_chain_models
-
         return self.name in markov_chain_models
     
 
@@ -179,7 +178,7 @@ class MET_PG_markov_chain(PropertyGroup):
     name:               StringProperty(name='Name', get=__get_name)
     collection:         PointerProperty(type=Collection, name='Collection')
 
-    length:             IntProperty(name='Length', default=100, min=0)
+    length:             IntProperty(name='Length', default=96, min=0)
     seed:               IntProperty(name='Seed', default=2024, min=0)
 
     generated_chains:   PointerProperty(type=MET_PG_generated_chain_list)

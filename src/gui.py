@@ -1,6 +1,8 @@
 from bpy.types import Panel, Context, Scene
 from bpy.props import EnumProperty
 
+from ..prefs import get_prefs
+
 
 # -----------------------------------------------------------------------------
 class MEdgeToolsPanel:
@@ -62,15 +64,24 @@ class ExportTab:
     
 
 # -----------------------------------------------------------------------------
+class EvaluateTab:
+    bl_parent_id = MET_PT_map_gen_panel.bl_idname
+    
+    @classmethod
+    def poll(cls, _context:Context):
+        return get_prefs().enable_evaluation
+
+
+# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
 def register():
     Scene.medge_map_gen_active_tab = EnumProperty(items=(
-        ('DATASET',  'Dataset',  'Dataset Tab'), 
-        ('MODULES',  'Modules',  'Modules Tab'),
+        ('DATASET' , 'Dataset' , 'Dataset Tab'), 
+        ('MODULES' , 'Modules' , 'Modules Tab'),
         ('GENERATE', 'Generate', 'Generate Tab'),
-        ('EXPORT'  , 'Export', 'Export Tab')
+        ('EXPORT'  , 'Export'  , 'Export Tab'),
     ))
 
 

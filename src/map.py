@@ -1,17 +1,16 @@
 import bpy
-from bpy.types import Operator, Context, Scene, Object, Collection, Operator, PropertyGroup, Panel
+from bpy.types import Context, Scene, Object, Collection, Operator, PropertyGroup, Panel
 from bpy.props import PointerProperty, BoolProperty, IntProperty
-from mathutils import Vector
 
 import numpy     as     np
 from itertools   import product
-from math        import pi
 from collections import UserList
 from datetime    import datetime
+from time        import perf_counter
 
-from .gui        import MEdgeToolsPanel, GenerateTab, ExportTab
+from .gui        import MEdgeToolsPanel, GenerateTab
 from ..          import b3d_utils
-from ..b3d_utils import get_active_collection, new_collection
+from ..b3d_utils import new_collection
 from .movement   import State
 from .markov     import MET_PG_generated_chain, get_markov_chains_prop
 from .modules    import CurveModule, MET_PG_curve_module_collection, get_curve_module_groups_prop
@@ -53,6 +52,9 @@ class Map(UserList):
 
         self.obj:Object = None
         self.settings = _settings
+        self.debug = True
+
+        np.random.seed(self.settings.seed)
 
         # Only contains indices that point to candidates to resolve intersection
         self.resolve_candidates:list[int] = []
@@ -73,17 +75,35 @@ class Map(UserList):
             self.is_candidate.append(0)
 
 
-    def build(self, _collection:Collection):
+    def prepare(self, 
+                _states:list[int],
+                _module_groups:list[MET_PG_curve_module_collection]):
+        
+        for state in _states:
+            if not (mn := _module_groups[state].collect_curve_names()): 
+                    continue
+
+            cm = CurveModule(state, mn)
+            self.append(cm)
+
+
+    def build(self, _collection:Collection) -> tuple[float, float, int]:
+        """ Returns the total build time and the total time resolving intersections """
         # Prepare modules
         cm:CurveModule
         for k, cm in enumerate(self.data):
             cm.prepare(k, _collection)
 
         # Build modules
-        print('Building map...')
+        if self.debug: print('Building map...')
+
+        start_time = perf_counter()
+
+        resolve_time = 0
+        total_lowest_hits = 0
 
         for k, cm in enumerate(self.data):
-            print(f'Iteration: {k} / {len(self.data) - 1}')
+            if self.debug: print(f'Iteration: {k} / {len(self.data) - 1}')
             cm.next_module()
 
             # Align
@@ -96,8 +116,16 @@ class Map(UserList):
             # Resolve intersections
             if not self.settings.resolve_intersection: 
                 continue
-            
-            self.resolve_intersections(k)
+
+            s = perf_counter()
+            total_lowest_hits += self.resolve_intersections(k)
+            e = perf_counter()
+
+            resolve_time += e - s
+
+        end_time = perf_counter()
+
+        return end_time - start_time, resolve_time, total_lowest_hits
 
 
     def check_intersection(self, _index:int) -> int:
@@ -126,7 +154,7 @@ class Map(UserList):
 
 
     def resolve_intersections(self, _start:int) -> int:
-        print(f'Resolving intersections...')
+        if self.debug: print(f'Resolving intersections...')
         
         module_names_indices:list[list[int]] = []
         current_candidates:list[int] = []
@@ -156,7 +184,7 @@ class Map(UserList):
                 self.apply_configuration(current_candidates, permutation)
 
                 hits = self.check_intersections_range(_start)
-                print(f'Hits: {hits}')
+                if self.debug:  print(f'Hits: {hits}')
 
                 curr_iteration += 1
 
@@ -176,6 +204,8 @@ class Map(UserList):
             print('Applying best permutation')
             self.apply_configuration(best_candidates, best_permutation)
 
+        return lowest_hits
+
 
     def apply_configuration(self, _indices:list[int], _permutation:tuple[int, ...]) -> int:
         lowest_idx = len(self.data) - 1
@@ -190,7 +220,7 @@ class Map(UserList):
             if i < lowest_idx: 
                 lowest_idx = i
 
-        print(f'Applied permutation: {_permutation}, Objects: {names}')
+        if self.debug: print(f'Applied permutation: {_permutation}, Objects: {names}')
 
         # Align modules
         for k in range(lowest_idx, len(self.data), 1):
@@ -208,6 +238,79 @@ class Map(UserList):
 
 
 # -----------------------------------------------------------------------------
+def filter_states(_states:list[int], _settings:MET_SCENE_PG_map_gen_settings) -> list[int]:
+    if bpy.context.object:
+        bpy.ops.object.mode_set(mode='OBJECT')
+    
+    b3d_utils.deselect_all_objects()
+
+    new_states = []
+
+    k = -1
+    while True:
+        k += 1
+        
+        if k >= len(_states):
+            break
+
+        if (length := _settings.length) != -1 and k >= length:
+            break
+
+        state = _states[k]
+
+        # Handle specific cases:
+        # Handle state compared to the next state
+        if (n := k + 1) < len(_states):
+            next_state = _states[n]
+
+            # Case 1: Jump -> WallClimbing
+            # To go into WallClimbing the jump distance should be short, but the some jump modules can be to long. To solve this we just ignore the jump.
+            if state == State.Jump:
+                if next_state == State.WallClimbing:
+                    continue
+            # Case 2: Jump -> WallRunningLeft or WallRunningRight
+            # Similar to Case 1, where the jump distance should be short.
+                if (next_state == State.WallRunningLeft or 
+                    next_state == State.WallRunningRight):
+                    continue
+
+            # Case 3: WallClimbing -> WallClimb180TurnJump
+            # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing and WallClimb180TurnJump should have its own wall.
+            elif state == State.WallClimbing:
+                if next_state == State.WallClimb180TurnJump:
+                    continue
+
+        # Handle state compared to the previous state
+        if (p := k - 1) >= 0:
+            prev_state = _states[p]
+
+            # Case 4: WallClimb180TurnJump -> Falling
+            # A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored.
+            if state == State.Falling:
+                if prev_state == State.WallClimb180TurnJump:
+                    continue
+
+        # Case 5: WallRunning[Left, Right] > WallRunJump > WallClimbing > WallClimbing180Jump
+        # If you want to perform a WallClimbing180Jump after a WallRun, then you cannot be wall running for long and you are always jumping perpendicular after a wall run. These properties are not implicitly adhered to when choosing modules from each state and can result in a non-solvable level segment. To solve this, extra states have been made, namely: `WallRunningLeftWallClimb180TurnJump` and `WallRunningRightWallClimb180TurnJump`.
+        if ((left := state == State.WallRunningLeft) or (right := state == State.WallRunningRight)):
+            if k + 3 < len(_states):
+                if (_states[k + 1] == State.WallRunJump and
+                    _states[k + 2] == State.WallClimbing and
+                    _states[k + 3] == State.WallClimb180TurnJump):
+
+                    if left: 
+                        state = State.WallRunningLeftWallClimb180TurnJump.value
+                    elif right: 
+                        state = State.WallRunningRightWallClimb180TurnJump.value
+
+                    k += 3
+        
+        new_states.append(state)
+
+    return new_states
+
+
+# -----------------------------------------------------------------------------
 # Operators
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -222,243 +325,20 @@ class MET_OT_generate_map(Operator):
         active_mc = mc.get_selected()
         gen_chain:MET_PG_generated_chain = active_mc.generated_chains.get_selected()
 
-        module_groups = get_curve_module_groups_prop(_context)
+        module_groups = get_curve_module_groups_prop(_context).items
 
         settings = get_medge_map_gen_settings(_context)
         
         time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-        collection = new_collection(f'GENERATED_{active_mc.name}_[{settings}]_{time}' )
+        collection = new_collection(f'GENERATED_{active_mc.name}_[{settings}]_{time}')
 
-        self.generate(gen_chain, module_groups.items, settings, collection)
+        states = filter_states(gen_chain.split(), settings)
 
-        return {'FINISHED'}
-
-
-    def generate(self, 
-                 _gen_chain:MET_PG_generated_chain, 
-                 _module_group:list[MET_PG_curve_module_collection], 
-                 _settings:MET_SCENE_PG_map_gen_settings, 
-                 _target_collection:Collection):
-    
-        if bpy.context.object:
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        b3d_utils.deselect_all_objects()
-
-        # Generation data
-        np.random.seed(_settings.seed)
-
-        states = _gen_chain.split()
-
-        map = Map(None, _settings)
-
-        # Instantiate all CurveModules
-        print('Instantiating CurveModules...')
-
-        k = -1
-        while True:
-            k += 1
-            
-            if k >= len(states):
-                break
-
-            if (length := _settings.length) != -1 and k >= length:
-                break
-
-            state = int(states[k])
-
-            # Handle specific cases:
-            # Handle state compared to the next state
-            if (n := k + 1) < len(states):
-                next_state = int(states[n])
-
-                # Case 1: Jump -> WallClimbing
-                # To go into WallClimbing the jump distance should be short, but the some jump modules can be to long. To solve this we just ignore the jump.
-                if state == State.Jump:
-                    if next_state == State.WallClimbing:
-                        print(f'{k} - Case 1')
-                        continue
-                # Case 2: Jump -> WallRunningLeft or WallRunningRight
-                # Similar to Case 1, where the jump distance should be short.
-                    if (next_state == State.WallRunningLeft or 
-                        next_state == State.WallRunningRight):
-                        print(f'{k} - Case 2')
-                        continue
-
-                # Case 3: WallClimbing -> WallClimb180TurnJump
-                # To do a WallClimb180TurnJump the height of the wall can be longer than the player can climb. WallClimbing can be followed by GrabPullUp. Therefore, we ignore WallClimbing and WallClimb180TurnJump should have its own wall.
-                elif state == State.WallClimbing:
-                    if next_state == State.WallClimb180TurnJump:
-                        print(f'{k} - Case 3')
-                        continue
-
-            # Handle state compared to the previous state
-            if (p := k - 1) >= 0:
-                prev_state = int(states[p])
-
-                # Case 4: WallClimb180TurnJump -> Falling
-                # A falling curve can go quite low and could end up back where the player came from. In this case, Falling will be ignored.
-                if state == State.Falling:
-                    if prev_state == State.WallClimb180TurnJump:
-                        print(f'{k} - Case 4')
-                        continue
-
-            # Case 5: WallRunning[Left, Right] > WallRunJump > WallClimbing > WallClimbing180Jump
-            # If you want to perform a WallClimbing180Jump after a WallRun, then you cannot be wall running for long and you are always jumping perpendicular after a wall run. These properties are not implicitly adhered to when choosing modules from each state and can result in a non-solvable level segment. To solve this, extra states have been made, namely: `WallRunningLeftWallClimb180TurnJump` and `WallRunningRightWallClimb180TurnJump`.
-            if ((left := state == State.WallRunningLeft) or (right := state == State.WallRunningRight)):
-                if k + 3 < len(states):
-                    if (int(states[k + 1]) == State.WallRunJump and
-                        int(states[k + 2]) == State.WallClimbing and
-                        int(states[k + 3]) == State.WallClimb180TurnJump):
-                        print(f'{k} - Case 5')
-
-                        if left: 
-                            state = State.WallRunningLeftWallClimb180TurnJump.value
-                        elif right: 
-                            state = State.WallRunningRightWallClimb180TurnJump.value
-
-                        k += 3
-            
-            if not (mn := _module_group[state].collect_curve_names()): 
-                continue
-
-            cm = CurveModule(state, mn)
-            map.append(cm)
-
-        # Build the map
-        map.build(_target_collection)
-
-        print('Finished!')
-
-
-# # -----------------------------------------------------------------------------
-# class MET_OT_generate_all_maps(Operator):
-#     bl_idname = 'medge_generate.generate_all_maps'
-#     bl_label = 'Generate All Maps'
-#     bl_options = {'UNDO'}
-
-
-#     def execute(self, _context:Context):
-#         mc = get_markov_chains_prop(_context)
-#         active_mc = mc.get_selected()
-
-#         module_groups = get_curve_module_groups_prop(_context)
-
-#         settings = get_medge_map_gen_settings(_context)
-
-#         for  gen_chain in active_mc.generated_chains.items:
-#             time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
-#             collection = new_collection(f'POPULATED_{active_mc.name}_[{settings}]_{time}' )
-
-#             generate(gen_chain, module_groups.items, settings, collection)
-
-#         return {'FINISHED'}
-
-
-# -----------------------------------------------------------------------------
-# Export
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-class MET_OT_prepare_for_export(Operator):
-    bl_idname = 'medge_generate.prepare_for_export'
-    bl_label = 'Prepare For Export'
-    bl_options = {'UNDO'}
-
-
-    def execute(self, _context:Context):
-        collection = get_active_collection()
-        settings = get_medge_map_gen_settings(_context)
-        self.prepare_for_export(settings, collection)
+        map = Map(None, settings)
+        map.prepare(states, module_groups)
+        map.build(collection)
 
         return {'FINISHED'}
-    
-
-    def prepare_for_export(self, _settings:MET_SCENE_PG_map_gen_settings, _collection:Collection):
-        new_collection = b3d_utils.new_collection('PrepareForExport', _collection)
-
-        # Add player start
-        bpy.ops.medge_map_editor.add_actor(type='PLAYER_START')
-        ps = bpy.context.object
-
-        b3d_utils.link_object_to_scene(ps, new_collection)
-        
-        ps.location = Vector((0, 0, 0))
-
-        # Add directional light
-        bpy.ops.object.light_add(type='SUN', align='WORLD', location=(0, 0, 3), scale=(1, 1, 1))
-        light = bpy.context.object
-
-        b3d_utils.link_object_to_scene(light, new_collection)
-
-        # Add killvolume
-        scale = 500
-
-        bpy.ops.medge_map_editor.add_actor(type='KILL_VOLUME')
-        kv = bpy.context.object
-
-        b3d_utils.link_object_to_scene(kv, new_collection)
-
-        kv.location = 0, 0, -50
-        kv.scale = scale, scale, 10
-
-        # Add skydome top
-        scale = 7000
-        bpy.ops.medge_map_editor.add_skydome()
-        sd = bpy.context.object
-
-        b3d_utils.link_object_to_scene(sd, new_collection)
-
-        sd.location = 0, 0, 0
-        sd.scale = scale, scale, scale
-
-        if _settings.skydome:
-            sd.medge_actor.static_mesh.use_prefab = True
-            sd.medge_actor.static_mesh.prefab = _settings.skydome
-
-        if _settings.only_top: return
-
-        # Add skydome bottom
-        bpy.ops.medge_map_editor.add_skydome()
-        sd = bpy.context.object
-        b3d_utils.link_object_to_scene(sd, new_collection)
-
-        sd.location = (0, 0, 0)
-        sd.scale = (scale, scale, scale)
-        sd.rotation_euler.x = pi
-            
-        if _settings.skydome:
-            sd.medge_actor.static_mesh.use_prefab = True
-            sd.medge_actor.static_mesh.prefab = _settings.skydome
-
-
-# -----------------------------------------------------------------------------
-class MET_OT_export_t3d(Operator):
-    bl_idname = 'medge_generate.export_t3d'
-    bl_label = 'Export T3D'
-    bl_options = {'UNDO'}
-
-
-    def execute(self, _context:Context):
-        collection = get_active_collection()
-        self.export(collection)
-
-        return {'FINISHED'}
-    
-
-    def export(self, _collection:Collection):
-        b3d_utils.deselect_all_objects()
-
-        for obj in _collection.all_objects:
-            if obj.type != 'LIGHT':
-                if obj.medge_actor.type == 'NONE': continue
-            
-            b3d_utils.select_object(obj)
-
-        bpy.ops.object.parent_clear(type='CLEAR_KEEP_TRANSFORM')
-        
-        bpy.ops.medge_map_editor.t3d_export('INVOKE_DEFAULT', selected_collection=True)
-
-        bpy.ops.ed.undo()
 
 
 # -----------------------------------------------------------------------------
@@ -502,32 +382,11 @@ class MET_PT_generate_map(MEdgeToolsPanel, GenerateTab, Panel):
         col.separator(factor=2)
         b3d_utils.draw_box(col, 'Select Generated Chain')
 
-        col.separator()
-        col.operator(MET_OT_generate_map.bl_idname)
-
-
-# -----------------------------------------------------------------------------
-class MET_PT_export_map(MEdgeToolsPanel, ExportTab, Panel):
-    bl_label = 'Export'
-
-
-    def draw(self, _context:Context):
-        layout = self.layout
-        layout.use_property_decorate = False
-        layout.use_property_split = True
-
-        col = layout.column(align=True)
-
-        b3d_utils.draw_box(col, 'Select Collection')
-
-        settings = get_medge_map_gen_settings(_context)
-
-        col.separator()
-        col.prop(settings, 'skydome')
-        col.prop(settings, 'only_top')
-        col.separator()
-        col.operator(MET_OT_prepare_for_export.bl_idname)
-        col.operator(MET_OT_export_t3d.bl_idname)
+        col.separator() 
+        split = col.split(factor=0.07, align=True)
+        split.scale_y = 1.4
+        split.operator('wm.console_toggle', icon='CONSOLE', text='')
+        split.operator(MET_OT_generate_map.bl_idname)
 
 
 # -----------------------------------------------------------------------------

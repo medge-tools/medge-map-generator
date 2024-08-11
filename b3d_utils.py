@@ -54,6 +54,14 @@ def new_collection(_name:str, _unique=True, _parent:Collection|str=None):
 
 
 # -----------------------------------------------------------------------------
+def delete_hierarchy(_collection:Collection):
+    for c in _collection.children:
+        delete_hierarchy(c)
+
+    bpy.data.collections.remove(_collection, do_unlink=True)
+
+
+# -----------------------------------------------------------------------------
 # Object
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------

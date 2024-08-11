@@ -1,5 +1,5 @@
 import bpy, bmesh, blf
-from   bpy.types           import PropertyGroup, Object, Mesh, MeshVertex, Operator, Context, Panel, SpaceView3D
+from   bpy.types           import PropertyGroup, Object, Mesh, MeshVertex, Operator, Context, Panel, SpaceView3D, Scene
 from   bpy.props           import BoolProperty, FloatProperty, FloatVectorProperty, IntProperty, StringProperty, PointerProperty
 from   bpy_extras          import view3d_utils
 from   bpy_extras.io_utils import ImportHelper
@@ -326,7 +326,7 @@ def dataset_sequences(_obj:Object) -> Generator[tuple[int, list[Vector], float, 
 # region Property Groups
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-class MET_DS_PG_vis_settings(PropertyGroup):
+class MET_PG_vis_settings(PropertyGroup):
 
     to_name:           BoolProperty(name='To Name', default=False)
     only_selection:    BoolProperty(name='Only Selection', default=False)
@@ -339,7 +339,7 @@ class MET_DS_PG_vis_settings(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
-class MET_DS_PG_ops_settings(PropertyGroup):
+class MET_PG_ops_settings(PropertyGroup):
 
     use_filter: BoolProperty(name='Use Filter')
     restrict:   BoolProperty(name='Restrict')
@@ -349,16 +349,16 @@ class MET_DS_PG_ops_settings(PropertyGroup):
 
 
 # -----------------------------------------------------------------------------
-class MET_MESH_PG_dataset(PropertyGroup):
+class MET_SCENE_PG_datasettings(PropertyGroup):
 
-    def get_vis_settings(self) -> MET_DS_PG_vis_settings:
+    def get_vis_settings(self) -> MET_PG_vis_settings:
         return self.vis_settings
 
-    def get_ops_settings(self) -> MET_DS_PG_ops_settings:
+    def get_ops_settings(self) -> MET_PG_ops_settings:
         return self.ops_settings
 
-    vis_settings: PointerProperty(type=MET_DS_PG_vis_settings)
-    ops_settings: PointerProperty(type=MET_DS_PG_ops_settings)
+    vis_settings: PointerProperty(type=MET_PG_vis_settings)
+    ops_settings: PointerProperty(type=MET_PG_ops_settings)
 
 # endregion
 
@@ -458,7 +458,7 @@ class MET_OT_toggle_dataset_vis(Operator):
         chain_start_layer = get_layer(bm, Attribute.SEQUENCE_START) 
 
         # Settings
-        vis_settings      = get_dataset_prop(obj).get_vis_settings()
+        vis_settings      = get_datasettings_prop(_context).get_vis_settings()
         min_draw_distance = vis_settings.min_draw_distance
         max_draw_distance = vis_settings.max_draw_distance
         default_color     = vis_settings.default_color
@@ -565,7 +565,7 @@ class MET_OT_set_state(Operator):
 
     def execute(self, _context:Context):
         obj = _context.object
-        settings = get_dataset_prop(obj).get_ops_settings()
+        settings = get_datasettings_prop(_context).get_ops_settings()
         
         bm = b3d_utils.get_bmesh_from_object(obj)
 
@@ -593,18 +593,29 @@ class MET_OT_select_transitions(Operator):
 
 
     def execute(self, _context:Context):
-        obj = _context.object
+        settings = get_datasettings_prop(_context).get_ops_settings()
 
-        settings = get_dataset_prop(obj).get_ops_settings()
-        filter = settings.filter
-        restrict = settings.restrict
+        count = 0.0
+        objs = _context.selected_objects
+
+        for obj in objs:
+            count += self.selected_transitions(obj, settings)
+
+        self.report({'INFO'}, f'{count / len(objs)} average transitions')
+
+        return {'FINISHED'}
+    
+
+    def selected_transitions(self, _obj:Object, _settings:MET_PG_ops_settings) -> int:
+        filter = _settings.filter
+        restrict = _settings.restrict
 
         # Transform str to int
         if filter:
             filter = filter.split(',')
             filter = [int(s) if s.isnumeric() else State[s] for s in filter]
 
-        mesh = obj.data
+        mesh = _obj.data
         bm = bmesh.from_edit_mesh(mesh)
 
         # Select transitions
@@ -636,9 +647,7 @@ class MET_OT_select_transitions(Operator):
 
         bmesh.update_edit_mesh(mesh)
 
-        self.report({'INFO'}, f'{count} transitions')
-
-        return {'FINISHED'}
+        return count
     
 
 # -----------------------------------------------------------------------------
@@ -650,14 +659,14 @@ class MET_OT_select_states(Operator):
     @classmethod
     def poll(cls, _context:Context):
         obj = _context.object
-        filter = get_dataset_prop(obj).get_ops_settings().filter
+        filter = get_datasettings_prop(_context).get_ops_settings().filter
 
         return filter and is_dataset(obj) and obj.mode == 'EDIT'
 
 
     def execute(self, _context:Context):
         obj = _context.object
-        filter = get_dataset_prop(obj).get_ops_settings().filter
+        filter = get_datasettings_prop(_context).get_ops_settings().filter
 
         # Transform str to int
         if filter:
@@ -778,13 +787,13 @@ class MET_PT_dataset(MEdgeToolsPanel, DatasetTab, Panel):
             b3d_utils.draw_box(col, 'Select Object')
             return
 
-        if not (dataset := get_dataset_prop(obj)): 
+        if not (settings := get_datasettings_prop(_context)): 
             col.operator(MET_OT_convert_to_dataset.bl_idname)
             b3d_utils.draw_box(col, 'Make sure it is a polyline')
         
             return
         
-        settings = dataset.get_ops_settings()
+        settings = settings.get_ops_settings()
         
         if not settings: return
 
@@ -840,10 +849,9 @@ class MET_PT_dataset_vis(MEdgeToolsPanel, DatasetTab, Panel):
             b3d_utils.draw_box(col, 'Visualization renders in Edit Mode')
             return
 
-        if not (obj := _context.active_object): return
-        if not (dataset := get_dataset_prop(obj)): return
+        if not (settings := get_datasettings_prop(_context)): return
 
-        vis_settings = dataset.get_vis_settings()
+        vis_settings = settings.get_vis_settings()
         
         col = layout.column(align=True)
         col.separator()
@@ -868,10 +876,8 @@ class MET_PT_dataset_vis(MEdgeToolsPanel, DatasetTab, Panel):
 # Scene Utils
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def get_dataset_prop(_obj:Object) -> MET_MESH_PG_dataset:
-    if is_dataset(_obj):
-        return _obj.data.medge_dataset
-    return None
+def get_datasettings_prop(_context:Context) -> MET_SCENE_PG_datasettings:
+    return _context.scene.medge_datasettings
 
 
 # -----------------------------------------------------------------------------
@@ -884,11 +890,11 @@ def menu_func_import_dataset(self, _context:Context):
 
 # -----------------------------------------------------------------------------
 def register():
-    Mesh.medge_dataset = PointerProperty(type=MET_MESH_PG_dataset)
+    Scene.medge_datasettings = PointerProperty(type=MET_SCENE_PG_datasettings)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_dataset)
 
 
 # -----------------------------------------------------------------------------
 def unregister():
     bpy.types.TOPBAR_MT_file_import.remove(menu_func_import_dataset)
-    if hasattr(Mesh, 'medge_dataset'): del Mesh.medge_dataset
+    if hasattr(Mesh, 'medge_datasettings'): del Scene.medge_datasettings
