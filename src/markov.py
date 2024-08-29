@@ -340,11 +340,13 @@ class MET_PT_markov_chains_data(MEdgeToolsPanel, GenerateTab, Panel):
 
             col.separator()
             col.operator(MET_OT_generate_chain.bl_idname)
-            col.separator()
-            col.prop(mc, 'filepath')
-            col.prop(mc, 'filter_zeros')
-            col.separator()
-            col.operator(MET_OT_transition_matrix_to_csv.bl_idname, text='To CSV')
+            
+            if get_prefs().enable_evaluation:
+                col.separator()
+                col.prop(mc, 'filepath')
+                col.prop(mc, 'filter_zeros')
+                col.separator()
+                col.operator(MET_OT_transition_matrix_to_csv.bl_idname, text='To CSV')
 
 
 # -----------------------------------------------------------------------------
