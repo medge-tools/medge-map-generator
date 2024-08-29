@@ -61,6 +61,8 @@ The combination of some modules can create non-solvable situations. Therefore, b
 
 5. `WallRunning[Left, Right] > WallRunJump > WallClimbing > WallClimbing180Jump` If you want to perform a WallClimbing180Jump after a WallRun, then you cannot be wall running for long and you are always jumping perpendicular after a wall run. These properties are not implicitly adhered to when choosing modules from each state and can result in a non-solvable level segment. To solve this, extra states have been made, namely: `WallRunningLeftWallClimb180TurnJump` and `WallRunningRightWallClimb180TurnJump`.
 
+6. *(TODO)* `WallClimbing180Jump > Falling > (Walking) > RumpSlide` This always results in non-solvable intersections.
+
 ## How To Modify
 
 The files that are specific to Mirror's Edge are:

@@ -2,8 +2,10 @@ from bpy.types import Operator, Context, Object, PropertyGroup, Scene, Collectio
 from bpy.props import StringProperty, PointerProperty, BoolProperty, IntProperty, CollectionProperty
 
 import numpy as np
+import csv
 
 from ..b3d_utils import GenericList, draw_generic_list, multiline_text, draw_box
+from ..prefs     import get_prefs
 from .gui        import MEdgeToolsPanel, GenerateTab
 from .dataset    import is_dataset, dataset_sequences, get_datasettings_prop, update_attributes
 from .movement   import State
@@ -82,6 +84,29 @@ class MarkovChain:
             prev_state = next_state
 
         return gen_chain
+    
+
+    def to_csv(self, path, filter_zeros=True) -> str:
+        file = path + f'{self.name}_transition_matrix.csv'
+
+        with open(file, 'w', newline='') as f:
+            csv_writer = csv.writer(f)
+            
+            states = ['']
+            states.extend([State(k).name for k in range(len(State))])
+            csv_writer.writerow(states)
+
+            for k, row in enumerate(self.transition_matrix):
+                if filter_zeros:
+                    if all(v == 0 for v in row):
+                        continue
+
+                r = [State(k).name]
+                r.extend(row)
+
+                csv_writer.writerow(r)
+
+        return file
 
 # -----------------------------------------------------------------------------
 # PropertyGroups
@@ -175,17 +200,18 @@ class MET_PG_markov_chain(PropertyGroup):
         gs.chain = self.handmade_chain
 
 
-    name:               StringProperty(name='Name', get=__get_name)
-    collection:         PointerProperty(type=Collection, name='Collection')
+    name:             StringProperty(name='Name', get=__get_name)
+    collection:       PointerProperty(type=Collection, name='Collection')
 
-    length:             IntProperty(name='Length', default=96, min=0)
-    seed:               IntProperty(name='Seed', default=2024, min=0)
+    length:           IntProperty(name='Length', default=96, min=0)
+    seed:             IntProperty(name='Seed', default=2024, min=0)
 
-    generated_chains:   PointerProperty(type=MET_PG_generated_chain_list)
-    handmade_chain:     StringProperty(name='Handmade Chain')
-    show_chain:         BoolProperty(name='Show Chain')
+    generated_chains: PointerProperty(type=MET_PG_generated_chain_list)
+    handmade_chain:   StringProperty(name='Handmade Chain')
+    show_chain:       BoolProperty(name='Show Chain')
 
-
+    filepath:         StringProperty(name='Filepath', default='C:\\')
+    filter_zeros:     BoolProperty(name='Filter Zeros', default=True)
 
 # -----------------------------------------------------------------------------
 class MET_SCENE_PG_markov_chain_list(PropertyGroup, GenericList):
@@ -260,7 +286,22 @@ class MET_OT_add_handmade_chain(Operator):
         mc.get_selected().add_handmade_chain()
         
         return {'FINISHED'}    
-    
+
+
+# -----------------------------------------------------------------------------
+class MET_OT_transition_matrix_to_csv(Operator):
+    bl_idname = 'medge_generate.transition_matrix_to_csv'
+    bl_label  = 'Transition Matrix To CSV'
+
+
+    def execute(self, _context:Context):
+        markov_chains = get_markov_chains_prop(_context)
+        item = markov_chains.get_selected()
+        path = item.data().to_csv(item.filepath, item.filter_zeros)
+        
+        self.report({'INFO'}, f'File saved to {path}')
+
+        return {'FINISHED'} 
 
 # -----------------------------------------------------------------------------
 # GUI
@@ -299,6 +340,11 @@ class MET_PT_markov_chains_data(MEdgeToolsPanel, GenerateTab, Panel):
 
             col.separator()
             col.operator(MET_OT_generate_chain.bl_idname)
+            col.separator()
+            col.prop(mc, 'filepath')
+            col.prop(mc, 'filter_zeros')
+            col.separator()
+            col.operator(MET_OT_transition_matrix_to_csv.bl_idname, text='To CSV')
 
 
 # -----------------------------------------------------------------------------
