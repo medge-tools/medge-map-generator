@@ -87,8 +87,7 @@ class Map(UserList):
             self.append(cm)
 
 
-    def build(self, _collection:Collection) -> tuple[float, float, int]:
-        """ Returns the total build time and the total time resolving intersections """
+    def build(self, _collection:Collection):
         # Prepare modules
         cm:CurveModule
         for k, cm in enumerate(self.data):
@@ -99,15 +98,22 @@ class Map(UserList):
 
         start_time = perf_counter()
 
-        resolve_time = 0
-        total_lowest_hits = 0
+        place_times = []
+        resolve_times = []
+        hits = []
 
         for k, cm in enumerate(self.data):
             if self.debug: print(f'Iteration: {k} / {len(self.data) - 1}')
+            st = perf_counter()
             cm.next_module()
 
             # Align
             self.align_module(k)
+            et = perf_counter()
+
+            place_times.append(et - st)
+            hits.append(0)
+            resolve_times.append(0)
 
             # Check intersections
             if self.check_intersection(k) == 0: 
@@ -117,15 +123,17 @@ class Map(UserList):
             if not self.settings.resolve_intersection: 
                 continue
 
-            s = perf_counter()
-            total_lowest_hits += self.resolve_intersections(k)
-            e = perf_counter()
+            st = perf_counter()
+            hits[-1] = self.resolve_intersections(k)
+            et = perf_counter()
 
-            resolve_time += e - s
+            resolve_times[-1] = et - st
 
         end_time = perf_counter()
 
-        return end_time - start_time, resolve_time, total_lowest_hits
+        total_time = end_time - start_time
+
+        return total_time, place_times, resolve_times, hits
 
 
     def check_intersection(self, _index:int) -> int:

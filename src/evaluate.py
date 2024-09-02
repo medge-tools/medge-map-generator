@@ -76,32 +76,50 @@ class MET_OT_evaluate_computational_performance(Operator):
         time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
         main_collection = new_collection(f'EVALUTATION_[{eval_settings}]_{time}' )
 
-        data:list[tuple[float, float, int]] = []
+        data_all = []
+        data_total = []
 
         for k, gen_chain in enumerate(active_mc.generated_chains.items):
-            print(f'Iteration {k}')
+            print(f'Iteration {k}', end=', ')
 
             time = datetime.now().strftime('%Y-%m-%d_%H:%M:%S')
             collection = new_collection(f'{k}_POPULATED_{active_mc.name}_[{gen_settings}]_{time}', _parent=main_collection )
 
             states = filter_states(gen_chain.split(), gen_settings)
+            print(str(len(states)) + ' states')
 
             map = Map(None, gen_settings)
             map.debug = False
             map.prepare(states, module_groups)
-            total_time, resolve_time, total_hits = map.build(collection)
+            total_time, place_times, resolve_times, lowest_hits = map.build(collection)
 
-            data.append((total_time, resolve_time, total_hits))
+            # Append data
+            for k, (p, r, h) in enumerate(zip(place_times, resolve_times, lowest_hits)):
+                data_all.append((k, p, r, h))
+            
+            rt = sum(resolve_times)
+            lh = sum(lowest_hits)
+            data_total.append((len(states), total_time, rt, lh))
+            
+            print(f'{round(total_time, 2)}, {round(rt, 2)}, {lh}')
 
         # Export data
-        path = eval_settings.file_path + eval_settings.file_name + '.csv'
+        path = eval_settings.file_path + eval_settings.file_name
+        filepath1 = f'{path}_all.csv'
+        filepath2 = f'{path}_total.csv'
 
-        exists = os.path.exists(path)
+        exists1 = os.path.exists(filepath1)
+        exists2 = os.path.exists(filepath2)
 
-        with open(path, 'a', newline='') as file:
+        with open(filepath1, 'a', newline='') as file:
             writer = csv.writer(file)
-            if not exists: writer.writerow(('total_time', 'resolve_time', 'total_lowest_hits'))
-            writer.writerows(data)
+            if not exists1: writer.writerow(['length', 'place_time', 'resolve_time', 'lowest_hits'])
+            writer.writerows(data_all)
+
+        with open(filepath2, 'a', newline='') as file:
+            writer = csv.writer(file)
+            if not exists2: writer.writerow(['length', 'total_time', 'total_resolve_time', 'total_lowest_hits'])
+            writer.writerows(data_total)
 
         self.report({'INFO'}, f'Data saved to: {path}')
 
