@@ -9,7 +9,7 @@ from   gpu_extras.batch  import batch_for_shader
 from   bpy.types         import Object, Mesh, Operator, Context, UIList, UILayout, PropertyGroup, ID, Collection, Curve, Spline, Driver, DriverVariable
 from   bpy.props         import *
 from   bmesh.types       import BMesh
-from   mathutils         import Vector, Matrix, Euler
+from   mathutils         import Vector, Matrix
 from   mathutils.bvhtree import BVHTree
 
 import math
@@ -22,35 +22,50 @@ import textwrap
 # Collection
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-def new_collection(_name:str, _unique=True, _parent:Collection|str=None):
+def new_collection(_name:str, _parent:Collection|str=None):
     """
-    Collection will be automatically created if it doesn't exists
+    Collection will be created if it doesn't exists
     If `_parent == None`, then the object will be linked to the root collection
     """    
-    if _unique:
-        coll = bpy.context.blend_data.collections.get(_name)
+    data_collections = bpy.context.blend_data.collections
+    scene_collection = bpy.context.scene.collection
 
-        if not coll:
-            coll = bpy.data.collections.new(_name)
-    else:
+    coll = bpy.context.blend_data.collections.get(_name)
+
+    if not coll:
         coll = bpy.data.collections.new(_name)
 
-    if _parent:
-        p_coll = _parent
+        if _parent:
+            p_coll = _parent
 
-        if isinstance(_parent, str):
-            p_coll:Collection = bpy.context.blend_data.collections.get(_parent)
+            if isinstance(_parent, str):
+                p_coll:Collection = data_collections.get(_parent)
 
-            if not p_coll:
-                p_coll = bpy.data.collections.new(_parent)
-                bpy.context.scene.collection.children.link(p_coll)
+                if not p_coll:
+                    p_coll = bpy.data.collections.new(_parent)
+                    scene_collection.children.link(p_coll)
 
-        p_coll.children.link(coll)
+            p_coll.children.link(coll)
 
-    else:
-        bpy.context.scene.collection.children.link(coll)
+        else:
+            scene_collection.children.link(coll)
 
     return coll
+
+
+def get_selected_collection_names() -> list[str]:
+    area  = next(area for area in bpy.context.window.screen.areas if area.type == 'OUTLINER')
+
+    with bpy.context.temp_override(
+        window=bpy.context.window,
+        area=area,
+        region=next(region for region in area.regions if region.type == 'WINDOW'),
+        screen=bpy.context.window.screen):
+
+        selection = bpy.context.selected_ids
+        selected_collections = [sel.name for sel in selection if sel.rna_type.name == 'Collection']
+        
+        return selected_collections
 
 
 # -----------------------------------------------------------------------------
@@ -155,14 +170,14 @@ def link_object_to_scene(_obj:Object, _collection:Collection|str=None, _clear_us
 
 
 # -----------------------------------------------------------------------------
-def new_object(_data:ID, _name:str, _collection:Collection|str=None, _parent:Object=None, _set_active=True):
+def new_object(_data:ID, _name:str, _collection:Collection|str=None, _parent:Object=None, _keep_world_location=True, _set_active=True):
     obj = bpy.data.objects.new(_name, _data)
     obj.location = bpy.context.scene.cursor.location
 
     link_object_to_scene(obj, _collection)
 
     if _parent: 
-        set_parent(obj, _parent)
+        set_parent(obj, _parent, _keep_world_location)
 
     if _set_active:
         set_active_object(obj)
@@ -240,23 +255,6 @@ def join_objects(_objects:list[Object]) -> Object:
 # Object Transformations
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
-# Rotation mode: 
-#   https://gist.github.com/behreajj/2dbb6fb7cee78c167cd85085e67bcdf6
-# Mirror rotation: 
-#   https://www.gamedev.net/forums/topic/#599824-mirroring-a-quaternion-against-the-yz-plane/
-def get_rotation_mirrored_x_axis(_obj:Object) -> Euler:
-    prev_rot_mode = _obj.rotation_mode
-    _obj.rotation_mode = 'QUATERNION'
-
-    q = _obj.rotation_quaternion.copy()
-    q.x *= -1
-    q.w *= -1
-    _obj.rotation_mode = prev_rot_mode
-
-    return q.to_euler()
-
-
-# -----------------------------------------------------------------------------
 # https://blender.stackexchange.com/questions/159538/how-to-apply-all-transformations-to-an-object-at-low-level
 def apply_all_transforms(_obj:Object):
     mb = _obj.matrix_basis
@@ -279,8 +277,8 @@ def update_matrices(_obj:Object):
 
     else:
         _obj.matrix_world = _obj.parent.matrix_world * \
-                           _obj.matrix_parent_inverse * \
-                           _obj.matrix_basis
+                            _obj.matrix_parent_inverse * \
+                            _obj.matrix_basis
         
 
 # -----------------------------------------------------------------------------
@@ -836,20 +834,6 @@ def multiline_text(_context:Context, _layout:UILayout, _text:str):
 
     for line in text_lines:
         _layout.label(text=line)
-
-
-# -----------------------------------------------------------------------------
-# Logging
-# -----------------------------------------------------------------------------
-# -----------------------------------------------------------------------------
-# https://blenderartists.org/t/print-to-info-area/1383928/3
-def print_console(_text:str):
-    for w in bpy.context.window_manager.windows:
-        s = w.screen
-        for a in s.areas:
-            if a.type == 'CONSOLE':
-                with bpy.context.temp_override(window=w, screen=s, area=a):
-                    bpy.ops.console.scrollback_append(text=_text, type="OUTPUT")
 
 
 # -----------------------------------------------------------------------------

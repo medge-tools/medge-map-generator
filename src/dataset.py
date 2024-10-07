@@ -391,31 +391,23 @@ class MET_OT_import_dataset(Operator, ImportHelper):
 # -----------------------------------------------------------------------------
 draw_handle_post_pixel = None
 
-VIS_ON = 'HIDE_OFF'
-VIS_OFF = 'HIDE_ON'
-vis_status = VIS_OFF
-
 
 class MET_OT_toggle_dataset_vis(Operator):
     bl_idname = 'medge_dataset.toggle_dataset_vis'
     bl_label  = 'Toggle Dataset Vis'
 
-    toggle : BoolProperty()
-
-
     def execute(self, _context:Context):
-        global vis_status
 
-        if not self.toggle:
+        toggle = get_toggle_vis(_context)
+
+        if toggle:
             self.add_handle(_context)
             _context.area.tag_redraw()
-            vis_status = VIS_ON
         else: 
             self.remove_handle()
             _context.area.tag_redraw()
-            vis_status = VIS_OFF
 
-        self.toggle = not self.toggle
+        toggle = not toggle
 
         return{'FINISHED'}
 
@@ -830,27 +822,23 @@ class MET_PT_dataset_vis(MEdgeToolsPanel, DatasetTab, Panel):
     bl_label = 'Visualization'
 
 
-    def draw(self, _context: Context):     
-        global vis_status
+    def draw_header(self,_context: Context ):
+        self.layout.prop(_context.window_manager, 'toggle_vis', text='')
 
+
+    def draw(self, _context: Context):     
         layout = self.layout
         layout.use_property_split = True
         layout.use_property_decorate = False
         
         col = layout.column(align=True)
-        row = col.row(align=True)
 
-        row.operator(MET_OT_toggle_dataset_vis.bl_idname, text='', icon=vis_status)
-        row.scale_x = 2
-        row.scale_y = 2
-
-        if _context.mode != 'EDIT_MESH' or vis_status == VIS_OFF:
-            col.separator()
+        if _context.mode != 'EDIT_MESH' or not get_toggle_vis(_context):
             b3d_utils.draw_box(col, 'Visualization renders in Edit Mode')
             return
-
+        
         if not (settings := get_datasettings_prop(_context)): return
-
+        
         vis_settings = settings.get_vis_settings()
         
         col = layout.column(align=True)
@@ -881,6 +869,11 @@ def get_datasettings_prop(_context:Context) -> MET_SCENE_PG_datasettings:
 
 
 # -----------------------------------------------------------------------------
+def get_toggle_vis(_context:Context) -> bpy.types.BoolProperty:
+    return _context.window_manager.toggle_vis
+
+
+# -----------------------------------------------------------------------------
 # Registration
 # -----------------------------------------------------------------------------
 # -----------------------------------------------------------------------------
@@ -889,9 +882,15 @@ def menu_func_import_dataset(self, _context:Context):
 
 
 # -----------------------------------------------------------------------------
+def __on_toggle_vis_update(self, _context:Context):
+    bpy.ops.medge_dataset.toggle_dataset_vis()
+
+
+# -----------------------------------------------------------------------------
 def register():
     Scene.medge_datasettings = PointerProperty(type=MET_SCENE_PG_datasettings)
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import_dataset)
+    bpy.types.WindowManager.toggle_vis = BoolProperty(name='Toggle Vis', default=False, update=__on_toggle_vis_update)
 
 
 # -----------------------------------------------------------------------------
